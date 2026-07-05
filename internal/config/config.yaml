@@ -4,3 +4,19 @@ app:
 server:
   ip: "localhost"
   port: 80
+
+database:
+  dsn: "host=localhost user=postgres password=postgres dbname=go_backend port=5432 sslmode=disable TimeZone=Asia/Shanghai"
+
+redis:
+  addr: "localhost:6379"
+  password: ""
+  db: 0
+
+email:
+  smtp_host: "smtp.qiye.aliyun.com"
+  smtp_port: 465
+  smtp_user: "godfree@elseif.site"
+  smtp_password: ""
+  from_address: "godfree@elseif.site"
+  site_base_url: "http://localhost:5173"

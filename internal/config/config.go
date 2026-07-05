@@ -9,8 +9,22 @@ import (
 )
 
 type Config struct {
-	App    AppConfig
-	Server ServerConfig
+	App      AppConfig
+	Server   ServerConfig
+	Database DatabaseConfig
+	Redis    RedisConfig
+	Email    EmailConfig
+	Captcha  CaptchaConfig
+}
+
+type DatabaseConfig struct {
+	DSN string
+}
+
+type RedisConfig struct {
+	Addr     string
+	Password string
+	DB       int
 }
 
 type AppConfig struct {
@@ -18,10 +32,26 @@ type AppConfig struct {
 }
 
 type ServerConfig struct {
-	IP           string
-	Port         int
-	ReadTimeout  int
-	WriteTimeout int
+	IP             string
+	Port           int
+	ReadTimeout    int
+	WriteTimeout   int
+	TrustedProxies []string
+}
+
+type EmailConfig struct {
+	SmtpHost     string
+	SmtpPort     int
+	SmtpUser     string
+	SmtpPassword string
+	FromAddress  string
+	SiteBaseURL  string
+}
+
+type CaptchaConfig struct {
+	Width  int
+	Height int
+	Length int
 }
 
 func Load(configPath string) *Config {
@@ -33,6 +63,12 @@ func Load(configPath string) *Config {
 	v.SetDefault("server.port", 8080)
 	v.SetDefault("server.readTimeout", 30)
 	v.SetDefault("server.writeTimeout", 30)
+	v.SetDefault("email.smtpPort", 465)
+	v.SetDefault("email.siteBaseURL", "http://localhost:5173")
+
+	v.SetDefault("captcha.width", 120)
+	v.SetDefault("captcha.height", 40)
+	v.SetDefault("captcha.length", 6)
 
 	// load config file
 	if configPath == "" {

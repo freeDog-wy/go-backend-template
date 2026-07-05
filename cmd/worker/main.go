@@ -4,11 +4,9 @@ import (
 	"context"
 	"flag"
 	"log"
-	"net/http"
 	"os"
 	"os/signal"
 	"syscall"
-	"time"
 
 	"github.com/freeDog-wy/go-backend-template/internal/config"
 )
@@ -20,11 +18,14 @@ func main() {
 
 	cfg := config.Load(configPath)
 
-	app := initApp(cfg)
+	worker := initWorker(cfg)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 
 	go func() {
-		if err := app.Run(); err != nil && err != http.ErrServerClosed {
-			log.Fatalf("server failed to start: %v", err)
+		if err := worker.Run(ctx); err != nil && err != context.Canceled {
+			log.Fatalf("worker stopped: %v", err)
 		}
 	}()
 
@@ -32,9 +33,6 @@ func main() {
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
 	<-quit
 
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-	if err := app.Shutdown(ctx); err != nil {
-		log.Fatalf("server forced to shutdown: %v", err)
-	}
+	cancel()
+	log.Println("worker shutting down")
 }
