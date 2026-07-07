@@ -8,11 +8,9 @@ import (
 	domainIdentity "github.com/freeDog-wy/go-backend-template/internal/domain/identity"
 	domainVerification "github.com/freeDog-wy/go-backend-template/internal/domain/verification"
 	"github.com/freeDog-wy/go-backend-template/internal/infra/cache"
-	"github.com/freeDog-wy/go-backend-template/internal/infra/database"
 	"github.com/freeDog-wy/go-backend-template/internal/infra/logging"
 	"github.com/freeDog-wy/go-backend-template/internal/infra/mq"
-	RepoIdentity "github.com/freeDog-wy/go-backend-template/internal/repository/identity"
-	SvcAuth "github.com/freeDog-wy/go-backend-template/internal/service/auth"
+	SvcVerification "github.com/freeDog-wy/go-backend-template/internal/service/verification"
 	"github.com/freeDog-wy/go-backend-template/pkg/email"
 )
 
@@ -35,10 +33,6 @@ func initWorker(cfg *config.Config) *Worker {
 		panic("failed to init redis: " + err.Error())
 	}
 
-	db := database.NewPostgresDB(cfg.Database.DSN)
-	database.RunAutoMigrate(db, cfg.App.Mode)
-	userRepo := RepoIdentity.New(db)
-
 	emailSender := email.New(email.Config{
 		SmtpHost:     cfg.Email.SmtpHost,
 		SmtpPort:     cfg.Email.SmtpPort,
@@ -47,8 +41,7 @@ func initWorker(cfg *config.Config) *Worker {
 		FromAddress:  cfg.Email.FromAddress,
 	})
 
-	// worker 不需要 tx/captcha/eventBus/pwdHasher（仅消费事件）
-	authSvc := SvcAuth.New(nil, userRepo, nil, nil, nil, emailSender, cfg.Email.SiteBaseURL, appLogger, nil)
+	verificationConsumer := SvcVerification.NewConsumer(emailSender, cfg.Email.SiteBaseURL, appLogger)
 
 	// —————————— 事件消费 ——————————
 	consumer := mq.NewRedisConsumer(rdb, "domain.events", "user-worker", "worker-1", appLogger)
@@ -66,7 +59,7 @@ func initWorker(cfg *config.Config) *Worker {
 		if err := json.Unmarshal(data, &evt); err != nil {
 			return err
 		}
-		return authSvc.OnEmailVerificationRequested(ctx, evt)
+		return verificationConsumer.OnEmailVerificationRequested(ctx, evt)
 	})
 
 	return &Worker{consumer: consumer}

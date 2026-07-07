@@ -2,12 +2,12 @@
 package crypto
 
 import (
-	svcUser "github.com/freeDog-wy/go-backend-template/internal/service/user"
+	"github.com/freeDog-wy/go-backend-template/internal/domain/shared"
 
 	"golang.org/x/crypto/bcrypt"
 )
 
-// BcryptHasher 基于 bcrypt 实现 service/user.PasswordHasher。
+// BcryptHasher 基于 bcrypt 实现 shared.PasswordHasher。
 type BcryptHasher struct {
 	cost int
 }
@@ -22,7 +22,7 @@ func NewBcryptHasher(cost int) *BcryptHasher {
 }
 
 // 编译期接口检查。
-var _ svcUser.PasswordHasher = (*BcryptHasher)(nil)
+var _ shared.PasswordHasher = (*BcryptHasher)(nil)
 
 func (h *BcryptHasher) Hash(plain string) (string, error) {
 	bytes, err := bcrypt.GenerateFromPassword([]byte(plain), h.cost)

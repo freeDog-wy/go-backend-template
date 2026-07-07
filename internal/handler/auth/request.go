@@ -1,6 +1,9 @@
 package auth
 
-import svcAuth "github.com/freeDog-wy/go-backend-template/internal/service/auth"
+import (
+	svcIdentity "github.com/freeDog-wy/go-backend-template/internal/service/identity"
+	svcVerification "github.com/freeDog-wy/go-backend-template/internal/service/verification"
+)
 
 // RegisterReq 注册请求 DTO。
 type RegisterReq struct {
@@ -12,8 +15,8 @@ type RegisterReq struct {
 }
 
 // ToCommand 转换为应用层命令。
-func (r *RegisterReq) ToCommand() svcAuth.RegisterCmd {
-	return svcAuth.RegisterCmd{
+func (r *RegisterReq) ToCommand() svcIdentity.RegisterCmd {
+	return svcIdentity.RegisterCmd{
 		Name:        r.Name,
 		Email:       r.Email,
 		Password:    r.Password,
@@ -26,8 +29,8 @@ type ResendVerificationReq struct {
 	Email string `json:"email" binding:"required,email"`
 }
 
-func (r *ResendVerificationReq) ToCommand() svcAuth.ResendVerificationCmd {
-	return svcAuth.ResendVerificationCmd{
+func (r *ResendVerificationReq) ToCommand() svcVerification.ResendVerificationCmd {
+	return svcVerification.ResendVerificationCmd{
 		Email: r.Email,
 	}
 }
@@ -36,8 +39,8 @@ type VerifyEmailReq struct {
 	Token string `json:"token" binding:"required"`
 }
 
-func (r *VerifyEmailReq) ToCommand() svcAuth.VerifyEmailCmd {
-	return svcAuth.VerifyEmailCmd{
+func (r *VerifyEmailReq) ToCommand() svcVerification.VerifyEmailCmd {
+	return svcVerification.VerifyEmailCmd{
 		Token: r.Token,
 	}
 }

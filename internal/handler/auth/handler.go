@@ -4,18 +4,23 @@ import (
 	"errors"
 
 	"github.com/freeDog-wy/go-backend-template/internal/handler"
-	svcAuth "github.com/freeDog-wy/go-backend-template/internal/service/auth"
+	svcIdentity "github.com/freeDog-wy/go-backend-template/internal/service/identity"
+	svcVerification "github.com/freeDog-wy/go-backend-template/internal/service/verification"
 
 	"github.com/gin-gonic/gin"
 )
 
 // Handler 认证 HTTP 处理器。
 type Handler struct {
-	svc *svcAuth.Service
+	identitySvc     *svcIdentity.Service
+	verificationSvc *svcVerification.Service
 }
 
-func New(svc *svcAuth.Service) *Handler {
-	return &Handler{svc: svc}
+func New(identitySvc *svcIdentity.Service, verificationSvc *svcVerification.Service) *Handler {
+	return &Handler{
+		identitySvc:     identitySvc,
+		verificationSvc: verificationSvc,
+	}
 }
 
 func (h *Handler) RegisterRoutes(route *gin.Engine) {
@@ -36,12 +41,12 @@ func (h *Handler) Register(c *gin.Context) {
 		return
 	}
 
-	result, err := h.svc.Register(c.Request.Context(), req.ToCommand())
+	result, err := h.identitySvc.Register(c.Request.Context(), req.ToCommand())
 	if err != nil {
 		switch {
-		case errors.Is(err, svcAuth.ErrInvalidCaptcha):
+		case errors.Is(err, svcIdentity.ErrInvalidCaptcha):
 			handler.Fail(c, "INVALID_CAPTCHA", "验证码错误")
-		case errors.Is(err, svcAuth.ErrEmailTaken):
+		case errors.Is(err, svcIdentity.ErrEmailTaken):
 			handler.Fail(c, "EMAIL_TAKEN", "邮箱已注册")
 		default:
 			handler.Fail(c, "INTERNAL_ERROR", err.Error())
@@ -59,7 +64,7 @@ func (h *Handler) ResendVerification(c *gin.Context) {
 		return
 	}
 
-	if err := h.svc.ResendVerification(c.Request.Context(), req.ToCommand()); err != nil {
+	if err := h.verificationSvc.ResendVerification(c.Request.Context(), req.ToCommand()); err != nil {
 		handler.Fail(c, "INTERNAL_ERROR", err.Error())
 		return
 	}
@@ -74,9 +79,9 @@ func (h *Handler) VerifyEmail(c *gin.Context) {
 		return
 	}
 
-	if err := h.svc.VerifyEmail(c.Request.Context(), req.ToCommand()); err != nil {
+	if err := h.verificationSvc.VerifyEmail(c.Request.Context(), req.ToCommand()); err != nil {
 		switch {
-		case errors.Is(err, svcAuth.ErrInvalidVerificationToken):
+		case errors.Is(err, svcVerification.ErrInvalidVerificationToken):
 			handler.Fail(c, "INVALID_VERIFICATION_TOKEN", "验证链接无效或已过期")
 		default:
 			handler.Fail(c, "INTERNAL_ERROR", err.Error())

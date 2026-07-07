@@ -19,9 +19,9 @@ import (
 	"github.com/freeDog-wy/go-backend-template/internal/infra/tracing"
 	RepoIdentity "github.com/freeDog-wy/go-backend-template/internal/repository/identity"
 	RepoVerification "github.com/freeDog-wy/go-backend-template/internal/repository/verification"
-	SvcAuth "github.com/freeDog-wy/go-backend-template/internal/service/auth"
+	SvcIdentity "github.com/freeDog-wy/go-backend-template/internal/service/identity"
+	SvcVerification "github.com/freeDog-wy/go-backend-template/internal/service/verification"
 	"github.com/freeDog-wy/go-backend-template/pkg/captcha"
-	"github.com/freeDog-wy/go-backend-template/pkg/email"
 
 	"github.com/gin-gonic/gin"
 	"go.opentelemetry.io/contrib/instrumentation/github.com/gin-gonic/gin/otelgin"
@@ -65,16 +65,6 @@ func initApp(cfg *config.Config) *App {
 	_ = rdb
 
 	// —————————— 外部服务适配器 ——————————
-	emailSender := email.New(email.Config{
-		SmtpHost:     cfg.Email.SmtpHost,
-		SmtpPort:     cfg.Email.SmtpPort,
-		SmtpUser:     cfg.Email.SmtpUser,
-		SmtpPassword: cfg.Email.SmtpPassword,
-		FromAddress:  cfg.Email.FromAddress,
-	})
-
-	_ = emailSender
-
 	captchaGenerator := captcha.NewWithStore(captcha.Config{
 		Width:  cfg.Captcha.Width,
 		Height: cfg.Captcha.Height,
@@ -94,11 +84,12 @@ func initApp(cfg *config.Config) *App {
 	pwdHasher := crypto.NewBcryptHasher(0)
 	eventBus := mq.NewRedisEventBus(rdb, "domain.events", appLogger)
 
-	authSvc := SvcAuth.New(txManager, userRepo, pwdHasher, captchaGenerator, verifyRepo, emailSender, cfg.Email.SiteBaseURL, appLogger, eventBus)
+	verificationSvc := SvcVerification.New(txManager, userRepo, verifyRepo, eventBus)
+	identitySvc := SvcIdentity.New(txManager, userRepo, pwdHasher, captchaGenerator, verificationSvc, appLogger, eventBus)
 
 	// —————————— 接口层 ——————————
 	captchaHdl := HdlCaptcha.New(captchaGenerator)
-	authHdl := HdlAuth.New(authSvc)
+	authHdl := HdlAuth.New(identitySvc, verificationSvc)
 	identityHdl := HdlIdentity.New()
 
 	registry := handler.NewRegistry()
