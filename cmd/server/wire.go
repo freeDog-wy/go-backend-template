@@ -8,16 +8,18 @@ import (
 
 	"github.com/freeDog-wy/go-backend-template/internal/config"
 	"github.com/freeDog-wy/go-backend-template/internal/handler"
+	HdlAuth "github.com/freeDog-wy/go-backend-template/internal/handler/auth"
 	HdlCaptcha "github.com/freeDog-wy/go-backend-template/internal/handler/captcha"
-	HdlUser "github.com/freeDog-wy/go-backend-template/internal/handler/user"
+	HdlIdentity "github.com/freeDog-wy/go-backend-template/internal/handler/identity"
 	"github.com/freeDog-wy/go-backend-template/internal/infra/cache"
 	"github.com/freeDog-wy/go-backend-template/internal/infra/crypto"
 	"github.com/freeDog-wy/go-backend-template/internal/infra/database"
 	"github.com/freeDog-wy/go-backend-template/internal/infra/logging"
 	"github.com/freeDog-wy/go-backend-template/internal/infra/mq"
 	"github.com/freeDog-wy/go-backend-template/internal/infra/tracing"
-	RepoUser "github.com/freeDog-wy/go-backend-template/internal/repository/user"
-	SvcUser "github.com/freeDog-wy/go-backend-template/internal/service/user"
+	RepoIdentity "github.com/freeDog-wy/go-backend-template/internal/repository/identity"
+	RepoVerification "github.com/freeDog-wy/go-backend-template/internal/repository/verification"
+	SvcAuth "github.com/freeDog-wy/go-backend-template/internal/service/auth"
 	"github.com/freeDog-wy/go-backend-template/pkg/captcha"
 	"github.com/freeDog-wy/go-backend-template/pkg/email"
 
@@ -85,22 +87,24 @@ func initApp(cfg *config.Config) *App {
 	txManager := database.NewTxManager(db)
 
 	// —————————— 仓储层 ——————————
-	repoUser := RepoUser.New(db)
+	userRepo := RepoIdentity.New(db)
+	verifyRepo := RepoVerification.New(db)
 
 	// —————————— 应用层 ——————————
 	pwdHasher := crypto.NewBcryptHasher(0)
-	eventBus  := mq.NewRedisEventBus(rdb, "domain.events", appLogger)
+	eventBus := mq.NewRedisEventBus(rdb, "domain.events", appLogger)
 
-	userSvc := SvcUser.New(txManager, repoUser, pwdHasher, captchaGenerator, emailSender, appLogger, eventBus)
-	_ = userSvc
+	authSvc := SvcAuth.New(txManager, userRepo, pwdHasher, captchaGenerator, verifyRepo, emailSender, cfg.Email.SiteBaseURL, appLogger, eventBus)
 
 	// —————————— 接口层 ——————————
 	captchaHdl := HdlCaptcha.New(captchaGenerator)
-	userHdl := HdlUser.New(userSvc)
+	authHdl := HdlAuth.New(authSvc)
+	identityHdl := HdlIdentity.New()
 
 	registry := handler.NewRegistry()
 	registry.Add(captchaHdl)
-	registry.Add(userHdl)
+	registry.Add(authHdl)
+	registry.Add(identityHdl)
 
 	// —————————— Gin 路由 ——————————
 	if cfg.App.Mode == "production" {

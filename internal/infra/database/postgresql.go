@@ -4,7 +4,8 @@ import (
 	"context"
 	"time"
 
-	modelUser "github.com/freeDog-wy/go-backend-template/internal/model/user"
+	modelIdentity "github.com/freeDog-wy/go-backend-template/internal/model/identity"
+	modelVerification "github.com/freeDog-wy/go-backend-template/internal/model/verification"
 
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
@@ -36,7 +37,7 @@ func RunAutoMigrate(db *gorm.DB, mode string) {
 	if mode == "production" {
 		return // 生产环境禁止自动建表
 	}
-	if err := db.AutoMigrate(&modelUser.User{}); err != nil {
+	if err := db.AutoMigrate(&modelIdentity.User{}, &modelVerification.EmailVerificationToken{}); err != nil {
 		panic("auto migrate failed: " + err.Error())
 	}
 }

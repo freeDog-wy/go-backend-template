@@ -5,13 +5,14 @@ import (
 	"encoding/json"
 
 	"github.com/freeDog-wy/go-backend-template/internal/config"
-	domainUser "github.com/freeDog-wy/go-backend-template/internal/domain/user"
+	domainIdentity "github.com/freeDog-wy/go-backend-template/internal/domain/identity"
+	domainVerification "github.com/freeDog-wy/go-backend-template/internal/domain/verification"
 	"github.com/freeDog-wy/go-backend-template/internal/infra/cache"
 	"github.com/freeDog-wy/go-backend-template/internal/infra/database"
 	"github.com/freeDog-wy/go-backend-template/internal/infra/logging"
 	"github.com/freeDog-wy/go-backend-template/internal/infra/mq"
-	RepoUser "github.com/freeDog-wy/go-backend-template/internal/repository/user"
-	SvcUser "github.com/freeDog-wy/go-backend-template/internal/service/user"
+	RepoIdentity "github.com/freeDog-wy/go-backend-template/internal/repository/identity"
+	SvcAuth "github.com/freeDog-wy/go-backend-template/internal/service/auth"
 	"github.com/freeDog-wy/go-backend-template/pkg/email"
 )
 
@@ -36,7 +37,7 @@ func initWorker(cfg *config.Config) *Worker {
 
 	db := database.NewPostgresDB(cfg.Database.DSN)
 	database.RunAutoMigrate(db, cfg.App.Mode)
-	userRepo := RepoUser.New(db)
+	userRepo := RepoIdentity.New(db)
 
 	emailSender := email.New(email.Config{
 		SmtpHost:     cfg.Email.SmtpHost,
@@ -47,17 +48,25 @@ func initWorker(cfg *config.Config) *Worker {
 	})
 
 	// worker 不需要 tx/captcha/eventBus/pwdHasher（仅消费事件）
-	userSvc := SvcUser.New(nil, userRepo, nil, nil, emailSender, appLogger, nil)
+	authSvc := SvcAuth.New(nil, userRepo, nil, nil, nil, emailSender, cfg.Email.SiteBaseURL, appLogger, nil)
 
 	// —————————— 事件消费 ——————————
 	consumer := mq.NewRedisConsumer(rdb, "domain.events", "user-worker", "worker-1", appLogger)
 
 	consumer.Handle("user.registered", func(ctx context.Context, data []byte) error {
-		var evt domainUser.Registered
+		var evt domainIdentity.Registered
 		if err := json.Unmarshal(data, &evt); err != nil {
 			return err
 		}
-		return userSvc.OnUserRegistered(ctx, evt)
+		return nil
+	})
+
+	consumer.Handle("user.email_verification_requested", func(ctx context.Context, data []byte) error {
+		var evt domainVerification.EmailVerificationRequested
+		if err := json.Unmarshal(data, &evt); err != nil {
+			return err
+		}
+		return authSvc.OnEmailVerificationRequested(ctx, evt)
 	})
 
 	return &Worker{consumer: consumer}
