@@ -5,11 +5,15 @@ import (
 	"encoding/json"
 
 	"github.com/freeDog-wy/go-backend-template/internal/config"
+	domainAudit "github.com/freeDog-wy/go-backend-template/internal/domain/audit"
 	domainIdentity "github.com/freeDog-wy/go-backend-template/internal/domain/identity"
 	domainVerification "github.com/freeDog-wy/go-backend-template/internal/domain/verification"
 	"github.com/freeDog-wy/go-backend-template/internal/infra/cache"
+	"github.com/freeDog-wy/go-backend-template/internal/infra/database"
 	"github.com/freeDog-wy/go-backend-template/internal/infra/logging"
 	"github.com/freeDog-wy/go-backend-template/internal/infra/mq"
+	RepoAudit "github.com/freeDog-wy/go-backend-template/internal/repository/audit"
+	SvcAudit "github.com/freeDog-wy/go-backend-template/internal/service/audit"
 	SvcVerification "github.com/freeDog-wy/go-backend-template/internal/service/verification"
 	"github.com/freeDog-wy/go-backend-template/pkg/email"
 )
@@ -32,6 +36,7 @@ func initWorker(cfg *config.Config) *Worker {
 	if err != nil {
 		panic("failed to init redis: " + err.Error())
 	}
+	db := database.NewPostgresDB(cfg.Database.DSN)
 
 	emailSender := email.New(email.Config{
 		SmtpHost:     cfg.Email.SmtpHost,
@@ -42,6 +47,7 @@ func initWorker(cfg *config.Config) *Worker {
 	})
 
 	verificationConsumer := SvcVerification.NewConsumer(emailSender, cfg.Email.SiteBaseURL, appLogger)
+	auditConsumer := SvcAudit.NewConsumer(RepoAudit.New(db), appLogger)
 
 	// —————————— 事件消费 ——————————
 	consumer := mq.NewRedisConsumer(rdb, "domain.events", "user-worker", "worker-1", appLogger)
@@ -60,6 +66,22 @@ func initWorker(cfg *config.Config) *Worker {
 			return err
 		}
 		return verificationConsumer.OnEmailVerificationRequested(ctx, evt)
+	})
+
+	consumer.Handle("user.password_reset_requested", func(ctx context.Context, data []byte) error {
+		var evt domainVerification.PasswordResetRequested
+		if err := json.Unmarshal(data, &evt); err != nil {
+			return err
+		}
+		return verificationConsumer.OnPasswordResetRequested(ctx, evt)
+	})
+
+	consumer.Handle("audit.log.requested", func(ctx context.Context, data []byte) error {
+		var evt domainAudit.LogRequested
+		if err := json.Unmarshal(data, &evt); err != nil {
+			return err
+		}
+		return auditConsumer.OnLogRequested(ctx, evt)
 	})
 
 	return &Worker{consumer: consumer}

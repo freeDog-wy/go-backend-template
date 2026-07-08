@@ -13,9 +13,19 @@ type Config struct {
 	Server   ServerConfig
 	Database DatabaseConfig
 	Redis    RedisConfig
+	Auth     AuthConfig
 	Email    EmailConfig
 	Captcha  CaptchaConfig
 	Tracing  TracingConfig
+}
+
+type AuthConfig struct {
+	JWTIssuer             string
+	JWTAudience           string
+	JWTSecret             string
+	AccessTokenTTLMinutes int
+	RefreshTokenTTLHours  int
+	LoginFailThreshold    int
 }
 
 type DatabaseConfig struct {
@@ -70,6 +80,12 @@ func Load(configPath string) *Config {
 	v.SetDefault("server.writeTimeout", 30)
 	v.SetDefault("email.smtpPort", 465)
 	v.SetDefault("email.siteBaseURL", "http://localhost:5173")
+	v.SetDefault("auth.jwtIssuer", "go-backend-template")
+	v.SetDefault("auth.jwtAudience", "go-backend-template-client")
+	v.SetDefault("auth.jwtSecret", "change-me")
+	v.SetDefault("auth.accessTokenTTLMinutes", 15)
+	v.SetDefault("auth.refreshTokenTTLHours", 24*7)
+	v.SetDefault("auth.loginFailThreshold", 5)
 
 	v.SetDefault("captcha.width", 120)
 	v.SetDefault("captcha.height", 40)

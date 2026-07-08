@@ -12,7 +12,6 @@ type User struct {
 	gorm.Model
 	Name          string     `gorm:"type:varchar(100);not null"`
 	Email         string     `gorm:"type:varchar(100);unique;not null"`
-	PasswordHash  string     `gorm:"type:varchar(255);not null"`
 	EmailVerified bool       `gorm:"type:boolean;default:false"`
 	LastLoginAt   *time.Time `gorm:"column:last_login_at"`
 	Status        int        `gorm:"type:smallint;default:0;not null"`
@@ -27,7 +26,6 @@ func (u *User) ToEntity() *domainIdentity.User {
 		u.ID,
 		u.Name,
 		u.Email,
-		u.PasswordHash,
 		domainIdentity.Status(u.Status),
 		u.EmailVerified,
 		timeOrZero(u.LastLoginAt),
@@ -47,7 +45,6 @@ func FromEntity(e *domainIdentity.User) *User {
 		},
 		Name:          e.GetName(),
 		Email:         e.GetEmail(),
-		PasswordHash:  e.GetPasswordHash(),
 		EmailVerified: e.IsEmailVerified(),
 		LastLoginAt:   e.GetLastLoginAt(),
 		Status:        int(e.GetStatus()),

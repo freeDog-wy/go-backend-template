@@ -5,5 +5,18 @@ type ResendVerificationCmd struct {
 }
 
 type VerifyEmailCmd struct {
-	Token string
+	Token     string
+	IP        string
+	UserAgent string
+}
+
+type ForgotPasswordCmd struct {
+	Email string
+}
+
+type ResetPasswordCmd struct {
+	Token     string
+	Password  string
+	IP        string
+	UserAgent string
 }

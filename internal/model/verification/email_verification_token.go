@@ -26,7 +26,7 @@ func (t *EmailVerificationToken) ToEntity() *domainVerification.EmailVerificatio
 	)
 }
 
-func FromEntity(e *domainVerification.EmailVerificationToken) *EmailVerificationToken {
+func EmailVerificationTokenFromEntity(e *domainVerification.EmailVerificationToken) *EmailVerificationToken {
 	return &EmailVerificationToken{
 		ID:         e.GetID(),
 		UserID:     e.GetUserID(),

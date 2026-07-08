@@ -1,6 +1,7 @@
 package identity
 
 import (
+	"strings"
 	"time"
 
 	"github.com/freeDog-wy/go-backend-template/internal/domain/shared"
@@ -10,7 +11,6 @@ type User struct {
 	id            uint
 	name          string
 	email         string
-	passwordHash  string
 	status        Status
 	emailVerified bool
 	lastLoginAt   *time.Time
@@ -25,12 +25,14 @@ type Status int
 const (
 	StatusPendingVerification Status = iota
 	StatusActive
+	StatusLocked
 	StatusBanned
+	StatusDeleted
 )
 
 // ReconstituteUser 从持久层重建实体——不做业务校验，仅用于 repository 还原。
 func ReconstituteUser(
-	id uint, name, email, passwordHash string,
+	id uint, name, email string,
 	status Status, emailVerified bool,
 	lastLoginAt, createdAt, updatedAt time.Time,
 	deletedAt *time.Time,
@@ -39,7 +41,6 @@ func ReconstituteUser(
 		id:            id,
 		name:          name,
 		email:         email,
-		passwordHash:  passwordHash,
 		status:        status,
 		emailVerified: emailVerified,
 		lastLoginAt:   timePtr(lastLoginAt),
@@ -49,16 +50,17 @@ func ReconstituteUser(
 	}
 }
 
-func NewUser(name, email, passwordHash string) (*User, error) {
-	if name == "" || email == "" || passwordHash == "" {
+func NewUser(name, email string) (*User, error) {
+	name = strings.TrimSpace(name)
+	email = strings.TrimSpace(strings.ToLower(email))
+	if name == "" || email == "" {
 		return nil, ErrInvalidUserData
 	}
 
 	u := &User{
-		name:         name,
-		email:        email,
-		passwordHash: passwordHash,
-		status:       StatusPendingVerification,
+		name:   name,
+		email:  email,
+		status: StatusPendingVerification,
 	}
 	u.events = append(u.events, Registered{
 		Name:  name,
@@ -67,13 +69,43 @@ func NewUser(name, email, passwordHash string) (*User, error) {
 	return u, nil
 }
 
+func NewAdminUser(name, email string) (*User, error) {
+	name = strings.TrimSpace(name)
+	email = strings.TrimSpace(strings.ToLower(email))
+	if name == "" || email == "" {
+		return nil, ErrInvalidUserData
+	}
+
+	return &User{
+		name:          name,
+		email:         email,
+		status:        StatusActive,
+		emailVerified: true,
+	}, nil
+}
+
 func (u *User) Activate() error {
 	switch u.status {
 	case StatusPendingVerification:
 		u.status = StatusActive
+	case StatusLocked:
+		return ErrUserLocked
 	case StatusBanned:
 		return ErrUserBanned
+	case StatusDeleted:
+		return ErrUserDeleted
 	}
+	return nil
+}
+
+func (u *User) Lock() error {
+	switch u.status {
+	case StatusBanned:
+		return ErrUserBanned
+	case StatusDeleted:
+		return ErrUserDeleted
+	}
+	u.status = StatusLocked
 	return nil
 }
 
@@ -81,8 +113,24 @@ func (u *User) Ban() {
 	u.status = StatusBanned
 }
 
+func (u *User) Delete(at time.Time) {
+	u.status = StatusDeleted
+	u.deletedAt = &at
+}
+
+func (u *User) UpdateProfile(name string) error {
+	name = strings.TrimSpace(name)
+	if name == "" {
+		return ErrInvalidUserData
+	}
+	u.name = name
+	return nil
+}
+
 func (u *User) IsActive() bool              { return u.status == StatusActive }
+func (u *User) IsLocked() bool              { return u.status == StatusLocked }
 func (u *User) IsBanned() bool              { return u.status == StatusBanned }
+func (u *User) IsDeleted() bool             { return u.status == StatusDeleted }
 func (u *User) IsPendingVerification() bool { return u.status == StatusPendingVerification }
 
 // VerifyEmail 标记邮箱已验证。一次验证后不可逆。
@@ -115,11 +163,19 @@ func (u *User) AssignID(id uint) {
 	}
 }
 
-func (u *User) GetID() uint             { return u.id }
-func (u *User) GetName() string         { return u.name }
-func (u *User) GetEmail() string        { return u.email }
-func (u *User) GetPasswordHash() string { return u.passwordHash }
-func (u *User) GetStatus() Status       { return u.status }
+func (u *User) MarkPersisted(createdAt, updatedAt time.Time) {
+	if !createdAt.IsZero() {
+		u.createdAt = createdAt
+	}
+	if !updatedAt.IsZero() {
+		u.updatedAt = updatedAt
+	}
+}
+
+func (u *User) GetID() uint       { return u.id }
+func (u *User) GetName() string   { return u.name }
+func (u *User) GetEmail() string  { return u.email }
+func (u *User) GetStatus() Status { return u.status }
 func (u *User) GetLastLoginAt() *time.Time {
 	return u.lastLoginAt
 }

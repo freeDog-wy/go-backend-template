@@ -1,6 +1,10 @@
 package handler
 
-import "github.com/gin-gonic/gin"
+import (
+	"github.com/freeDog-wy/go-backend-template/internal/domain/shared"
+
+	"github.com/gin-gonic/gin"
+)
 
 // Response 标准 API 响应信封。
 type Response struct {
@@ -18,10 +22,20 @@ type ErrorInfo struct {
 
 // Meta 分页元数据，非分页接口省略。
 type Meta struct {
-	Page       int `json:"page,omitempty"`
-	PerPage    int `json:"per_page,omitempty"`
-	Total      int `json:"total,omitempty"`
-	TotalPages int `json:"total_pages,omitempty"`
+	Page       int   `json:"page,omitempty"`
+	PerPage    int   `json:"per_page,omitempty"`
+	Total      int64 `json:"total,omitempty"`
+	TotalPages int   `json:"total_pages,omitempty"`
+}
+
+type PageQuery struct {
+	Page    int `form:"page"`
+	PerPage int `form:"per_page"`
+}
+
+type RequestAuditMeta struct {
+	IP        string
+	UserAgent string
 }
 
 // OK 返回成功响应（200）。
@@ -39,6 +53,26 @@ func OKPage(c *gin.Context, data any, meta *Meta) {
 		Data:    data,
 		Meta:    meta,
 	})
+}
+
+func (q PageQuery) ToDomain() shared.PageQuery {
+	return shared.NewPageQuery(q.Page, q.PerPage)
+}
+
+func MetaFromPageResult(result shared.PageResult) *Meta {
+	return &Meta{
+		Page:       result.Page,
+		PerPage:    result.PerPage,
+		Total:      result.Total,
+		TotalPages: result.TotalPages(),
+	}
+}
+
+func AuditMetaFromRequest(c *gin.Context) RequestAuditMeta {
+	return RequestAuditMeta{
+		IP:        c.ClientIP(),
+		UserAgent: c.Request.UserAgent(),
+	}
 }
 
 // Fail 返回业务错误响应。

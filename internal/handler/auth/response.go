@@ -1,23 +1,44 @@
 package auth
 
-import svcIdentity "github.com/freeDog-wy/go-backend-template/internal/service/identity"
+import (
+	svcAuth "github.com/freeDog-wy/go-backend-template/internal/service/auth"
+	svcIdentity "github.com/freeDog-wy/go-backend-template/internal/service/identity"
+)
 
-// UserResponse 用户响应 DTO。
 type UserResponse struct {
-	ID    uint   `json:"id"`
-	Name  string `json:"name"`
-	Email string `json:"email"`
+	ID     uint   `json:"id"`
+	Name   string `json:"name"`
+	Email  string `json:"email"`
+	Status string `json:"status"`
 }
 
-// FromResult 从应用层结果构建响应。
-func FromResult(r *svcIdentity.UserResult) *UserResponse {
-	return &UserResponse{
-		ID:    r.ID,
-		Name:  r.Name,
-		Email: r.Email,
-	}
+type AuthResponse struct {
+	AccessToken  string        `json:"access_token"`
+	RefreshToken string        `json:"refresh_token"`
+	User         *UserResponse `json:"user,omitempty"`
 }
 
 type MessageResponse struct {
 	Message string `json:"message"`
+}
+
+func FromUserResult(r *svcIdentity.UserResult) *UserResponse {
+	if r == nil {
+		return nil
+	}
+
+	return &UserResponse{
+		ID:     r.ID,
+		Name:   r.Name,
+		Email:  r.Email,
+		Status: r.Status,
+	}
+}
+
+func FromAuthResult(r *svcAuth.AuthResult) *AuthResponse {
+	return &AuthResponse{
+		AccessToken:  r.AccessToken,
+		RefreshToken: r.RefreshToken,
+		User:         FromUserResult(r.User),
+	}
 }

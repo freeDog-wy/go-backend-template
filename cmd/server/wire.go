@@ -8,17 +8,24 @@ import (
 
 	"github.com/freeDog-wy/go-backend-template/internal/config"
 	"github.com/freeDog-wy/go-backend-template/internal/handler"
+	HdlAdminRole "github.com/freeDog-wy/go-backend-template/internal/handler/admin_role"
+	HdlAdminUser "github.com/freeDog-wy/go-backend-template/internal/handler/admin_user"
 	HdlAuth "github.com/freeDog-wy/go-backend-template/internal/handler/auth"
 	HdlCaptcha "github.com/freeDog-wy/go-backend-template/internal/handler/captcha"
-	HdlIdentity "github.com/freeDog-wy/go-backend-template/internal/handler/identity"
+	HdlMe "github.com/freeDog-wy/go-backend-template/internal/handler/me"
 	"github.com/freeDog-wy/go-backend-template/internal/infra/cache"
 	"github.com/freeDog-wy/go-backend-template/internal/infra/crypto"
 	"github.com/freeDog-wy/go-backend-template/internal/infra/database"
 	"github.com/freeDog-wy/go-backend-template/internal/infra/logging"
 	"github.com/freeDog-wy/go-backend-template/internal/infra/mq"
+	infraToken "github.com/freeDog-wy/go-backend-template/internal/infra/token"
 	"github.com/freeDog-wy/go-backend-template/internal/infra/tracing"
+	RepoAuth "github.com/freeDog-wy/go-backend-template/internal/repository/auth"
+	RepoAuthorization "github.com/freeDog-wy/go-backend-template/internal/repository/authorization"
 	RepoIdentity "github.com/freeDog-wy/go-backend-template/internal/repository/identity"
 	RepoVerification "github.com/freeDog-wy/go-backend-template/internal/repository/verification"
+	svcAuth "github.com/freeDog-wy/go-backend-template/internal/service/auth"
+	SvcAuthorization "github.com/freeDog-wy/go-backend-template/internal/service/authorization"
 	SvcIdentity "github.com/freeDog-wy/go-backend-template/internal/service/identity"
 	SvcVerification "github.com/freeDog-wy/go-backend-template/internal/service/verification"
 	"github.com/freeDog-wy/go-backend-template/pkg/captcha"
@@ -77,25 +84,47 @@ func initApp(cfg *config.Config) *App {
 	txManager := database.NewTxManager(db)
 
 	// —————————— 仓储层 ——————————
+	credentialRepo := RepoAuth.New(db)
+	authorizationRepo := RepoAuthorization.New(db)
 	userRepo := RepoIdentity.New(db)
 	verifyRepo := RepoVerification.New(db)
 
 	// —————————— 应用层 ——————————
 	pwdHasher := crypto.NewBcryptHasher(0)
 	eventBus := mq.NewRedisEventBus(rdb, "domain.events", appLogger)
+	sessionStore := cache.NewRefreshSessionStore(rdb)
+	tokenManager := infraToken.NewJWTManager(cfg.Auth.JWTIssuer, cfg.Auth.JWTAudience, cfg.Auth.JWTSecret)
 
-	verificationSvc := SvcVerification.New(txManager, userRepo, verifyRepo, eventBus)
-	identitySvc := SvcIdentity.New(txManager, userRepo, pwdHasher, captchaGenerator, verificationSvc, appLogger, eventBus)
+	verificationSvc := SvcVerification.New(txManager, userRepo, verifyRepo, credentialRepo, pwdHasher, sessionStore, eventBus, appLogger)
+	authorizationSvc := SvcAuthorization.New(txManager, authorizationRepo, userRepo, eventBus, appLogger)
+	identitySvc := SvcIdentity.New(txManager, userRepo, authorizationRepo, credentialRepo, pwdHasher, captchaGenerator, verificationSvc, appLogger, eventBus)
+	authSvc := svcAuth.New(
+		userRepo,
+		credentialRepo,
+		sessionStore,
+		pwdHasher,
+		tokenManager,
+		eventBus,
+		appLogger,
+		cfg.Auth.JWTIssuer,
+		cfg.Auth.JWTAudience,
+		time.Duration(cfg.Auth.AccessTokenTTLMinutes)*time.Minute,
+		time.Duration(cfg.Auth.RefreshTokenTTLHours)*time.Hour,
+	)
 
 	// —————————— 接口层 ——————————
 	captchaHdl := HdlCaptcha.New(captchaGenerator)
-	authHdl := HdlAuth.New(identitySvc, verificationSvc)
-	identityHdl := HdlIdentity.New()
+	authHdl := HdlAuth.New(authSvc, authorizationSvc, identitySvc, verificationSvc)
+	adminRoleHdl := HdlAdminRole.New(authSvc, authorizationSvc)
+	adminUserHdl := HdlAdminUser.New(authSvc, authorizationSvc, identitySvc)
+	meHdl := HdlMe.New(authSvc, identitySvc)
 
 	registry := handler.NewRegistry()
 	registry.Add(captchaHdl)
 	registry.Add(authHdl)
-	registry.Add(identityHdl)
+	registry.Add(adminRoleHdl)
+	registry.Add(adminUserHdl)
+	registry.Add(meHdl)
 
 	// —————————— Gin 路由 ——————————
 	if cfg.App.Mode == "production" {

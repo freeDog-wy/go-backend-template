@@ -10,6 +10,8 @@ import (
 
 const emailVerificationTTL = 30 * time.Minute
 
+const passwordResetTTL = 30 * time.Minute
+
 func generateOpaqueToken() (string, error) {
 	buf := make([]byte, 32)
 	if _, err := rand.Read(buf); err != nil {

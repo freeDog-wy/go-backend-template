@@ -1,0 +1,14 @@
+package auth
+
+import svcIdentity "github.com/freeDog-wy/go-backend-template/internal/service/identity"
+
+type AuthResult struct {
+	AccessToken  string
+	RefreshToken string
+	User         *svcIdentity.UserResult
+}
+
+type AccessIdentity struct {
+	UserID    uint
+	SessionID string
+}

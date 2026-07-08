@@ -50,6 +50,27 @@ func (r *Repository) FindByEmail(ctx context.Context, email string) (*domainIden
 	return m.ToEntity(), nil
 }
 
+func (r *Repository) List(ctx context.Context, page shared.PageQuery) ([]*domainIdentity.User, int64, error) {
+	var total int64
+	if err := database.DB(ctx, r.db).Model(&modelIdentity.User{}).Count(&total).Error; err != nil {
+		return nil, 0, err
+	}
+
+	models, err := r.g(ctx).
+		Order("id ASC").
+		Limit(page.PerPage).
+		Offset(page.Offset()).
+		Find(ctx)
+	if err != nil {
+		return nil, 0, err
+	}
+	users := make([]*domainIdentity.User, 0, len(models))
+	for i := range models {
+		users = append(users, models[i].ToEntity())
+	}
+	return users, total, nil
+}
+
 func (r *Repository) Create(ctx context.Context, user *domainIdentity.User) error {
 	m := modelIdentity.FromEntity(user)
 	if err := r.g(ctx).Create(ctx, m); err != nil {
@@ -57,6 +78,7 @@ func (r *Repository) Create(ctx context.Context, user *domainIdentity.User) erro
 	}
 
 	user.AssignID(m.ID)
+	user.MarkPersisted(m.CreatedAt, m.UpdatedAt)
 	return nil
 }
 
