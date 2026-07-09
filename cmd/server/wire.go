@@ -17,12 +17,13 @@ import (
 	"github.com/freeDog-wy/go-backend-template/internal/infra/crypto"
 	"github.com/freeDog-wy/go-backend-template/internal/infra/database"
 	"github.com/freeDog-wy/go-backend-template/internal/infra/logging"
-	"github.com/freeDog-wy/go-backend-template/internal/infra/mq"
+	InfraOutbox "github.com/freeDog-wy/go-backend-template/internal/infra/outbox"
 	infraToken "github.com/freeDog-wy/go-backend-template/internal/infra/token"
 	"github.com/freeDog-wy/go-backend-template/internal/infra/tracing"
 	RepoAuth "github.com/freeDog-wy/go-backend-template/internal/repository/auth"
 	RepoAuthorization "github.com/freeDog-wy/go-backend-template/internal/repository/authorization"
 	RepoIdentity "github.com/freeDog-wy/go-backend-template/internal/repository/identity"
+	RepoOutbox "github.com/freeDog-wy/go-backend-template/internal/repository/outbox"
 	RepoVerification "github.com/freeDog-wy/go-backend-template/internal/repository/verification"
 	svcAuth "github.com/freeDog-wy/go-backend-template/internal/usecase/auth"
 	SvcAuthorization "github.com/freeDog-wy/go-backend-template/internal/usecase/authorization"
@@ -79,10 +80,11 @@ func initApp(cfg *config.Config) *App {
 	credentialRepo := RepoAuth.New(db)
 	authorizationRepo := RepoAuthorization.New(db)
 	userRepo := RepoIdentity.New(db)
+	outboxRepo := RepoOutbox.New(db)
 	verifyRepo := RepoVerification.New(db)
 
 	pwdHasher := crypto.NewBcryptHasher(0)
-	eventBus := mq.NewRedisEventBus(rdb, "domain.events", appLogger)
+	eventBus := InfraOutbox.NewEventBus(outboxRepo)
 	sessionStore := cache.NewRefreshSessionStore(rdb)
 	tokenManager := infraToken.NewJWTManager(cfg.Auth.JWTIssuer, cfg.Auth.JWTAudience, cfg.Auth.JWTSecret)
 

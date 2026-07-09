@@ -7,7 +7,9 @@ import (
 	modelAudit "github.com/freeDog-wy/go-backend-template/internal/model/audit"
 	modelAuth "github.com/freeDog-wy/go-backend-template/internal/model/auth"
 	modelAuthorization "github.com/freeDog-wy/go-backend-template/internal/model/authorization"
+	modelConsumption "github.com/freeDog-wy/go-backend-template/internal/model/consumption"
 	modelIdentity "github.com/freeDog-wy/go-backend-template/internal/model/identity"
+	modelOutbox "github.com/freeDog-wy/go-backend-template/internal/model/outbox"
 	modelVerification "github.com/freeDog-wy/go-backend-template/internal/model/verification"
 
 	"gorm.io/driver/postgres"
@@ -48,6 +50,8 @@ func RunAutoMigrate(db *gorm.DB, mode string) {
 		&modelAuthorization.Permission{},
 		&modelAuthorization.UserRole{},
 		&modelAuthorization.RolePermission{},
+		&modelConsumption.Record{},
+		&modelOutbox.Event{},
 		&modelVerification.EmailVerificationToken{},
 		&modelVerification.PasswordResetToken{},
 	); err != nil {

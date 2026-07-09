@@ -8,10 +8,35 @@ server:
 database:
   dsn: "host=localhost user=postgres password=postgres dbname=go_backend port=5432 sslmode=disable TimeZone=Asia/Shanghai"
 
+mq:
+  provider: "redis"
+  events_name: "domain.events"
+  kafka:
+    brokers:
+      - "localhost:9092"
+    client_id: "go-backend-template"
+
 redis:
   addr: "localhost:6379"
   password: ""
   db: 0
+
+worker:
+  consumer_group: "user-worker"
+  consumer_name: "worker-1"
+  consumer_read_count: 10
+  consumer_read_block_seconds: 1
+  consumer_pending_min_idle_seconds: 30
+  consumer_reclaim_batch: 10
+  consumer_max_retries: 10
+  consumer_idempotency_ttl_hours: 168
+  consumer_processing_lock_seconds: 300
+  kafka_read_min_bytes: 1024
+  kafka_read_max_bytes: 10485760
+  kafka_max_wait_seconds: 1
+  kafka_retry_topic: "domain.events.retry"
+  kafka_dead_letter_topic: "domain.events.dlq"
+  dead_letter_stream: "domain.events.dlq"
 
 auth:
   jwt_issuer: "go-backend-template"
@@ -34,6 +59,8 @@ tracing:
 
 cron:
   enabled: true
+  outbox_publish_interval_seconds: 5
+  outbox_batch_size: 100
   verification_cleanup_interval_seconds: 300
 
 bootstrap_admin:
