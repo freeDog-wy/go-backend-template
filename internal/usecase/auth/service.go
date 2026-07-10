@@ -254,9 +254,43 @@ func (s *Service) ChangePassword(ctx context.Context, cmd ChangePasswordCmd) err
 	return nil
 }
 
+// ParseAccessToken only validates and parses the JWT itself.
+// It does not verify whether the backing session is still active.
+// Use AuthenticateAccessToken for request authentication.
 func (s *Service) ParseAccessToken(token string) (*AccessIdentity, error) {
 	claims, err := s.tokenManager.ParseAccessToken(token, time.Now())
 	if err != nil {
+		return nil, ErrInvalidAccessToken
+	}
+
+	return &AccessIdentity{
+		UserID:    claims.UserID,
+		SessionID: claims.SessionID,
+	}, nil
+}
+
+// AuthenticateAccessToken validates the JWT and confirms the backing session is still active.
+func (s *Service) AuthenticateAccessToken(ctx context.Context, token string) (*AccessIdentity, error) {
+	claims, err := s.tokenManager.ParseAccessToken(token, time.Now())
+	if err != nil {
+		return nil, ErrInvalidAccessToken
+	}
+
+	session, err := s.sessionStore.FindByID(ctx, claims.SessionID)
+	if err != nil {
+		if errors.Is(err, shared.ErrNotFound) {
+			return nil, ErrInvalidAccessToken
+		}
+		return nil, err
+	}
+
+	now := time.Now()
+	if session.IsExpired(now) {
+		_ = s.sessionStore.DeleteByID(ctx, claims.SessionID)
+		return nil, ErrInvalidAccessToken
+	}
+	if session.GetUserID() != claims.UserID {
+		_ = s.sessionStore.DeleteByID(ctx, claims.SessionID)
 		return nil, ErrInvalidAccessToken
 	}
 

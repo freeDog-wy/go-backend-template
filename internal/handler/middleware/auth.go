@@ -1,6 +1,7 @@
 package middleware
 
 import (
+	"errors"
 	"strings"
 
 	"github.com/freeDog-wy/go-backend-template/internal/handler"
@@ -23,15 +24,19 @@ func RequireAuth(authSvc *svcAuth.Service) gin.HandlerFunc {
 func authenticateRequest(c *gin.Context, authSvc *svcAuth.Service) (uint, bool) {
 	authHeader := strings.TrimSpace(c.GetHeader("Authorization"))
 	if len(authHeader) < len("Bearer ")+1 || !strings.EqualFold(authHeader[:len("Bearer ")], "Bearer ") {
-		handler.Fail(c, "UNAUTHORIZED", "缺少 access token")
+		handler.Fail(c, "UNAUTHORIZED", "missing access token")
 		c.Abort()
 		return 0, false
 	}
 
 	token := strings.TrimSpace(authHeader[len("Bearer "):])
-	identity, err := authSvc.ParseAccessToken(token)
+	identity, err := authSvc.AuthenticateAccessToken(c.Request.Context(), token)
 	if err != nil {
-		handler.Fail(c, "UNAUTHORIZED", "access token 无效或已过期")
+		if errors.Is(err, svcAuth.ErrInvalidAccessToken) {
+			handler.Fail(c, "UNAUTHORIZED", "access token is invalid or expired")
+		} else {
+			handler.Fail(c, "INTERNAL_ERROR", err.Error())
+		}
 		c.Abort()
 		return 0, false
 	}
