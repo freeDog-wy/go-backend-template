@@ -14,17 +14,17 @@ import (
 
 // Handler 认证 HTTP 处理器。
 type Handler struct {
-	authSvc          *svcAuth.Service
-	authorizationSvc *svcAuthorization.Service
-	identitySvc      *svcIdentity.Service
-	verificationSvc  *svcVerification.Service
+	authSvc          svcAuth.AuthenticationService
+	authorizationSvc svcAuthorization.AccessAuthorizer
+	identitySvc      svcIdentity.RegistrationService
+	verificationSvc  svcVerification.VerificationService
 }
 
 func New(
-	authSvc *svcAuth.Service,
-	authorizationSvc *svcAuthorization.Service,
-	identitySvc *svcIdentity.Service,
-	verificationSvc *svcVerification.Service,
+	authSvc svcAuth.AuthenticationService,
+	authorizationSvc svcAuthorization.AccessAuthorizer,
+	identitySvc svcIdentity.RegistrationService,
+	verificationSvc svcVerification.VerificationService,
 ) *Handler {
 	return &Handler{
 		authSvc:          authSvc,

@@ -116,9 +116,9 @@ func initApp(cfg *config.Config) *App {
 
 	captchaHdl := HdlCaptcha.New(captchaGenerator)
 	authHdl := HdlAuth.New(authSvc, authorizationSvc, identitySvc, verificationSvc)
-	adminRoleHdl := HdlAdminRole.New(authSvc, authorizationSvc)
-	adminUserHdl := HdlAdminUser.New(authSvc, authorizationSvc, identitySvc)
-	meHdl := HdlMe.New(authSvc, identitySvc)
+	adminRoleHdl := HdlAdminRole.New(authSvc, authorizationSvc, authorizationSvc)
+	adminUserHdl := HdlAdminUser.New(authSvc, authorizationSvc, authorizationSvc, identitySvc)
+	meHdl := HdlMe.New(authSvc, authSvc, identitySvc)
 
 	registry := handler.NewRegistry()
 	registry.Add(captchaHdl)

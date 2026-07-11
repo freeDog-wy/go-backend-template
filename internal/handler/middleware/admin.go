@@ -8,7 +8,7 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-func RequireAdmin(authSvc *svcAuth.Service, authorizationSvc *svcAuthorization.Service) gin.HandlerFunc {
+func RequireAdmin(authSvc svcAuth.AccessAuthenticator, authorizationSvc svcAuthorization.AccessAuthorizer) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		userID, ok := authenticateRequest(c, authSvc)
 		if !ok {
@@ -26,7 +26,7 @@ func RequireAdmin(authSvc *svcAuth.Service, authorizationSvc *svcAuthorization.S
 	}
 }
 
-func RequirePermission(authSvc *svcAuth.Service, authorizationSvc *svcAuthorization.Service, code string) gin.HandlerFunc {
+func RequirePermission(authSvc svcAuth.AccessAuthenticator, authorizationSvc svcAuthorization.AccessAuthorizer, code string) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		userID, ok := authenticateRequest(c, authSvc)
 		if !ok {

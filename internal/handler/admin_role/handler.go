@@ -14,8 +14,9 @@ import (
 )
 
 type Handler struct {
-	authSvc          *svcAuth.Service
-	authorizationSvc *svcAuthorization.Service
+	authSvc          svcAuth.AccessAuthenticator
+	authorizationSvc svcAuthorization.AccessAuthorizer
+	roleSvc          svcAuthorization.RoleService
 }
 
 type CreateRoleReq struct {
@@ -31,10 +32,11 @@ type UpdateRoleReq struct {
 	PermissionCodes []string `json:"permission_codes"`
 }
 
-func New(authSvc *svcAuth.Service, authorizationSvc *svcAuthorization.Service) *Handler {
+func New(authSvc svcAuth.AccessAuthenticator, authorizationSvc svcAuthorization.AccessAuthorizer, roleSvc svcAuthorization.RoleService) *Handler {
 	return &Handler{
 		authSvc:          authSvc,
 		authorizationSvc: authorizationSvc,
+		roleSvc:          roleSvc,
 	}
 }
 
@@ -55,7 +57,7 @@ func (h *Handler) ListRoles(c *gin.Context) {
 		return
 	}
 
-	roles, pageResult, err := h.authorizationSvc.ListRoles(c.Request.Context(), svcAuthorization.ListRolesCmd{
+	roles, pageResult, err := h.roleSvc.ListRoles(c.Request.Context(), svcAuthorization.ListRolesCmd{
 		Page: query.ToDomain(),
 	})
 	if err != nil {
@@ -72,7 +74,7 @@ func (h *Handler) CreateRole(c *gin.Context) {
 		return
 	}
 
-	role, err := h.authorizationSvc.CreateRole(c.Request.Context(), svcAuthorization.CreateRoleCmd{
+	role, err := h.roleSvc.CreateRole(c.Request.Context(), svcAuthorization.CreateRoleCmd{
 		Code:            req.Code,
 		Name:            req.Name,
 		Description:     req.Description,
@@ -98,7 +100,7 @@ func (h *Handler) UpdateRole(c *gin.Context) {
 		return
 	}
 
-	role, err := h.authorizationSvc.UpdateRole(c.Request.Context(), svcAuthorization.UpdateRoleCmd{
+	role, err := h.roleSvc.UpdateRole(c.Request.Context(), svcAuthorization.UpdateRoleCmd{
 		RoleID:          uint(roleID),
 		Name:            req.Name,
 		Description:     req.Description,
@@ -123,7 +125,7 @@ func (h *Handler) ListPermissions(c *gin.Context) {
 		return
 	}
 
-	permissions, pageResult, err := h.authorizationSvc.ListPermissions(c.Request.Context(), svcAuthorization.ListPermissionsCmd{
+	permissions, pageResult, err := h.roleSvc.ListPermissions(c.Request.Context(), svcAuthorization.ListPermissionsCmd{
 		Page: query.ToDomain(),
 	})
 	if err != nil {

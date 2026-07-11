@@ -12,8 +12,9 @@ import (
 )
 
 type Handler struct {
-	authSvc     *svcAuth.Service
-	identitySvc *svcIdentity.Service
+	authenticator svcAuth.AccessAuthenticator
+	passwordSvc   svcAuth.PasswordService
+	identitySvc   svcIdentity.ProfileService
 }
 
 type UpdateProfileReq struct {
@@ -31,16 +32,17 @@ type UserResponse struct {
 	Email string `json:"email"`
 }
 
-func New(authSvc *svcAuth.Service, identitySvc *svcIdentity.Service) *Handler {
+func New(authenticator svcAuth.AccessAuthenticator, passwordSvc svcAuth.PasswordService, identitySvc svcIdentity.ProfileService) *Handler {
 	return &Handler{
-		authSvc:     authSvc,
-		identitySvc: identitySvc,
+		authenticator: authenticator,
+		passwordSvc:   passwordSvc,
+		identitySvc:   identitySvc,
 	}
 }
 
 func (h *Handler) RegisterRoutes(route *gin.Engine) {
 	group := route.Group("/api/v1")
-	group.Use(handlerMiddleware.RequireAuth(h.authSvc))
+	group.Use(handlerMiddleware.RequireAuth(h.authenticator))
 	{
 		group.GET("/me", h.GetProfile)
 		group.PATCH("/me/profile", h.UpdateProfile)
@@ -86,7 +88,7 @@ func (h *Handler) ChangePassword(c *gin.Context) {
 
 	userID := c.GetUint(currentUserIDKey)
 	meta := handler.AuditMetaFromRequest(c)
-	if err := h.authSvc.ChangePassword(c.Request.Context(), svcAuth.ChangePasswordCmd{
+	if err := h.passwordSvc.ChangePassword(c.Request.Context(), svcAuth.ChangePasswordCmd{
 		UserID:          userID,
 		CurrentPassword: req.CurrentPassword,
 		NewPassword:     req.NewPassword,

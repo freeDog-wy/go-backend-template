@@ -10,7 +10,7 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-func RequireAuth(authSvc *svcAuth.Service) gin.HandlerFunc {
+func RequireAuth(authSvc svcAuth.AccessAuthenticator) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		userID, ok := authenticateRequest(c, authSvc)
 		if !ok {
@@ -21,7 +21,7 @@ func RequireAuth(authSvc *svcAuth.Service) gin.HandlerFunc {
 	}
 }
 
-func authenticateRequest(c *gin.Context, authSvc *svcAuth.Service) (uint, bool) {
+func authenticateRequest(c *gin.Context, authSvc svcAuth.AccessAuthenticator) (uint, bool) {
 	authHeader := strings.TrimSpace(c.GetHeader("Authorization"))
 	if len(authHeader) < len("Bearer ")+1 || !strings.EqualFold(authHeader[:len("Bearer ")], "Bearer ") {
 		handler.Fail(c, "UNAUTHORIZED", "missing access token")

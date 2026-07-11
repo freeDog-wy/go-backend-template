@@ -16,9 +16,10 @@ import (
 )
 
 type Handler struct {
-	authSvc          *svcAuth.Service
-	authorizationSvc *svcAuthorization.Service
-	identitySvc      *svcIdentity.Service
+	authSvc          svcAuth.AccessAuthenticator
+	authorizationSvc svcAuthorization.AccessAuthorizer
+	userRoleSvc      svcAuthorization.UserRoleService
+	identitySvc      svcIdentity.AdminUserService
 }
 
 type UpdateStatusReq struct {
@@ -45,13 +46,15 @@ type UserResponse struct {
 }
 
 func New(
-	authSvc *svcAuth.Service,
-	authorizationSvc *svcAuthorization.Service,
-	identitySvc *svcIdentity.Service,
+	authSvc svcAuth.AccessAuthenticator,
+	authorizationSvc svcAuthorization.AccessAuthorizer,
+	userRoleSvc svcAuthorization.UserRoleService,
+	identitySvc svcIdentity.AdminUserService,
 ) *Handler {
 	return &Handler{
 		authSvc:          authSvc,
 		authorizationSvc: authorizationSvc,
+		userRoleSvc:      userRoleSvc,
 		identitySvc:      identitySvc,
 	}
 }
@@ -176,7 +179,7 @@ func (h *Handler) ReplaceRoles(c *gin.Context) {
 
 	actorUserID := handlerMiddleware.CurrentUserID(c)
 	meta := handler.AuditMetaFromRequest(c)
-	if err := h.authorizationSvc.ReplaceUserRoles(c.Request.Context(), svcAuthorization.ReplaceUserRolesCmd{
+	if err := h.userRoleSvc.ReplaceUserRoles(c.Request.Context(), svcAuthorization.ReplaceUserRolesCmd{
 		UserID:      uint(userID),
 		RoleIDs:     req.RoleIDs,
 		ActorUserID: actorUserID,
@@ -192,7 +195,7 @@ func (h *Handler) ReplaceRoles(c *gin.Context) {
 		return
 	}
 
-	roles, err := h.authorizationSvc.ListUserRoles(c.Request.Context(), uint(userID))
+	roles, err := h.userRoleSvc.ListUserRoles(c.Request.Context(), uint(userID))
 	if err != nil {
 		handler.Fail(c, "INTERNAL_ERROR", err.Error())
 		return
@@ -204,7 +207,7 @@ func (h *Handler) ReplaceRoles(c *gin.Context) {
 }
 
 func (h *Handler) buildUserResponse(c *gin.Context, user *svcIdentity.UserResult) (*UserResponse, error) {
-	roles, err := h.authorizationSvc.ListUserRoles(c.Request.Context(), user.ID)
+	roles, err := h.userRoleSvc.ListUserRoles(c.Request.Context(), user.ID)
 	if err != nil {
 		return nil, err
 	}

@@ -1,22 +1,19 @@
+//go:build integration
+
 package consumption
 
 import (
 	"context"
-	"database/sql"
 	"errors"
 	"fmt"
-	"os"
-	"strings"
 	"testing"
 	"time"
 
 	domainConsumption "github.com/freeDog-wy/go-backend-template/internal/domain/consumption"
 	modelConsumption "github.com/freeDog-wy/go-backend-template/internal/model/consumption"
-	"gorm.io/driver/postgres"
+	"github.com/freeDog-wy/go-backend-template/internal/testkit"
 	"gorm.io/gorm"
 )
-
-const defaultConsumptionTestDSN = "host=localhost user=postgres password=postgres dbname=go_backend port=5432 sslmode=disable TimeZone=Asia/Shanghai"
 
 func TestRepositoryIntegrationBegin(t *testing.T) {
 	db := openConsumptionTestDB(t)
@@ -330,46 +327,13 @@ func TestRepositoryIntegrationValidation(t *testing.T) {
 func openConsumptionTestDB(t *testing.T) *gorm.DB {
 	t.Helper()
 
-	dsn := strings.TrimSpace(os.Getenv("TEST_DATABASE_DSN"))
-	explicit := dsn != ""
-	if dsn == "" {
-		dsn = defaultConsumptionTestDSN
-	}
-
-	db, err := gorm.Open(postgres.Open(dsn), &gorm.Config{})
-	if err != nil {
-		if explicit {
-			t.Fatalf("open postgres with TEST_DATABASE_DSN: %v", err)
-		}
-		t.Skipf("skipping postgres integration test: %v", err)
-	}
-
-	sqlDB, err := db.DB()
-	if err != nil {
-		t.Fatalf("db.DB() error = %v", err)
-	}
-	if err := pingDatabase(sqlDB); err != nil {
-		if explicit {
-			t.Fatalf("ping postgres with TEST_DATABASE_DSN: %v", err)
-		}
-		t.Skipf("skipping postgres integration test: %v", err)
-	}
+	db := testkit.OpenPostgres(t)
 
 	if err := db.AutoMigrate(&modelConsumption.Record{}); err != nil {
 		t.Fatalf("AutoMigrate() error = %v", err)
 	}
 
-	t.Cleanup(func() {
-		_ = sqlDB.Close()
-	})
-
 	return db
-}
-
-func pingDatabase(db *sql.DB) error {
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
-	defer cancel()
-	return db.PingContext(ctx)
 }
 
 func uniqueConsumerGroup(t *testing.T, suffix string) string {
