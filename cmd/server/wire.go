@@ -33,6 +33,7 @@ import (
 	SvcIdentity "github.com/freeDog-wy/go-backend-template/internal/usecase/identity"
 	SvcVerification "github.com/freeDog-wy/go-backend-template/internal/usecase/verification"
 	"github.com/freeDog-wy/go-backend-template/pkg/captcha"
+	"github.com/freeDog-wy/go-backend-template/pkg/ratelimit"
 
 	"github.com/gin-gonic/gin"
 	"go.opentelemetry.io/contrib/instrumentation/github.com/gin-gonic/gin/otelgin"
@@ -91,6 +92,7 @@ func initApp(cfg *config.Config) *App {
 	pwdHasher := crypto.NewBcryptHasher(0)
 	eventBus := InfraOutbox.NewEventBus(outboxRepo)
 	sessionStore := cache.NewRefreshSessionStore(rdb)
+	rateLimiter := ratelimit.NewRateLimiter(rdb, "rate_limit")
 	tokenManager := infraToken.NewJWTManager(cfg.Auth.JWTIssuer, cfg.Auth.JWTAudience, cfg.Auth.JWTSecret)
 
 	verificationSvc := SvcVerification.New(txManager, userRepo, verifyRepo, credentialRepo, pwdHasher, sessionStore, eventBus, appLogger)
@@ -146,6 +148,14 @@ func initApp(cfg *config.Config) *App {
 	r := gin.New()
 	r.Use(otelgin.Middleware("go-backend-template"))
 	r.Use(middleware.Recovery(appLogger))
+	r.Use(middleware.RateLimit(
+		rateLimiter,
+		appLogger,
+		cfg.RateLimit.Enabled,
+		cfg.RateLimit.Requests,
+		time.Duration(cfg.RateLimit.WindowSeconds)*time.Second,
+		middleware.DefaultRateLimitPolicies,
+	))
 	registry.RegisterAll(r)
 
 	if len(cfg.Server.TrustedProxies) == 0 {

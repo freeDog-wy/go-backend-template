@@ -40,6 +40,8 @@ make test-db-integration
 
 ## Redis 集成测试
 
+Redis 集成测试覆盖刷新会话、验证码存储和 `pkg/ratelimit` 的固定窗口限流行为。
+
 Redis 集成测试使用同一个 `integration` build tag，要求显式配置 Redis 地址和测试专用 DB：
 
 ```powershell

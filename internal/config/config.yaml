@@ -20,6 +20,11 @@ redis:
   password: ""
   db: 0
 
+rate_limit:
+  enabled: true
+  requests: 20
+  window_seconds: 60
+
 worker:
   probe:
     ip: "0.0.0.0"

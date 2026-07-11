@@ -17,6 +17,7 @@ type Config struct {
 	Database       DatabaseConfig
 	MQ             MQConfig
 	Redis          RedisConfig
+	RateLimit      RateLimitConfig `mapstructure:"rate_limit"`
 	Worker         WorkerConfig
 	Auth           AuthConfig
 	Email          EmailConfig
@@ -53,6 +54,12 @@ type RedisConfig struct {
 	Addr     string
 	Password string
 	DB       int
+}
+
+type RateLimitConfig struct {
+	Enabled       bool
+	Requests      int `mapstructure:"requests"`
+	WindowSeconds int `mapstructure:"window_seconds"`
 }
 
 type AppConfig struct {
@@ -154,6 +161,9 @@ func Load(configPath string) *Config {
 	v.SetDefault("mq.events_name", "domain.events")
 	v.SetDefault("mq.kafka.brokers", []string{"localhost:9092"})
 	v.SetDefault("mq.kafka.client_id", "go-backend-template")
+	v.SetDefault("rate_limit.enabled", true)
+	v.SetDefault("rate_limit.requests", 20)
+	v.SetDefault("rate_limit.window_seconds", 60)
 	v.SetDefault("auth.jwtIssuer", "go-backend-template")
 	v.SetDefault("auth.jwtAudience", "go-backend-template-client")
 	v.SetDefault("auth.jwtSecret", "change-me")
@@ -253,6 +263,7 @@ var configEnvBindings = map[string]string{
 	"database.dsn":   "DATABASE_DSN",
 	"mq.events_name": "MQ_EVENTS_NAME", "mq.kafka.brokers": "MQ_KAFKA_BROKERS", "mq.kafka.client_id": "MQ_KAFKA_CLIENT_ID",
 	"redis.addr": "REDIS_ADDR", "redis.password": "REDIS_PASSWORD", "redis.db": "REDIS_DB",
+	"rate_limit.enabled": "RATE_LIMIT_ENABLED", "rate_limit.requests": "RATE_LIMIT_REQUESTS", "rate_limit.window_seconds": "RATE_LIMIT_WINDOW_SECONDS",
 	"worker.consumer_group": "WORKER_CONSUMER_GROUP", "worker.probe.ip": "WORKER_PROBE_IP", "worker.probe.port": "WORKER_PROBE_PORT", "worker.consumer_max_retries": "WORKER_CONSUMER_MAX_RETRIES", "worker.consumer_processing_lock_seconds": "WORKER_CONSUMER_PROCESSING_LOCK_SECONDS", "worker.kafka_read_min_bytes": "WORKER_KAFKA_READ_MIN_BYTES", "worker.kafka_read_max_bytes": "WORKER_KAFKA_READ_MAX_BYTES", "worker.kafka_max_wait_seconds": "WORKER_KAFKA_MAX_WAIT_SECONDS", "worker.kafka_dead_letter_topic": "WORKER_KAFKA_DEAD_LETTER_TOPIC",
 	"auth.jwtIssuer": "AUTH_JWT_ISSUER", "auth.jwtAudience": "AUTH_JWT_AUDIENCE", "auth.jwtSecret": "AUTH_JWT_SECRET", "auth.accessTokenTTLMinutes": "AUTH_ACCESS_TOKEN_TTL_MINUTES", "auth.refreshTokenTTLHours": "AUTH_REFRESH_TOKEN_TTL_HOURS", "auth.loginFailThreshold": "AUTH_LOGIN_FAIL_THRESHOLD",
 	"email.smtpHost": "EMAIL_SMTP_HOST", "email.smtpPort": "EMAIL_SMTP_PORT", "email.smtpUser": "EMAIL_SMTP_USER", "email.smtpPassword": "EMAIL_SMTP_PASSWORD", "email.fromAddress": "EMAIL_FROM_ADDRESS", "email.siteBaseURL": "EMAIL_SITE_BASE_URL",
