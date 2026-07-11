@@ -3,6 +3,7 @@ package testkit
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"strings"
 	"testing"
@@ -24,25 +25,45 @@ func OpenPostgres(t testing.TB) *gorm.DB {
 		t.Fatalf("%s must be set for PostgreSQL integration tests", databaseDSNEnv)
 	}
 
-	db, err := gorm.Open(postgres.Open(dsn), &gorm.Config{})
+	adminDB, err := gorm.Open(postgres.Open(dsn), &gorm.Config{})
 	if err != nil {
 		t.Fatalf("open postgres with %s: %v", databaseDSNEnv, err)
 	}
 
-	sqlDB, err := db.DB()
+	adminSQLDB, err := adminDB.DB()
 	if err != nil {
 		t.Fatalf("get database handle: %v", err)
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
-	if err := sqlDB.PingContext(ctx); err != nil {
-		_ = sqlDB.Close()
+	if err := adminSQLDB.PingContext(ctx); err != nil {
+		_ = adminSQLDB.Close()
 		t.Fatalf("ping postgres with %s: %v", databaseDSNEnv, err)
 	}
 
+	schema := fmt.Sprintf("test_%d", time.Now().UnixNano())
+	if err := adminDB.Exec(`CREATE SCHEMA "` + schema + `"`).Error; err != nil {
+		_ = adminSQLDB.Close()
+		t.Fatalf("create test schema: %v", err)
+	}
+
+	db, err := gorm.Open(postgres.Open(dsn+" search_path="+schema), &gorm.Config{})
+	if err != nil {
+		_ = adminDB.Exec(`DROP SCHEMA "` + schema + `" CASCADE`).Error
+		_ = adminSQLDB.Close()
+		t.Fatalf("open test schema: %v", err)
+	}
+	sqlDB, err := db.DB()
+	if err != nil {
+		_ = adminDB.Exec(`DROP SCHEMA "` + schema + `" CASCADE`).Error
+		_ = adminSQLDB.Close()
+		t.Fatalf("get test schema database handle: %v", err)
+	}
 	t.Cleanup(func() {
 		_ = sqlDB.Close()
+		_ = adminDB.Exec(`DROP SCHEMA "` + schema + `" CASCADE`).Error
+		_ = adminSQLDB.Close()
 	})
 	return db
 }

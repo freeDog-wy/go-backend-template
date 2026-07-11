@@ -1,11 +1,13 @@
 package config
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"strings"
 
 	"github.com/spf13/viper"
+	"github.com/subosito/gotenv"
 )
 
 type Config struct {
@@ -123,6 +125,10 @@ type BootstrapAdminConfig struct {
 }
 
 func Load(configPath string) *Config {
+	if err := loadDotEnv(".env"); err != nil {
+		panic(fmt.Errorf("failed to load .env: %w", err))
+	}
+
 	v := viper.New()
 
 	// set default config
@@ -196,9 +202,11 @@ func Load(configPath string) *Config {
 		panic(fmt.Errorf("failed to read config file (%s): %v", configPath, err))
 	}
 
-	// load Env
+	// Environment variables override file configuration. Explicitly setting the
+	// keys keeps nested values reliable when unmarshalling into Config.
 	v.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
 	v.AutomaticEnv()
+	applyEnvOverrides(v)
 
 	var cfg Config
 	if err := v.Unmarshal(&cfg); err != nil {
@@ -213,4 +221,47 @@ func Load(configPath string) *Config {
 	}
 
 	return &cfg
+}
+
+func loadDotEnv(path string) error {
+	env, err := gotenv.Read(path)
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return nil
+		}
+		return err
+	}
+
+	for key, value := range env {
+		if _, exists := os.LookupEnv(key); exists {
+			continue
+		}
+		if err := os.Setenv(key, value); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func applyEnvOverrides(v *viper.Viper) {
+	for key, envKey := range configEnvBindings {
+		if value, exists := os.LookupEnv(envKey); exists {
+			v.Set(key, value)
+		}
+	}
+}
+
+var configEnvBindings = map[string]string{
+	"app.mode":  "APP_MODE",
+	"server.ip": "SERVER_IP", "server.port": "SERVER_PORT", "server.readTimeout": "SERVER_READ_TIMEOUT", "server.writeTimeout": "SERVER_WRITE_TIMEOUT", "server.trustedProxies": "SERVER_TRUSTED_PROXIES",
+	"database.dsn":   "DATABASE_DSN",
+	"mq.events_name": "MQ_EVENTS_NAME", "mq.kafka.brokers": "MQ_KAFKA_BROKERS", "mq.kafka.client_id": "MQ_KAFKA_CLIENT_ID",
+	"redis.addr": "REDIS_ADDR", "redis.password": "REDIS_PASSWORD", "redis.db": "REDIS_DB",
+	"worker.consumer_group": "WORKER_CONSUMER_GROUP", "worker.consumer_max_retries": "WORKER_CONSUMER_MAX_RETRIES", "worker.consumer_processing_lock_seconds": "WORKER_CONSUMER_PROCESSING_LOCK_SECONDS", "worker.kafka_read_min_bytes": "WORKER_KAFKA_READ_MIN_BYTES", "worker.kafka_read_max_bytes": "WORKER_KAFKA_READ_MAX_BYTES", "worker.kafka_max_wait_seconds": "WORKER_KAFKA_MAX_WAIT_SECONDS", "worker.kafka_dead_letter_topic": "WORKER_KAFKA_DEAD_LETTER_TOPIC",
+	"auth.jwtIssuer": "AUTH_JWT_ISSUER", "auth.jwtAudience": "AUTH_JWT_AUDIENCE", "auth.jwtSecret": "AUTH_JWT_SECRET", "auth.accessTokenTTLMinutes": "AUTH_ACCESS_TOKEN_TTL_MINUTES", "auth.refreshTokenTTLHours": "AUTH_REFRESH_TOKEN_TTL_HOURS", "auth.loginFailThreshold": "AUTH_LOGIN_FAIL_THRESHOLD",
+	"email.smtpHost": "EMAIL_SMTP_HOST", "email.smtpPort": "EMAIL_SMTP_PORT", "email.smtpUser": "EMAIL_SMTP_USER", "email.smtpPassword": "EMAIL_SMTP_PASSWORD", "email.fromAddress": "EMAIL_FROM_ADDRESS", "email.siteBaseURL": "EMAIL_SITE_BASE_URL",
+	"captcha.width": "CAPTCHA_WIDTH", "captcha.height": "CAPTCHA_HEIGHT", "captcha.length": "CAPTCHA_LENGTH",
+	"cron.enabled": "CRON_ENABLED", "cron.outbox_publish_interval_seconds": "CRON_OUTBOX_PUBLISH_INTERVAL_SECONDS", "cron.outbox_batch_size": "CRON_OUTBOX_BATCH_SIZE", "cron.verification_cleanup_interval_seconds": "CRON_VERIFICATION_CLEANUP_INTERVAL_SECONDS",
+	"tracing.endpoint":        "TRACING_ENDPOINT",
+	"bootstrap_admin.enabled": "BOOTSTRAP_ADMIN_ENABLED", "bootstrap_admin.name": "BOOTSTRAP_ADMIN_NAME", "bootstrap_admin.email": "BOOTSTRAP_ADMIN_EMAIL", "bootstrap_admin.password": "BOOTSTRAP_ADMIN_PASSWORD",
 }

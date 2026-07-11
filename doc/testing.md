@@ -2,6 +2,8 @@
 
 项目将测试分为无需外部服务的单元测试和依赖真实基础设施的集成测试。
 
+本地运行服务时，配置加载器会自动读取工作目录下可选的 `.env`。`.env` 不提交；从 `.env.example` 创建个人配置。系统环境变量优先于 `.env` 和 YAML 配置。
+
 ## 单元测试
 
 单元测试使用 stub、fake 或内存实现验证领域规则、Usecase 编排、Handler 响应映射和基础设施适配逻辑。它们不依赖 PostgreSQL、Redis 或 Kafka。
@@ -32,7 +34,7 @@ make test-integration
 集成测试必须：
 
 - 使用 `internal/testkit.OpenPostgres` 建立连接；不得内置默认 DSN。
-- 使用测试专用数据库或 schema，绝不使用生产数据库。
+- 使用测试专用数据库，绝不使用生产数据库。`testkit.OpenPostgres` 会为每个测试创建并在结束后删除独立 PostgreSQL schema。
 - 使用唯一测试数据并在 `t.Cleanup` 中清理。
 - 覆盖数据库约束、事务、并发和真实 SQL 查询语义。
 
