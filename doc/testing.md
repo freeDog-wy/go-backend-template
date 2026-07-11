@@ -28,19 +28,49 @@ PowerShell：
 
 ```powershell
 $env:TEST_DATABASE_DSN = "host=localhost user=postgres password=postgres dbname=go_backend port=5432 sslmode=disable TimeZone=Asia/Shanghai"
-make test-integration
+make test-db-integration
 ```
 
 集成测试必须：
 
-- 使用 `internal/testkit.OpenPostgres` 建立连接；不得内置默认 DSN。
-- 使用测试专用数据库，绝不使用生产数据库。`testkit.OpenPostgres` 会为每个测试创建并在结束后删除独立 PostgreSQL schema。
+- 使用 `internal/testsupport.OpenPostgres` 建立连接；不得内置默认 DSN。
+- 使用测试专用数据库，绝不使用生产数据库。`testsupport.OpenPostgres` 会为每个测试创建并在结束后删除独立 PostgreSQL schema。
 - 使用唯一测试数据并在 `t.Cleanup` 中清理。
 - 覆盖数据库约束、事务、并发和真实 SQL 查询语义。
 
+## Redis 集成测试
+
+Redis 集成测试使用同一个 `integration` build tag，要求显式配置 Redis 地址和测试专用 DB：
+
+```powershell
+$env:TEST_REDIS_ADDR = "localhost:6379"
+$env:TEST_REDIS_PASSWORD = ""
+$env:TEST_REDIS_DB = "15"
+make test-redis-integration
+```
+
+测试只能创建和清理带唯一前缀的 key，禁止执行 `FLUSHDB`。建议保留 Redis DB 15 仅供本地集成测试使用。
+
+在本地同时运行 PostgreSQL 与 Redis 集成测试：
+
+```powershell
+make test-integration
+```
+
+## Kafka 集成测试
+
+Kafka 集成测试要求显式配置 broker：
+
+```powershell
+$env:TEST_KAFKA_BROKERS = "localhost:9092"
+make test-kafka-integration
+```
+
+每个测试创建唯一 topic 并在结束时请求删除。当前覆盖项目 Publisher 到真实 Kafka 的 key、payload、事件 header 和 trace header 映射。
+
 ## CI
 
-CI 应启动独立 PostgreSQL 服务，并注入 `TEST_DATABASE_DSN`，随后执行：
+CI 应启动独立 PostgreSQL 和 Redis 服务，并注入 `TEST_DATABASE_DSN`、`TEST_REDIS_ADDR`、`TEST_REDIS_DB`，随后执行：
 
 ```bash
 make test-ci

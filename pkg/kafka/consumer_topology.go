@@ -25,6 +25,7 @@ type ConsumerTopologyConfig struct {
 	MinBytes        int
 	MaxBytes        int
 	MaxWait         time.Duration
+	StartOffset     *int64
 	RetryLevels     []RetryLevel
 	DeadLetterTopic string
 }
@@ -67,13 +68,18 @@ func NewConsumerTopology(brokers []string, topic string, cfg ConsumerTopologyCon
 		deadLetterTopic = mainTopic + ".dlq"
 	}
 
+	startOffset := int64(kgo.LastOffset)
+	if cfg.StartOffset != nil {
+		startOffset = *cfg.StartOffset
+	}
+
 	readerCfg := ReaderConfig{
 		GroupID:     cfg.GroupID,
 		ClientID:    cfg.ClientID,
 		MinBytes:    cfg.MinBytes,
 		MaxBytes:    cfg.MaxBytes,
 		MaxWait:     cfg.MaxWait,
-		StartOffset: kgo.LastOffset,
+		StartOffset: startOffset,
 	}
 
 	retryLevels := normalizeRetryLevels(cfg.RetryLevels)

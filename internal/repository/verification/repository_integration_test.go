@@ -12,11 +12,11 @@ import (
 	"github.com/freeDog-wy/go-backend-template/internal/domain/shared"
 	domainVerification "github.com/freeDog-wy/go-backend-template/internal/domain/verification"
 	modelVerification "github.com/freeDog-wy/go-backend-template/internal/model/verification"
-	"github.com/freeDog-wy/go-backend-template/internal/testkit"
+	"github.com/freeDog-wy/go-backend-template/internal/testsupport"
 )
 
 func TestRepositoryIntegrationEmailTokenLifecycle(t *testing.T) {
-	db := testkit.OpenPostgres(t)
+	db := testsupport.OpenPostgres(t)
 	if err := db.AutoMigrate(&modelVerification.EmailVerificationToken{}, &modelVerification.PasswordResetToken{}); err != nil {
 		t.Fatalf("AutoMigrate() error = %v", err)
 	}

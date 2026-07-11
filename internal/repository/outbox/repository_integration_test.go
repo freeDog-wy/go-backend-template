@@ -10,11 +10,11 @@ import (
 
 	domainOutbox "github.com/freeDog-wy/go-backend-template/internal/domain/outbox"
 	modelOutbox "github.com/freeDog-wy/go-backend-template/internal/model/outbox"
-	"github.com/freeDog-wy/go-backend-template/internal/testkit"
+	"github.com/freeDog-wy/go-backend-template/internal/testsupport"
 )
 
 func TestRepositoryIntegrationPublishLifecycle(t *testing.T) {
-	db := testkit.OpenPostgres(t)
+	db := testsupport.OpenPostgres(t)
 	if err := db.AutoMigrate(&modelOutbox.Event{}); err != nil {
 		t.Fatalf("AutoMigrate() error = %v", err)
 	}

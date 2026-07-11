@@ -4,14 +4,6 @@ import (
 	"context"
 	"time"
 
-	modelAudit "github.com/freeDog-wy/go-backend-template/internal/model/audit"
-	modelAuth "github.com/freeDog-wy/go-backend-template/internal/model/auth"
-	modelAuthorization "github.com/freeDog-wy/go-backend-template/internal/model/authorization"
-	modelConsumption "github.com/freeDog-wy/go-backend-template/internal/model/consumption"
-	modelIdentity "github.com/freeDog-wy/go-backend-template/internal/model/identity"
-	modelOutbox "github.com/freeDog-wy/go-backend-template/internal/model/outbox"
-	modelVerification "github.com/freeDog-wy/go-backend-template/internal/model/verification"
-
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 )
@@ -37,29 +29,6 @@ func NewPostgresDB(dsn string) *gorm.DB {
 
 func NewTxManager(db *gorm.DB) *TxManager {
 	return &TxManager{db: db}
-}
-
-// RunAutoMigrate 仅在非生产环境执行 GORM AutoMigrate。
-// 生产环境应使用 migration 工具管理表结构。
-func RunAutoMigrate(db *gorm.DB, mode string) {
-	if mode == "production" {
-		return // 生产环境禁止自动建表
-	}
-	if err := db.AutoMigrate(
-		&modelAudit.Log{},
-		&modelIdentity.User{},
-		&modelAuth.UserCredential{},
-		&modelAuthorization.Role{},
-		&modelAuthorization.Permission{},
-		&modelAuthorization.UserRole{},
-		&modelAuthorization.RolePermission{},
-		&modelConsumption.Record{},
-		&modelOutbox.Event{},
-		&modelVerification.EmailVerificationToken{},
-		&modelVerification.PasswordResetToken{},
-	); err != nil {
-		panic("auto migrate failed: " + err.Error())
-	}
 }
 
 type TxManager struct {

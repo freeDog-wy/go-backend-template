@@ -1,4 +1,4 @@
-.PHONY: server worker cron test test-unit test-integration test-ci test-verbose test-auth test-mq test-support test-consumption-integration
+.PHONY: server worker cron migrate-up migrate-down migrate-version test test-unit test-integration test-db-integration test-redis-integration test-kafka-integration test-ci test-verbose test-auth test-mq test-support test-consumption-integration
 
 GO ?= go
 
@@ -13,13 +13,30 @@ worker:
 cron:
 	$(GO) build -o build/cron.exe ./cmd/cron
 
+migrate-up:
+	$(GO) run ./cmd/migrate -direction up
+
+migrate-down:
+	$(GO) run ./cmd/migrate -direction down -allow-destructive
+
+migrate-version:
+	$(GO) run ./cmd/migrate -version
+
 test: test-unit
 
 test-unit:
 	$(GO) test ./...
 
-test-integration:
-	$(GO) test -tags=integration ./internal/repository/...
+test-integration: test-db-integration test-redis-integration test-kafka-integration
+
+test-db-integration:
+	$(GO) test -tags=integration ./internal/infra/database ./internal/repository/...
+
+test-redis-integration:
+	$(GO) test -tags=integration ./internal/infra/cache ./pkg/captcha
+
+test-kafka-integration:
+	$(GO) test -tags=integration ./internal/infra/mq
 
 test-ci: test-unit test-integration
 

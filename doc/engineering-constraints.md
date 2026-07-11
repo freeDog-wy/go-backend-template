@@ -55,6 +55,13 @@ cmd -> handler / usecase / infra 的装配
 
 禁止在 Handler 中直接操作 GORM、Redis 或 Kafka；禁止在 Usecase 中直接依赖具体 Kafka、Redis 或 GORM 类型。
 
+### 2.1 HTTP 响应约定
+
+- 面向前端的业务 API，无论成功还是失败，HTTP 状态码统一返回 `200`。
+- 响应体使用统一信封；失败时必须设置 `success: false` 和稳定的 `error.code`，前端只根据这两个字段处理业务错误，不得依赖 HTTP 状态码分支。
+- Handler 输入校验、认证授权失败、Usecase 错误映射和 Recovery 捕获的未预期错误，均遵循该约定；不得向客户端泄露内部错误、panic 内容或堆栈。
+- `/healthz` 与 `/readyz` 属于部署探针，不面向前端协议，保留标准 HTTP 状态码：存活为 `200`，未就绪为 `503`。
+
 ## 3. 数据与事务
 
 - 任何跨多张业务表的一致性写入必须由 Usecase 通过 `shared.TxManager` 包裹。
@@ -139,4 +146,3 @@ go build ./cmd/server ./cmd/worker ./cmd/cron
 - 生产配置没有默认弱密钥、真实凭证或本地地址依赖。
 - README 包含启动步骤、架构图、配置说明、测试命令和升级方式。
 - 关键运行限制已写明：Outbox 语义、消费幂等要求、cron 部署模型和 DLQ 处理流程。
-

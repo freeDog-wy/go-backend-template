@@ -12,7 +12,9 @@ import (
 	HdlAdminUser "github.com/freeDog-wy/go-backend-template/internal/handler/admin_user"
 	HdlAuth "github.com/freeDog-wy/go-backend-template/internal/handler/auth"
 	HdlCaptcha "github.com/freeDog-wy/go-backend-template/internal/handler/captcha"
+	HdlHealth "github.com/freeDog-wy/go-backend-template/internal/handler/health"
 	HdlMe "github.com/freeDog-wy/go-backend-template/internal/handler/me"
+	"github.com/freeDog-wy/go-backend-template/internal/handler/middleware"
 	"github.com/freeDog-wy/go-backend-template/internal/infra/cache"
 	"github.com/freeDog-wy/go-backend-template/internal/infra/crypto"
 	"github.com/freeDog-wy/go-backend-template/internal/infra/database"
@@ -74,7 +76,10 @@ func initApp(cfg *config.Config) *App {
 	}, captcha.NewRedisStore(rdb, "captcha:", 5*time.Minute))
 
 	db := database.NewPostgresDB(cfg.Database.DSN)
-	database.RunAutoMigrate(db, cfg.App.Mode)
+	sqlDB, err := db.DB()
+	if err != nil {
+		panic("failed to get database health check handle: " + err.Error())
+	}
 	txManager := database.NewTxManager(db)
 
 	credentialRepo := RepoAuth.New(db)
@@ -115,12 +120,19 @@ func initApp(cfg *config.Config) *App {
 	}
 
 	captchaHdl := HdlCaptcha.New(captchaGenerator)
+	healthHdl := HdlHealth.New(map[string]HdlHealth.Checker{
+		"database": HdlHealth.CheckFunc(sqlDB.PingContext),
+		"redis": HdlHealth.CheckFunc(func(ctx context.Context) error {
+			return rdb.Ping(ctx).Err()
+		}),
+	}, 2*time.Second)
 	authHdl := HdlAuth.New(authSvc, authorizationSvc, identitySvc, verificationSvc)
 	adminRoleHdl := HdlAdminRole.New(authSvc, authorizationSvc, authorizationSvc)
 	adminUserHdl := HdlAdminUser.New(authSvc, authorizationSvc, authorizationSvc, identitySvc)
 	meHdl := HdlMe.New(authSvc, authSvc, identitySvc)
 
 	registry := handler.NewRegistry()
+	registry.Add(healthHdl)
 	registry.Add(captchaHdl)
 	registry.Add(authHdl)
 	registry.Add(adminRoleHdl)
@@ -133,6 +145,7 @@ func initApp(cfg *config.Config) *App {
 
 	r := gin.New()
 	r.Use(otelgin.Middleware("go-backend-template"))
+	r.Use(middleware.Recovery(appLogger))
 	registry.RegisterAll(r)
 
 	if len(cfg.Server.TrustedProxies) == 0 {

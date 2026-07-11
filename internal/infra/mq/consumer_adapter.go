@@ -21,6 +21,7 @@ type consumerAdapterConfig struct {
 	MinBytes          int
 	MaxBytes          int
 	MaxWait           time.Duration
+	StartOffset       *int64
 	ProcessingLockTTL time.Duration
 	MaxRetries        int
 	RetryLevels       []pkgkafka.RetryLevel
@@ -66,6 +67,7 @@ func newConsumerAdapter(
 		MinBytes:        cfg.MinBytes,
 		MaxBytes:        cfg.MaxBytes,
 		MaxWait:         cfg.MaxWait,
+		StartOffset:     cfg.StartOffset,
 		RetryLevels:     cfg.RetryLevels,
 		DeadLetterTopic: cfg.DeadLetterTopic,
 	})

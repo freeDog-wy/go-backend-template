@@ -1,5 +1,5 @@
-// Package testkit provides shared helpers for integration tests.
-package testkit
+// Package testsupport provides shared helpers for integration tests.
+package testsupport
 
 import (
 	"context"
@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/freeDog-wy/go-backend-template/pkg/envfile"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 )
@@ -19,6 +20,9 @@ const databaseDSNEnv = "TEST_DATABASE_DSN"
 // Integration tests must not silently use a developer's default database.
 func OpenPostgres(t testing.TB) *gorm.DB {
 	t.Helper()
+	if err := envfile.LoadNearest(".env"); err != nil {
+		t.Fatalf("load nearest .env: %v", err)
+	}
 
 	dsn := strings.TrimSpace(os.Getenv(databaseDSNEnv))
 	if dsn == "" {

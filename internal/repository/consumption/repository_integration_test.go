@@ -11,7 +11,7 @@ import (
 
 	domainConsumption "github.com/freeDog-wy/go-backend-template/internal/domain/consumption"
 	modelConsumption "github.com/freeDog-wy/go-backend-template/internal/model/consumption"
-	"github.com/freeDog-wy/go-backend-template/internal/testkit"
+	"github.com/freeDog-wy/go-backend-template/internal/testsupport"
 	"gorm.io/gorm"
 )
 
@@ -327,7 +327,7 @@ func TestRepositoryIntegrationValidation(t *testing.T) {
 func openConsumptionTestDB(t *testing.T) *gorm.DB {
 	t.Helper()
 
-	db := testkit.OpenPostgres(t)
+	db := testsupport.OpenPostgres(t)
 
 	if err := db.AutoMigrate(&modelConsumption.Record{}); err != nil {
 		t.Fatalf("AutoMigrate() error = %v", err)

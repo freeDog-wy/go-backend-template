@@ -1,13 +1,12 @@
 package config
 
 import (
-	"errors"
 	"fmt"
 	"os"
 	"strings"
 
+	"github.com/freeDog-wy/go-backend-template/pkg/envfile"
 	"github.com/spf13/viper"
-	"github.com/subosito/gotenv"
 )
 
 type Config struct {
@@ -125,7 +124,7 @@ type BootstrapAdminConfig struct {
 }
 
 func Load(configPath string) *Config {
-	if err := loadDotEnv(".env"); err != nil {
+	if err := envfile.Load(".env"); err != nil {
 		panic(fmt.Errorf("failed to load .env: %w", err))
 	}
 
@@ -221,26 +220,6 @@ func Load(configPath string) *Config {
 	}
 
 	return &cfg
-}
-
-func loadDotEnv(path string) error {
-	env, err := gotenv.Read(path)
-	if err != nil {
-		if errors.Is(err, os.ErrNotExist) {
-			return nil
-		}
-		return err
-	}
-
-	for key, value := range env {
-		if _, exists := os.LookupEnv(key); exists {
-			continue
-		}
-		if err := os.Setenv(key, value); err != nil {
-			return err
-		}
-	}
-	return nil
 }
 
 func applyEnvOverrides(v *viper.Viper) {

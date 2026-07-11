@@ -10,11 +10,11 @@ import (
 
 	domainAuthorization "github.com/freeDog-wy/go-backend-template/internal/domain/authorization"
 	modelAuthorization "github.com/freeDog-wy/go-backend-template/internal/model/authorization"
-	"github.com/freeDog-wy/go-backend-template/internal/testkit"
+	"github.com/freeDog-wy/go-backend-template/internal/testsupport"
 )
 
 func TestRepositoryIntegrationRoleBindings(t *testing.T) {
-	db := testkit.OpenPostgres(t)
+	db := testsupport.OpenPostgres(t)
 	if err := db.AutoMigrate(&modelAuthorization.Role{}, &modelAuthorization.Permission{}, &modelAuthorization.UserRole{}, &modelAuthorization.RolePermission{}); err != nil {
 		t.Fatalf("AutoMigrate() error = %v", err)
 	}

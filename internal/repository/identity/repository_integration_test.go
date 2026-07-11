@@ -12,11 +12,11 @@ import (
 	domainIdentity "github.com/freeDog-wy/go-backend-template/internal/domain/identity"
 	"github.com/freeDog-wy/go-backend-template/internal/domain/shared"
 	modelIdentity "github.com/freeDog-wy/go-backend-template/internal/model/identity"
-	"github.com/freeDog-wy/go-backend-template/internal/testkit"
+	"github.com/freeDog-wy/go-backend-template/internal/testsupport"
 )
 
 func TestRepositoryIntegrationUserLifecycle(t *testing.T) {
-	db := testkit.OpenPostgres(t)
+	db := testsupport.OpenPostgres(t)
 	if err := db.AutoMigrate(&modelIdentity.User{}); err != nil {
 		t.Fatalf("AutoMigrate() error = %v", err)
 	}
