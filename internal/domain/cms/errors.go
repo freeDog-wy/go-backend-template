@@ -9,4 +9,6 @@ var (
 	ErrTranslationAbsent = errors.New("content translation not found")
 	ErrCategoryCycle     = errors.New("category move would create a cycle")
 	ErrLocaleNotFound    = errors.New("locale not found")
+	ErrLocaleDefault     = errors.New("default locale cannot be disabled")
+	ErrLastEnabledLocale = errors.New("at least one locale must remain enabled")
 )

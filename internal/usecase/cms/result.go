@@ -2,6 +2,14 @@ package cms
 
 import "time"
 
+type LocaleResult struct {
+	Code      string `json:"code"`
+	Name      string `json:"name"`
+	IsDefault bool   `json:"is_default"`
+	IsEnabled bool   `json:"is_enabled"`
+	SortOrder int    `json:"sort_order"`
+}
+
 type CategoryResult struct {
 	ID        uint   `json:"id"`
 	ParentID  *uint  `json:"parent_id,omitempty"`
@@ -26,6 +34,26 @@ type ArticleResult struct {
 	Slug        string     `json:"slug"`
 	Status      string     `json:"status"`
 	PublishedAt *time.Time `json:"published_at,omitempty"`
+}
+type ArticleDetailResult struct {
+	ID             uint                    `json:"id"`
+	AuthorUserID   uint                    `json:"author_user_id"`
+	Locale         string                  `json:"locale"`
+	Title          string                  `json:"title"`
+	Slug           string                  `json:"slug"`
+	Summary        string                  `json:"summary"`
+	Content        string                  `json:"content"`
+	ContentFormat  string                  `json:"content_format"`
+	Status         string                  `json:"status"`
+	PublishedAt    *time.Time              `json:"published_at,omitempty"`
+	SEOTitle       string                  `json:"seo_title"`
+	SEODescription string                  `json:"seo_description"`
+	CanonicalURL   string                  `json:"canonical_url"`
+	Categories     []ArticleCategoryResult `json:"categories"`
+}
+type ArticleCategoryResult struct {
+	CategoryID uint `json:"category_id"`
+	IsPrimary  bool `json:"is_primary"`
 }
 type PublicArticleResult struct {
 	ID             uint       `json:"id"`

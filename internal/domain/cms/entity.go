@@ -2,6 +2,16 @@ package cms
 
 import "time"
 
+type Locale struct {
+	Code      string
+	Name      string
+	IsDefault bool
+	IsEnabled bool
+	SortOrder int
+	CreatedAt time.Time
+	UpdatedAt time.Time
+}
+
 type Category struct {
 	ID        uint
 	ParentID  *uint
@@ -68,6 +78,11 @@ type CategoryTreeItem struct {
 type ArticleListItem struct {
 	Article
 	ArticleTranslation
+}
+
+type ArticleCategory struct {
+	CategoryID uint
+	IsPrimary  bool
 }
 
 type PublicArticleListItem struct {

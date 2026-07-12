@@ -8,7 +8,14 @@ import (
 
 type Repository interface {
 	LocaleEnabled(ctx context.Context, code string) (bool, error)
+	ListLocales(ctx context.Context) ([]*Locale, error)
+	FindLocale(ctx context.Context, code string) (*Locale, error)
+	CreateLocale(ctx context.Context, locale *Locale) error
+	UpdateLocale(ctx context.Context, locale *Locale) error
+	SetDefaultLocale(ctx context.Context, code string) error
+	CountEnabledLocales(ctx context.Context) (int64, error)
 	CreateCategory(ctx context.Context, category *Category, translation *CategoryTranslation) error
+	UpsertCategoryTranslation(ctx context.Context, translation *CategoryTranslation) error
 	FindCategory(ctx context.Context, id uint) (*Category, error)
 	IsCategoryDescendant(ctx context.Context, ancestorID, candidateID uint) (bool, error)
 	MoveCategory(ctx context.Context, id uint, parentID *uint, sortOrder int) error
@@ -18,6 +25,7 @@ type Repository interface {
 	FindArticle(ctx context.Context, id uint) (*Article, error)
 	CreateArticleTranslation(ctx context.Context, translation *ArticleTranslation) error
 	FindArticleTranslation(ctx context.Context, articleID uint, locale string) (*ArticleTranslation, error)
+	ListArticleCategories(ctx context.Context, articleID uint) ([]ArticleCategory, error)
 	SaveArticleTranslation(ctx context.Context, translation *ArticleTranslation) error
 	ReplaceArticleCategories(ctx context.Context, articleID uint, categoryIDs []uint, primaryCategoryID *uint) error
 	ListArticleTranslations(ctx context.Context, locale string, page shared.PageQuery) ([]*ArticleListItem, int64, error)

@@ -39,6 +39,19 @@ func TestRepositoryIntegrationCMSConstraintsAndPublicVisibility(t *testing.T) {
 		t.Fatalf("create author: %v", err)
 	}
 	repo := New(db)
+	enLocale := &domainCMS.Locale{Code: "en-US", Name: "English", IsEnabled: true, SortOrder: 1}
+	if err := repo.CreateLocale(ctx, enLocale); err != nil {
+		t.Fatalf("create locale: %v", err)
+	}
+	if err := repo.SetDefaultLocale(ctx, enLocale.Code); err != nil {
+		t.Fatalf("set default locale: %v", err)
+	}
+	if locale, err := repo.FindLocale(ctx, "zh-CN"); err != nil || locale.IsDefault {
+		t.Fatalf("old default locale = %#v, %v", locale, err)
+	}
+	if locale, err := repo.FindLocale(ctx, "en-US"); err != nil || !locale.IsDefault {
+		t.Fatalf("new default locale = %#v, %v", locale, err)
+	}
 	category, err := createCategory(ctx, repo, "root")
 	if err != nil {
 		t.Fatal(err)
@@ -59,6 +72,12 @@ func TestRepositoryIntegrationCMSConstraintsAndPublicVisibility(t *testing.T) {
 	}
 	if err := repo.ReplaceArticleCategories(ctx, article2.ID, []uint{category.ID}, &category.ID); err != nil {
 		t.Fatalf("set published article category: %v", err)
+	}
+	if err := repo.UpsertCategoryTranslation(ctx, &domainCMS.CategoryTranslation{CategoryID: category.ID, Locale: "en-US", Name: "Root", Slug: "root", Description: "English root"}); err != nil {
+		t.Fatalf("upsert category translation: %v", err)
+	}
+	if categories, err := repo.ListCategoryTreeItems(ctx, "en-US"); err != nil || len(categories) != 1 || categories[0].Name != "Root" {
+		t.Fatalf("english categories = %#v, %v", categories, err)
 	}
 	publicArticles, total, err := repo.ListPublicArticles(ctx, "zh-CN", nil, shared.NewPageQuery(1, 20))
 	if err != nil || total != 1 || len(publicArticles) != 1 || publicArticles[0].Article.ID != article2.ID {

@@ -2,6 +2,18 @@ package cms
 
 import "time"
 
+type Locale struct {
+	Code      string `gorm:"primaryKey"`
+	Name      string
+	IsDefault bool
+	IsEnabled bool
+	SortOrder int
+	CreatedAt time.Time
+	UpdatedAt time.Time
+}
+
+func (Locale) TableName() string { return "locales" }
+
 type Category struct {
 	ID        uint `gorm:"primaryKey"`
 	ParentID  *uint

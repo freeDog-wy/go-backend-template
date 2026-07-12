@@ -14,16 +14,42 @@ type testTx struct{}
 func (testTx) Do(ctx context.Context, fn func(context.Context) error) error { return fn(ctx) }
 
 type testRepo struct {
-	descendant bool
-	tr         *domainCMS.ArticleTranslation
-	public     *domainCMS.PublicArticle
-	tree       []*domainCMS.CategoryTreeItem
-	replaced   []uint
-	publicList []*domainCMS.PublicArticleListItem
+	descendant   bool
+	tr           *domainCMS.ArticleTranslation
+	public       *domainCMS.PublicArticle
+	tree         []*domainCMS.CategoryTreeItem
+	replaced     []uint
+	publicList   []*domainCMS.PublicArticleListItem
+	locale       *domainCMS.Locale
+	enabledCount int64
 }
 
 func (*testRepo) LocaleEnabled(context.Context, string) (bool, error) { return true, nil }
+func (r *testRepo) ListLocales(context.Context) ([]*domainCMS.Locale, error) {
+	if r.locale == nil {
+		return nil, nil
+	}
+	return []*domainCMS.Locale{r.locale}, nil
+}
+func (r *testRepo) FindLocale(_ context.Context, _ string) (*domainCMS.Locale, error) {
+	if r.locale == nil {
+		return &domainCMS.Locale{Code: "zh-CN", Name: "Chinese", IsEnabled: true}, nil
+	}
+	return r.locale, nil
+}
+func (*testRepo) CreateLocale(context.Context, *domainCMS.Locale) error { return nil }
+func (*testRepo) UpdateLocale(context.Context, *domainCMS.Locale) error { return nil }
+func (*testRepo) SetDefaultLocale(context.Context, string) error        { return nil }
+func (r *testRepo) CountEnabledLocales(context.Context) (int64, error) {
+	if r.enabledCount == 0 {
+		return 2, nil
+	}
+	return r.enabledCount, nil
+}
 func (*testRepo) CreateCategory(context.Context, *domainCMS.Category, *domainCMS.CategoryTranslation) error {
+	return nil
+}
+func (*testRepo) UpsertCategoryTranslation(context.Context, *domainCMS.CategoryTranslation) error {
 	return nil
 }
 func (*testRepo) FindCategory(_ context.Context, id uint) (*domainCMS.Category, error) {
@@ -51,6 +77,9 @@ func (r *testRepo) FindArticleTranslation(context.Context, uint, string) (*domai
 		return nil, shared.ErrNotFound
 	}
 	return r.tr, nil
+}
+func (*testRepo) ListArticleCategories(context.Context, uint) ([]domainCMS.ArticleCategory, error) {
+	return nil, nil
 }
 func (*testRepo) SaveArticleTranslation(context.Context, *domainCMS.ArticleTranslation) error {
 	return nil
@@ -146,5 +175,19 @@ func TestListPublishedArticlesReturnsOnlySummaryFields(t *testing.T) {
 	}
 	if len(results) != 1 || results[0].PrimaryCategory == nil || results[0].PrimaryCategory.Slug != "news" || page.Total != 1 {
 		t.Fatalf("result = %#v, page = %#v", results, page)
+	}
+}
+func TestUpdateLocaleRejectsDisablingDefault(t *testing.T) {
+	repo := &testRepo{locale: &domainCMS.Locale{Code: "zh-CN", Name: "Chinese", IsDefault: true, IsEnabled: true}}
+	_, err := New(testTx{}, repo).UpdateLocale(context.Background(), UpdateLocaleCmd{Code: "zh-CN", Name: "Chinese", IsEnabled: false})
+	if !errors.Is(err, domainCMS.ErrLocaleDefault) {
+		t.Fatalf("error = %v", err)
+	}
+}
+func TestUpdateLocaleRejectsDisablingLastEnabledLocale(t *testing.T) {
+	repo := &testRepo{locale: &domainCMS.Locale{Code: "en-US", Name: "English", IsEnabled: true}, enabledCount: 1}
+	_, err := New(testTx{}, repo).UpdateLocale(context.Background(), UpdateLocaleCmd{Code: "en-US", Name: "English", IsEnabled: false})
+	if !errors.Is(err, domainCMS.ErrLastEnabledLocale) {
+		t.Fatalf("error = %v", err)
 	}
 }

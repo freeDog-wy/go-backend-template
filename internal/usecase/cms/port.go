@@ -7,7 +7,11 @@ import (
 )
 
 type AdminService interface {
+	ListLocales(context.Context) ([]*LocaleResult, error)
+	CreateLocale(context.Context, CreateLocaleCmd) (*LocaleResult, error)
+	UpdateLocale(context.Context, UpdateLocaleCmd) (*LocaleResult, error)
 	CreateCategory(context.Context, CreateCategoryCmd) (*CategoryResult, error)
+	UpsertCategoryTranslation(context.Context, UpsertCategoryTranslationCmd) (*CategoryResult, error)
 	MoveCategory(context.Context, MoveCategoryCmd) error
 	CreateArticle(context.Context, CreateArticleCmd) (*ArticleResult, error)
 	CreateTranslation(context.Context, CreateTranslationCmd) (*ArticleResult, error)
@@ -17,6 +21,7 @@ type AdminService interface {
 	ListCategories(context.Context, ListCategoriesCmd) ([]*CategoryTreeResult, error)
 	ReplaceArticleCategories(context.Context, ReplaceArticleCategoriesCmd) error
 	ListArticles(context.Context, ListArticlesCmd) ([]*ArticleResult, shared.PageResult, error)
+	GetArticleTranslation(context.Context, GetArticleTranslationCmd) (*ArticleDetailResult, error)
 }
 
 type PublicContentService interface {

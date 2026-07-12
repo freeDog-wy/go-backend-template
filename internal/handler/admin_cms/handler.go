@@ -23,11 +23,16 @@ func New(auth svcAuth.AccessAuthenticator, authorizer svcAuthorization.AccessAut
 }
 func (h *Handler) RegisterRoutes(r *gin.Engine) {
 	g := r.Group("/api/v1/admin/cms")
+	g.GET("/locales", handlerMiddleware.RequirePermission(h.auth, h.authorizer, "cms.locale.manage"), h.ListLocales)
+	g.POST("/locales", handlerMiddleware.RequirePermission(h.auth, h.authorizer, "cms.locale.manage"), h.CreateLocale)
+	g.PATCH("/locales/:code", handlerMiddleware.RequirePermission(h.auth, h.authorizer, "cms.locale.manage"), h.UpdateLocale)
 	g.POST("/categories", handlerMiddleware.RequirePermission(h.auth, h.authorizer, "cms.category.manage"), h.CreateCategory)
 	g.GET("/categories", handlerMiddleware.RequirePermission(h.auth, h.authorizer, "cms.category.manage"), h.ListCategories)
 	g.PATCH("/categories/:id/move", handlerMiddleware.RequirePermission(h.auth, h.authorizer, "cms.category.manage"), h.MoveCategory)
+	g.PUT("/categories/:id/translations/:locale", handlerMiddleware.RequirePermission(h.auth, h.authorizer, "cms.category.manage"), h.UpsertCategoryTranslation)
 	g.POST("/articles", handlerMiddleware.RequirePermission(h.auth, h.authorizer, "cms.article.create"), h.CreateArticle)
 	g.GET("/articles", handlerMiddleware.RequirePermission(h.auth, h.authorizer, "cms.article.update"), h.ListArticles)
+	g.GET("/articles/:id/translations/:locale", handlerMiddleware.RequirePermission(h.auth, h.authorizer, "cms.article.update"), h.GetArticleTranslation)
 	g.PUT("/articles/:id/categories", handlerMiddleware.RequirePermission(h.auth, h.authorizer, "cms.article.update"), h.ReplaceArticleCategories)
 	g.POST("/articles/:id/translations", handlerMiddleware.RequirePermission(h.auth, h.authorizer, "cms.article.update"), h.CreateTranslation)
 	g.PUT("/articles/:id/translations/:locale", handlerMiddleware.RequirePermission(h.auth, h.authorizer, "cms.article.update"), h.UpdateTranslation)
@@ -53,6 +58,26 @@ type replaceArticleCategoriesReq struct {
 	CategoryIDs       []uint `json:"category_ids"`
 	PrimaryCategoryID *uint  `json:"primary_category_id"`
 }
+type localeReq struct {
+	Code      string `json:"code" binding:"required"`
+	Name      string `json:"name" binding:"required"`
+	IsEnabled bool   `json:"is_enabled"`
+	SortOrder int    `json:"sort_order"`
+	IsDefault bool   `json:"is_default"`
+}
+type updateLocaleReq struct {
+	Name      string `json:"name" binding:"required"`
+	IsEnabled bool   `json:"is_enabled"`
+	SortOrder int    `json:"sort_order"`
+	IsDefault bool   `json:"is_default"`
+}
+type categoryTranslationReq struct {
+	Name           string `json:"name" binding:"required"`
+	Slug           string `json:"slug" binding:"required"`
+	Description    string `json:"description"`
+	SEOTitle       string `json:"seo_title"`
+	SEODescription string `json:"seo_description"`
+}
 type articleReq struct {
 	Locale         string `json:"locale" binding:"required"`
 	Title          string `json:"title" binding:"required"`
@@ -72,6 +97,40 @@ func (h *Handler) CreateCategory(c *gin.Context) {
 		return
 	}
 	result, err := h.cms.CreateCategory(c, svcCMS.CreateCategoryCmd{ParentID: req.ParentID, SortOrder: req.SortOrder, Locale: req.Locale, Name: req.Name, Slug: req.Slug, Description: req.Description, SEOTitle: req.SEOTitle, SEODescription: req.SEODescription})
+	if err != nil {
+		fail(c, err)
+		return
+	}
+	handler.OK(c, result)
+}
+func (h *Handler) ListLocales(c *gin.Context) {
+	result, err := h.cms.ListLocales(c)
+	if err != nil {
+		fail(c, err)
+		return
+	}
+	handler.OK(c, result)
+}
+func (h *Handler) CreateLocale(c *gin.Context) {
+	var req localeReq
+	if err := c.ShouldBindJSON(&req); err != nil {
+		invalid(c)
+		return
+	}
+	result, err := h.cms.CreateLocale(c, svcCMS.CreateLocaleCmd{Code: req.Code, Name: req.Name, SortOrder: req.SortOrder})
+	if err != nil {
+		fail(c, err)
+		return
+	}
+	handler.OK(c, result)
+}
+func (h *Handler) UpdateLocale(c *gin.Context) {
+	var req updateLocaleReq
+	if err := c.ShouldBindJSON(&req); err != nil {
+		invalid(c)
+		return
+	}
+	result, err := h.cms.UpdateLocale(c, svcCMS.UpdateLocaleCmd{Code: c.Param("code"), Name: req.Name, IsEnabled: req.IsEnabled, SortOrder: req.SortOrder, IsDefault: req.IsDefault})
 	if err != nil {
 		fail(c, err)
 		return
@@ -103,6 +162,23 @@ func (h *Handler) MoveCategory(c *gin.Context) {
 	}
 	handler.OK(c, gin.H{"id": id})
 }
+func (h *Handler) UpsertCategoryTranslation(c *gin.Context) {
+	id, ok := idParam(c)
+	if !ok {
+		return
+	}
+	var req categoryTranslationReq
+	if err := c.ShouldBindJSON(&req); err != nil {
+		invalid(c)
+		return
+	}
+	result, err := h.cms.UpsertCategoryTranslation(c, svcCMS.UpsertCategoryTranslationCmd{CategoryID: id, Locale: c.Param("locale"), Name: req.Name, Slug: req.Slug, Description: req.Description, SEOTitle: req.SEOTitle, SEODescription: req.SEODescription})
+	if err != nil {
+		fail(c, err)
+		return
+	}
+	handler.OK(c, result)
+}
 func (h *Handler) CreateArticle(c *gin.Context) {
 	var req articleReq
 	if c.ShouldBindJSON(&req) != nil {
@@ -128,6 +204,18 @@ func (h *Handler) ListArticles(c *gin.Context) {
 		return
 	}
 	handler.OKPage(c, results, handler.MetaFromPageResult(page))
+}
+func (h *Handler) GetArticleTranslation(c *gin.Context) {
+	id, ok := idParam(c)
+	if !ok {
+		return
+	}
+	result, err := h.cms.GetArticleTranslation(c, svcCMS.GetArticleTranslationCmd{ArticleID: id, Locale: c.Param("locale")})
+	if err != nil {
+		fail(c, err)
+		return
+	}
+	handler.OK(c, result)
 }
 func (h *Handler) ReplaceArticleCategories(c *gin.Context) {
 	id, ok := idParam(c)
@@ -222,6 +310,10 @@ func fail(c *gin.Context, err error) {
 		handler.Fail(c, "CONTENT_TRANSLATION_NOT_FOUND", "content translation not found")
 	case errors.Is(err, domainCMS.ErrArticleNotFound):
 		handler.Fail(c, "ARTICLE_NOT_FOUND", "article not found")
+	case errors.Is(err, domainCMS.ErrLocaleDefault):
+		handler.Fail(c, "DEFAULT_LOCALE_CANNOT_BE_DISABLED", "default locale cannot be disabled")
+	case errors.Is(err, domainCMS.ErrLastEnabledLocale):
+		handler.Fail(c, "LAST_ENABLED_LOCALE", "at least one locale must remain enabled")
 	default:
 		handler.Fail(c, "INTERNAL_ERROR", err.Error())
 	}

@@ -19,6 +19,69 @@ func New(tx shared.TxManager, repo domainCMS.Repository) *Service {
 	return &Service{tx: tx, repo: repo, now: time.Now}
 }
 
+func (s *Service) ListLocales(ctx context.Context) ([]*LocaleResult, error) {
+	locales, err := s.repo.ListLocales(ctx)
+	if err != nil {
+		return nil, err
+	}
+	result := make([]*LocaleResult, 0, len(locales))
+	for _, locale := range locales {
+		result = append(result, localeResult(locale))
+	}
+	return result, nil
+}
+func (s *Service) CreateLocale(ctx context.Context, cmd CreateLocaleCmd) (*LocaleResult, error) {
+	code, name := strings.TrimSpace(cmd.Code), strings.TrimSpace(cmd.Name)
+	if !validLocale(code) || name == "" {
+		return nil, domainCMS.ErrInvalidInput
+	}
+	locale := &domainCMS.Locale{Code: code, Name: name, IsEnabled: true, SortOrder: cmd.SortOrder}
+	if err := s.repo.CreateLocale(ctx, locale); err != nil {
+		return nil, err
+	}
+	return localeResult(locale), nil
+}
+func (s *Service) UpdateLocale(ctx context.Context, cmd UpdateLocaleCmd) (*LocaleResult, error) {
+	if !validLocale(strings.TrimSpace(cmd.Code)) || strings.TrimSpace(cmd.Name) == "" {
+		return nil, domainCMS.ErrInvalidInput
+	}
+	locale, err := s.repo.FindLocale(ctx, cmd.Code)
+	if err != nil {
+		return nil, mapLocale(err)
+	}
+	if locale.IsDefault && !cmd.IsEnabled {
+		return nil, domainCMS.ErrLocaleDefault
+	}
+	if locale.IsEnabled && !cmd.IsEnabled {
+		count, err := s.repo.CountEnabledLocales(ctx)
+		if err != nil {
+			return nil, err
+		}
+		if count <= 1 {
+			return nil, domainCMS.ErrLastEnabledLocale
+		}
+	}
+	if cmd.IsDefault && !cmd.IsEnabled {
+		return nil, domainCMS.ErrInvalidInput
+	}
+	locale.Name, locale.IsEnabled, locale.SortOrder = strings.TrimSpace(cmd.Name), cmd.IsEnabled, cmd.SortOrder
+	if err := s.tx.Do(ctx, func(ctx context.Context) error {
+		if err := s.repo.UpdateLocale(ctx, locale); err != nil {
+			return err
+		}
+		if cmd.IsDefault && !locale.IsDefault {
+			if err := s.repo.SetDefaultLocale(ctx, locale.Code); err != nil {
+				return err
+			}
+			locale.IsDefault = true
+		}
+		return nil
+	}); err != nil {
+		return nil, err
+	}
+	return localeResult(locale), nil
+}
+
 func (s *Service) CreateCategory(ctx context.Context, cmd CreateCategoryCmd) (*CategoryResult, error) {
 	if err := validNameSlug(cmd.Name, cmd.Slug); err != nil {
 		return nil, err
@@ -37,6 +100,26 @@ func (s *Service) CreateCategory(ctx context.Context, cmd CreateCategoryCmd) (*C
 		return nil, err
 	}
 	return &CategoryResult{ID: c.ID, ParentID: c.ParentID, SortOrder: c.SortOrder, Locale: tr.Locale, Name: tr.Name, Slug: tr.Slug}, nil
+}
+func (s *Service) UpsertCategoryTranslation(ctx context.Context, cmd UpsertCategoryTranslationCmd) (*CategoryResult, error) {
+	if cmd.CategoryID == 0 {
+		return nil, domainCMS.ErrInvalidInput
+	}
+	if err := validNameSlug(cmd.Name, cmd.Slug); err != nil {
+		return nil, err
+	}
+	if err := s.requireExistingLocale(ctx, cmd.Locale); err != nil {
+		return nil, err
+	}
+	category, err := s.repo.FindCategory(ctx, cmd.CategoryID)
+	if err != nil {
+		return nil, mapCategory(err)
+	}
+	translation := &domainCMS.CategoryTranslation{CategoryID: cmd.CategoryID, Locale: strings.TrimSpace(cmd.Locale), Name: strings.TrimSpace(cmd.Name), Slug: strings.TrimSpace(cmd.Slug), Description: cmd.Description, SEOTitle: cmd.SEOTitle, SEODescription: cmd.SEODescription}
+	if err := s.repo.UpsertCategoryTranslation(ctx, translation); err != nil {
+		return nil, err
+	}
+	return &CategoryResult{ID: category.ID, ParentID: category.ParentID, SortOrder: category.SortOrder, Locale: translation.Locale, Name: translation.Name, Slug: translation.Slug}, nil
 }
 func (s *Service) MoveCategory(ctx context.Context, cmd MoveCategoryCmd) error {
 	if cmd.CategoryID == 0 {
@@ -216,6 +299,31 @@ func (s *Service) ListArticles(ctx context.Context, cmd ListArticlesCmd) ([]*Art
 	}
 	return results, shared.PageResult{Page: page.Page, PerPage: page.PerPage, Total: total}, nil
 }
+func (s *Service) GetArticleTranslation(ctx context.Context, cmd GetArticleTranslationCmd) (*ArticleDetailResult, error) {
+	if cmd.ArticleID == 0 {
+		return nil, domainCMS.ErrInvalidInput
+	}
+	if err := s.requireExistingLocale(ctx, cmd.Locale); err != nil {
+		return nil, err
+	}
+	article, err := s.repo.FindArticle(ctx, cmd.ArticleID)
+	if err != nil {
+		return nil, mapArticle(err)
+	}
+	translation, err := s.translation(ctx, cmd.ArticleID, cmd.Locale)
+	if err != nil {
+		return nil, err
+	}
+	categories, err := s.repo.ListArticleCategories(ctx, cmd.ArticleID)
+	if err != nil {
+		return nil, err
+	}
+	result := &ArticleDetailResult{ID: article.ID, AuthorUserID: article.AuthorUserID, Locale: translation.Locale, Title: translation.Title, Slug: translation.Slug, Summary: translation.Summary, Content: translation.Content, ContentFormat: translation.ContentFormat, Status: string(translation.Status), PublishedAt: translation.PublishedAt, SEOTitle: translation.SEOTitle, SEODescription: translation.SEODescription, CanonicalURL: translation.CanonicalURL, Categories: make([]ArticleCategoryResult, 0, len(categories))}
+	for _, category := range categories {
+		result.Categories = append(result.Categories, ArticleCategoryResult{CategoryID: category.CategoryID, IsPrimary: category.IsPrimary})
+	}
+	return result, nil
+}
 func (s *Service) GetPublishedArticle(ctx context.Context, locale, slug string) (*PublicArticleResult, error) {
 	a, err := s.repo.FindPublicArticle(ctx, locale, slug)
 	if err != nil {
@@ -284,6 +392,10 @@ func (s *Service) requireLocale(ctx context.Context, locale string) error {
 	}
 	return nil
 }
+func (s *Service) requireExistingLocale(ctx context.Context, locale string) error {
+	_, err := s.repo.FindLocale(ctx, strings.TrimSpace(locale))
+	return mapLocale(err)
+}
 func validNameSlug(name, slug string) error {
 	if strings.TrimSpace(name) == "" || strings.TrimSpace(slug) == "" {
 		return domainCMS.ErrInvalidInput
@@ -310,6 +422,26 @@ func mapArticle(err error) error {
 		return domainCMS.ErrArticleNotFound
 	}
 	return err
+}
+func mapLocale(err error) error {
+	if errors.Is(err, shared.ErrNotFound) {
+		return domainCMS.ErrLocaleNotFound
+	}
+	return err
+}
+func validLocale(code string) bool {
+	if len(code) < 2 || len(code) > 35 {
+		return false
+	}
+	for _, r := range code {
+		if !(r >= 'a' && r <= 'z' || r >= 'A' && r <= 'Z' || r >= '0' && r <= '9' || r == '-') {
+			return false
+		}
+	}
+	return true
+}
+func localeResult(locale *domainCMS.Locale) *LocaleResult {
+	return &LocaleResult{Code: locale.Code, Name: locale.Name, IsDefault: locale.IsDefault, IsEnabled: locale.IsEnabled, SortOrder: locale.SortOrder}
 }
 func translationFromCreate(articleID uint, cmd CreateArticleCmd) *domainCMS.ArticleTranslation {
 	format := cmd.ContentFormat

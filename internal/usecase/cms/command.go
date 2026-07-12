@@ -51,3 +51,22 @@ type ListPublicCategoryArticlesCmd struct {
 	CategorySlug string
 	Page         shared.PageQuery
 }
+type CreateLocaleCmd struct {
+	Code, Name string
+	SortOrder  int
+}
+type UpdateLocaleCmd struct {
+	Code      string
+	Name      string
+	IsEnabled bool
+	SortOrder int
+	IsDefault bool
+}
+type UpsertCategoryTranslationCmd struct {
+	CategoryID                                                uint
+	Locale, Name, Slug, Description, SEOTitle, SEODescription string
+}
+type GetArticleTranslationCmd struct {
+	ArticleID uint
+	Locale    string
+}

@@ -1,0 +1,1 @@
+DROP INDEX IF EXISTS idx_article_categories_category_article;
