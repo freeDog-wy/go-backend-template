@@ -1,11 +1,17 @@
-.PHONY: server worker cron docker-build docker-server docker-worker docker-cron docker-migrate migrate-up migrate-down migrate-version test test-unit test-integration test-db-integration test-redis-integration test-kafka-integration test-ci test-verbose test-auth test-mq test-support test-consumption-integration
+.PHONY: server worker cron docker-build docker-server docker-worker docker-cron docker-migrate migrate-up migrate-down migrate-version release-prepare release-check release-tag release-push release project-branch test test-unit test-integration test-db-integration test-redis-integration test-kafka-integration test-ci test-verbose test-auth test-mq test-support test-consumption-integration
 
 GO ?= go
 DOCKER ?= docker
+GIT ?= git
 IMAGE_NAME ?= go-backend-template
 IMAGE_TAG ?= dev
+VERSION ?=
+PROJECT ?=
 
 all: test server worker cron
+
+################################################################################
+################################################################# Build commands
 
 server:
 	$(GO) build -o build/server.exe ./cmd/server
@@ -30,6 +36,41 @@ docker-cron:
 docker-migrate:
 	$(DOCKER) build --build-arg APP=migrate -t $(IMAGE_NAME)-migrate:$(IMAGE_TAG) .
 
+##############################################################################
+########################################################## git release commands
+
+release-prepare:
+	$(GIT) switch main
+	$(GIT) pull --ff-only origin main
+
+release-check:
+	@test -n "$(VERSION)" || (echo "VERSION is required, for example: make release VERSION=0.1.0"; exit 1)
+	@test "$$($(GIT) branch --show-current)" = "main" || (echo "release must run from main"; exit 1)
+	@test -z "$$($(GIT) status --porcelain)" || (echo "worktree must be clean before release"; exit 1)
+	@if $(GIT) rev-parse -q --verify "refs/tags/template/v$(VERSION)" >/dev/null; then echo "tag template/v$(VERSION) already exists"; exit 1; fi
+
+release-tag: release-check
+	$(GIT) tag -a template/v$(VERSION) -m "Template v$(VERSION)"
+
+
+release-push:
+	@test -n "$(VERSION)" || (echo "VERSION is required, for example: make release-push VERSION=0.1.0"; exit 1)
+	@$(GIT) rev-parse -q --verify "refs/tags/template/v$(VERSION)" >/dev/null || (echo "tag template/v$(VERSION) does not exist"; exit 1)
+	$(GIT) push origin template/v$(VERSION)
+
+release:
+	$(MAKE) release-prepare
+	$(MAKE) release-tag VERSION=$(VERSION)
+	$(MAKE) release-push VERSION=$(VERSION)
+
+project-branch:
+	@test -n "$(VERSION)" || (echo "VERSION is required, for example: make project-branch VERSION=0.1.0 PROJECT=example-service"; exit 1)
+	@test -n "$(PROJECT)" || (echo "PROJECT is required"; exit 1)
+	$(GIT) switch -c project/$(PROJECT) template/v$(VERSION)
+
+############################################################################
+################################################ Database migration commands
+
 migrate-up:
 	$(GO) run ./cmd/migrate -direction up
 
@@ -38,6 +79,9 @@ migrate-down:
 
 migrate-version:
 	$(GO) run ./cmd/migrate -version
+
+############################################################################
+############################################################## Tests Commands
 
 test: test-unit
 
@@ -71,3 +115,5 @@ test-support:
 
 test-consumption-integration:
 	$(GO) test -v -tags=integration ./internal/repository/consumption
+
+############################################################################
