@@ -3,6 +3,7 @@ package media
 import (
 	"context"
 	"fmt"
+	domainMedia "github.com/freeDog-wy/go-backend-template/internal/domain/media"
 	"github.com/freeDog-wy/go-backend-template/internal/domain/shared"
 	model "github.com/freeDog-wy/go-backend-template/internal/model/media"
 	"github.com/freeDog-wy/go-backend-template/internal/repository/media"
@@ -14,24 +15,10 @@ import (
 
 const maxImageBytes int64 = 10 * 1024 * 1024
 
-type Storage interface {
-	ObjectKey(string) string
-	PresignUpload(context.Context, string, string) (*PresignedUpload, error)
-	HeadObject(context.Context, string) (*ObjectInfo, error)
-}
-type PresignedUpload struct {
-	URL       string
-	Headers   map[string]string
-	ExpiresAt time.Time
-}
-type ObjectInfo struct {
-	ContentType string
-	Size        int64
-}
 type Service struct {
 	tx      shared.TxManager
 	repo    *media.Repository
-	storage Storage
+	storage domainMedia.Storage
 }
 type ReadyMedia struct{ ID uint }
 
@@ -50,7 +37,7 @@ func (s *Service) IsReady(ctx context.Context, id uint) (bool, error) {
 	return err == nil, err
 }
 
-func New(tx shared.TxManager, repo *media.Repository, storage Storage) *Service {
+func New(tx shared.TxManager, repo *media.Repository, storage domainMedia.Storage) *Service {
 	return &Service{tx: tx, repo: repo, storage: storage}
 }
 
@@ -108,7 +95,7 @@ func (s *Service) RequestUpload(ctx context.Context, r UploadRequest) (*UploadRe
 	ext := filepath.Ext(r.Filename)
 	key := s.storage.ObjectKey("media/" + time.Now().UTC().Format("2006/01") + "/" + uuid.NewString() + ext)
 	a := &model.Asset{UploaderUserID: r.UserID, ObjectKey: key, OriginalFilename: filepath.Base(r.Filename), MimeType: r.ContentType, SizeBytes: r.SizeBytes, Status: "pending"}
-	var p *PresignedUpload
+	var p *domainMedia.PresignedUpload
 	err := s.tx.Do(ctx, func(ctx context.Context) error {
 		var e error
 		if e = s.repo.Create(ctx, a); e != nil {

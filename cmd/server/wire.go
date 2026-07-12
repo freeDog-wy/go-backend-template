@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/freeDog-wy/go-backend-template/internal/config"
+	domainMedia "github.com/freeDog-wy/go-backend-template/internal/domain/media"
 	"github.com/freeDog-wy/go-backend-template/internal/handler"
 	HdlAdminCMS "github.com/freeDog-wy/go-backend-template/internal/handler/admin_cms"
 	HdlAdminMedia "github.com/freeDog-wy/go-backend-template/internal/handler/admin_media"
@@ -123,7 +124,7 @@ func initApp(cfg *config.Config) *App {
 		time.Duration(cfg.Auth.RefreshTokenTTLHours)*time.Hour,
 	)
 	cmsSvc := SvcCMS.New(txManager, cmsRepo, eventBus)
-	var mediaStorage SvcMedia.Storage
+	var mediaStorage domainMedia.Storage
 	if cfg.Storage.R2.AccountID != "" && cfg.Storage.R2.AccessKeyID != "" && cfg.Storage.R2.SecretAccessKey != "" && cfg.Storage.R2.Bucket != "" {
 		r2, err := storage.NewR2(context.Background(), cfg.Storage.R2)
 		if err != nil {

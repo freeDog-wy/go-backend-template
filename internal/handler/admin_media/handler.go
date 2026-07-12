@@ -16,10 +16,10 @@ import (
 type Handler struct {
 	auth       auth.AccessAuthenticator
 	authorizer authorization.AccessAuthorizer
-	media      *media.Service
+	media      media.MediaAdminService
 }
 
-func New(a auth.AccessAuthenticator, z authorization.AccessAuthorizer, m *media.Service) *Handler {
+func New(a auth.AccessAuthenticator, z authorization.AccessAuthorizer, m media.MediaAdminService) *Handler {
 	return &Handler{auth: a, authorizer: z, media: m}
 }
 func (h *Handler) RegisterRoutes(r *gin.Engine) {
