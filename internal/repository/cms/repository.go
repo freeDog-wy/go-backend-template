@@ -336,6 +336,22 @@ func (r *Repository) FindURLRedirect(ctx context.Context, locale, sourcePath str
 	}
 	return &domainCMS.URLRedirect{Locale: m.Locale, SourcePath: m.SourcePath, TargetPath: m.TargetPath, StatusCode: m.StatusCode, CreatedAt: m.CreatedAt}, nil
 }
+func (r *Repository) ListURLRedirects(ctx context.Context, locale string, page shared.PageQuery) ([]domainCMS.URLRedirect, int64, error) {
+	db := r.conn(ctx).Model(&modelCMS.URLRedirect{}).Where("locale = ?", locale)
+	var total int64
+	if err := db.Count(&total).Error; err != nil {
+		return nil, 0, err
+	}
+	var models []modelCMS.URLRedirect
+	if err := db.Order("source_path, id").Limit(page.PerPage).Offset(page.Offset()).Find(&models).Error; err != nil {
+		return nil, 0, err
+	}
+	result := make([]domainCMS.URLRedirect, 0, len(models))
+	for _, m := range models {
+		result = append(result, domainCMS.URLRedirect{Locale: m.Locale, SourcePath: m.SourcePath, TargetPath: m.TargetPath, StatusCode: m.StatusCode, CreatedAt: m.CreatedAt})
+	}
+	return result, total, nil
+}
 
 func (r *Repository) ListArticleCategories(ctx context.Context, articleID uint) ([]domainCMS.ArticleCategory, error) {
 	var models []modelCMS.ArticleCategory
@@ -584,6 +600,31 @@ func (r *Repository) PublicTagExists(ctx context.Context, locale, slug string) (
 	var count int64
 	err := r.conn(ctx).Table("tag_translations").Joins("JOIN locales ON locales.code = tag_translations.locale").Where("tag_translations.locale = ? AND tag_translations.slug = ? AND locales.is_enabled", locale, slug).Count(&count).Error
 	return count == 1, err
+}
+func (r *Repository) ListPublicTags(ctx context.Context, locale string, page shared.PageQuery) ([]*domainCMS.TagListItem, int64, error) {
+	base := r.conn(ctx).Table("tag_translations").
+		Joins("JOIN tags ON tags.id = tag_translations.tag_id").
+		Joins("JOIN article_tags ON article_tags.tag_id = tags.id").
+		Joins("JOIN articles ON articles.id = article_tags.article_id").
+		Joins("JOIN article_translations ON article_translations.article_id = articles.id AND article_translations.locale = tag_translations.locale").
+		Where("tag_translations.locale = ? AND articles.deleted_at IS NULL AND article_translations.status = ? AND article_translations.published_at <= CURRENT_TIMESTAMP", locale, domainCMS.TranslationPublished)
+	var total int64
+	if err := base.Distinct("tags.id").Count(&total).Error; err != nil {
+		return nil, 0, err
+	}
+	type row struct {
+		TagID      uint
+		Name, Slug string
+	}
+	var rows []row
+	if err := base.Select("tags.id AS tag_id, tag_translations.name, tag_translations.slug").Group("tags.id, tag_translations.name, tag_translations.slug").Order("tag_translations.name, tags.id").Limit(page.PerPage).Offset(page.Offset()).Scan(&rows).Error; err != nil {
+		return nil, 0, err
+	}
+	result := make([]*domainCMS.TagListItem, 0, len(rows))
+	for _, row := range rows {
+		result = append(result, &domainCMS.TagListItem{Tag: domainCMS.Tag{ID: row.TagID}, TagTranslation: domainCMS.TagTranslation{TagID: row.TagID, Locale: locale, Name: row.Name, Slug: row.Slug}})
+	}
+	return result, total, nil
 }
 func (r *Repository) ListPublicTagArticles(ctx context.Context, locale, tagSlug string, page shared.PageQuery) ([]*domainCMS.PublicArticleListItem, int64, error) {
 	db := r.conn(ctx).Table("article_translations").Joins("JOIN articles ON articles.id = article_translations.article_id").Joins("LEFT JOIN article_categories primary_ac ON primary_ac.article_id = articles.id AND primary_ac.is_primary").Joins("LEFT JOIN categories primary_c ON primary_c.id = primary_ac.category_id AND primary_c.is_enabled").Joins("LEFT JOIN category_translations primary_ct ON primary_ct.category_id = primary_c.id AND primary_ct.locale = article_translations.locale").Joins("JOIN article_tags filter_at ON filter_at.article_id = articles.id").Joins("JOIN tag_translations filter_tt ON filter_tt.tag_id = filter_at.tag_id AND filter_tt.locale = article_translations.locale").Where("articles.deleted_at IS NULL AND article_translations.locale = ? AND article_translations.status = 'published' AND article_translations.published_at <= NOW() AND filter_tt.slug = ?", locale, tagSlug)

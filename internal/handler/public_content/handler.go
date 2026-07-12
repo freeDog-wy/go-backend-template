@@ -12,13 +12,23 @@ type Handler struct{ content svcCMS.PublicContentService }
 
 func New(content svcCMS.PublicContentService) *Handler { return &Handler{content: content} }
 func (h *Handler) RegisterRoutes(r *gin.Engine) {
+	r.GET("/api/v1/public/locales", h.ListLocales)
 	r.GET("/api/v1/public/:locale/categories", h.ListCategories)
+	r.GET("/api/v1/public/:locale/tags", h.ListTags)
 	r.GET("/api/v1/public/:locale/articles", h.ListArticles)
 	r.GET("/api/v1/public/:locale/categories/:slug/articles", h.ListCategoryArticles)
 	r.GET("/api/v1/public/:locale/tags/:slug/articles", h.ListTagArticles)
 	r.GET("/api/v1/public/:locale/sitemap-entries", h.ListSitemapEntries)
 	r.GET("/api/v1/public/:locale/redirects", h.ResolveRedirect)
 	r.GET("/api/v1/public/:locale/articles/:slug", h.GetArticle)
+}
+func (h *Handler) ListLocales(c *gin.Context) {
+	result, err := h.content.ListPublishedLocales(c)
+	if err != nil {
+		fail(c, err)
+		return
+	}
+	handler.OK(c, result)
 }
 func (h *Handler) ListCategories(c *gin.Context) {
 	result, err := h.content.ListPublishedCategories(c, c.Param("locale"))
@@ -67,6 +77,19 @@ func (h *Handler) ListTagArticles(c *gin.Context) {
 	}
 	handler.OKPage(c, r, handler.MetaFromPageResult(p))
 }
+func (h *Handler) ListTags(c *gin.Context) {
+	var query handler.PageQuery
+	if err := c.ShouldBindQuery(&query); err != nil {
+		handler.Fail(c, "INVALID_INPUT", "invalid page query")
+		return
+	}
+	results, page, err := h.content.ListPublishedTags(c, svcCMS.ListPublicTagsCmd{Locale: c.Param("locale"), Page: query.ToDomain()})
+	if err != nil {
+		fail(c, err)
+		return
+	}
+	handler.OKPage(c, results, handler.MetaFromPageResult(page))
+}
 func (h *Handler) ListSitemapEntries(c *gin.Context) {
 	var query handler.PageQuery
 	if err := c.ShouldBindQuery(&query); err != nil {
@@ -81,12 +104,29 @@ func (h *Handler) ListSitemapEntries(c *gin.Context) {
 	handler.OKPage(c, entries, handler.MetaFromPageResult(page))
 }
 func (h *Handler) ResolveRedirect(c *gin.Context) {
+	if c.Query("source_path") == "" {
+		h.ListRedirects(c)
+		return
+	}
 	result, err := h.content.ResolveRedirect(c, c.Param("locale"), c.Query("source_path"))
 	if err != nil {
 		fail(c, err)
 		return
 	}
 	handler.OK(c, result)
+}
+func (h *Handler) ListRedirects(c *gin.Context) {
+	var query handler.PageQuery
+	if err := c.ShouldBindQuery(&query); err != nil {
+		handler.Fail(c, "INVALID_INPUT", "invalid page query")
+		return
+	}
+	results, page, err := h.content.ListPublicRedirects(c, svcCMS.ListPublicRedirectsCmd{Locale: c.Param("locale"), Page: query.ToDomain()})
+	if err != nil {
+		fail(c, err)
+		return
+	}
+	handler.OKPage(c, results, handler.MetaFromPageResult(page))
 }
 func (h *Handler) GetArticle(c *gin.Context) {
 	article, err := h.content.GetPublishedArticle(c, c.Param("locale"), c.Param("slug"))

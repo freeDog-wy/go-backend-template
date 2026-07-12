@@ -40,6 +40,7 @@ type Repository interface {
 	RedirectSourceExists(ctx context.Context, locale, sourcePath string) (bool, error)
 	SaveURLRedirect(ctx context.Context, redirect *URLRedirect) error
 	FindURLRedirect(ctx context.Context, locale, sourcePath string) (*URLRedirect, error)
+	ListURLRedirects(ctx context.Context, locale string, page shared.PageQuery) ([]URLRedirect, int64, error)
 	ListArticleCategories(ctx context.Context, articleID uint) ([]ArticleCategory, error)
 	ListArticleTags(ctx context.Context, articleID uint, locale string) ([]*TagListItem, error)
 	ReplaceArticleTags(ctx context.Context, articleID uint, tagIDs []uint) error
@@ -54,5 +55,6 @@ type Repository interface {
 	PublicCategoryExists(ctx context.Context, locale, slug string) (bool, error)
 	ListPublicArticles(ctx context.Context, locale string, categorySlug *string, page shared.PageQuery) ([]*PublicArticleListItem, int64, error)
 	PublicTagExists(ctx context.Context, locale, slug string) (bool, error)
+	ListPublicTags(ctx context.Context, locale string, page shared.PageQuery) ([]*TagListItem, int64, error)
 	ListPublicTagArticles(ctx context.Context, locale, tagSlug string, page shared.PageQuery) ([]*PublicArticleListItem, int64, error)
 }

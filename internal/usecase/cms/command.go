@@ -64,6 +64,14 @@ type ListPublicSitemapEntriesCmd struct {
 	Locale string
 	Page   shared.PageQuery
 }
+type ListPublicTagsCmd struct {
+	Locale string
+	Page   shared.PageQuery
+}
+type ListPublicRedirectsCmd struct {
+	Locale string
+	Page   shared.PageQuery
+}
 type CreateLocaleCmd struct {
 	Code, Name    string
 	SortOrder     int
@@ -106,7 +114,12 @@ type RestoreArticleCmd struct {
 	ActorUserID   uint
 	IP, UserAgent string
 }
-type SetArticleCoverCmd struct { ArticleID uint; MediaID *uint; ActorUserID uint; IP, UserAgent string }
+type SetArticleCoverCmd struct {
+	ArticleID     uint
+	MediaID       *uint
+	ActorUserID   uint
+	IP, UserAgent string
+}
 type CreateTagCmd struct {
 	Locale, Name, Slug string
 	ActorUserID        uint

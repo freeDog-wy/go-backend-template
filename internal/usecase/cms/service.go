@@ -50,6 +50,19 @@ func (s *Service) ListLocales(ctx context.Context) ([]*LocaleResult, error) {
 	}
 	return result, nil
 }
+func (s *Service) ListPublishedLocales(ctx context.Context) ([]*LocaleResult, error) {
+	locales, err := s.repo.ListLocales(ctx)
+	if err != nil {
+		return nil, err
+	}
+	result := make([]*LocaleResult, 0, len(locales))
+	for _, locale := range locales {
+		if locale.IsEnabled {
+			result = append(result, localeResult(locale))
+		}
+	}
+	return result, nil
+}
 func (s *Service) CreateTag(ctx context.Context, cmd CreateTagCmd) (*TagResult, error) {
 	if err := validNameSlug(cmd.Name, cmd.Slug); err != nil {
 		return nil, err
@@ -422,6 +435,36 @@ func (s *Service) ResolveRedirect(ctx context.Context, locale, sourcePath string
 		return nil, err
 	}
 	return &RedirectResult{SourcePath: redirect.SourcePath, TargetPath: redirect.TargetPath, StatusCode: redirect.StatusCode}, nil
+}
+func (s *Service) ListPublicRedirects(ctx context.Context, cmd ListPublicRedirectsCmd) ([]*RedirectResult, shared.PageResult, error) {
+	if err := s.requireLocale(ctx, cmd.Locale); err != nil {
+		return nil, shared.PageResult{}, err
+	}
+	page := shared.NewPageQuery(cmd.Page.Page, cmd.Page.PerPage)
+	redirects, total, err := s.repo.ListURLRedirects(ctx, cmd.Locale, page)
+	if err != nil {
+		return nil, shared.PageResult{}, err
+	}
+	result := make([]*RedirectResult, 0, len(redirects))
+	for _, redirect := range redirects {
+		result = append(result, &RedirectResult{SourcePath: redirect.SourcePath, TargetPath: redirect.TargetPath, StatusCode: redirect.StatusCode})
+	}
+	return result, shared.PageResult{Page: page.Page, PerPage: page.PerPage, Total: total}, nil
+}
+func (s *Service) ListPublishedTags(ctx context.Context, cmd ListPublicTagsCmd) ([]*TagResult, shared.PageResult, error) {
+	if err := s.requireLocale(ctx, cmd.Locale); err != nil {
+		return nil, shared.PageResult{}, err
+	}
+	page := shared.NewPageQuery(cmd.Page.Page, cmd.Page.PerPage)
+	items, total, err := s.repo.ListPublicTags(ctx, cmd.Locale, page)
+	if err != nil {
+		return nil, shared.PageResult{}, err
+	}
+	result := make([]*TagResult, 0, len(items))
+	for _, item := range items {
+		result = append(result, tagResult(item.ID, &item.TagTranslation))
+	}
+	return result, shared.PageResult{Page: page.Page, PerPage: page.PerPage, Total: total}, nil
 }
 func (s *Service) PublishTranslation(ctx context.Context, cmd PublishTranslationCmd) (*ArticleResult, error) {
 	tr, err := s.translation(ctx, cmd.ArticleID, cmd.Locale)

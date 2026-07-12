@@ -89,6 +89,9 @@ func TestRepositoryIntegrationCMSConstraintsAndPublicVisibility(t *testing.T) {
 	if tagged, total, err := repo.ListPublicTagArticles(ctx, "zh-CN", "go", shared.NewPageQuery(1, 20)); err != nil || total != 1 || len(tagged) != 1 || tagged[0].Article.ID != article2.ID {
 		t.Fatalf("tag articles=%#v total=%d err=%v", tagged, total, err)
 	}
+	if tags, total, err := repo.ListPublicTags(ctx, "zh-CN", shared.NewPageQuery(1, 20)); err != nil || total != 1 || len(tags) != 1 || tags[0].Slug != "go" {
+		t.Fatalf("public tags=%#v total=%d err=%v", tags, total, err)
+	}
 	if err := db.Create(&modelCMS.ArticleTag{ArticleID: article2.ID, TagID: tag.ID}).Error; err == nil {
 		t.Fatal("expected duplicate article tag constraint")
 	}
@@ -128,6 +131,9 @@ func TestRepositoryIntegrationCMSConstraintsAndPublicVisibility(t *testing.T) {
 	}
 	if redirect, err := repo.FindURLRedirect(ctx, "zh-CN", "/zh-CN/categories/root"); err != nil || redirect.TargetPath != "/zh-CN/categories/root-renamed" {
 		t.Fatalf("category redirect = %#v, %v", redirect, err)
+	}
+	if redirects, total, err := repo.ListURLRedirects(ctx, "zh-CN", shared.NewPageQuery(1, 20)); err != nil || total < 2 || len(redirects) < 2 {
+		t.Fatalf("redirects=%#v total=%d err=%v", redirects, total, err)
 	}
 	publicArticles, total, err := repo.ListPublicArticles(ctx, "zh-CN", nil, shared.NewPageQuery(1, 20))
 	if err != nil || total != 1 || len(publicArticles) != 1 || publicArticles[0].Article.ID != article2.ID {

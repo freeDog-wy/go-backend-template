@@ -41,10 +41,16 @@ type testRepo struct {
 	locale       *domainCMS.Locale
 	enabledCount int64
 	article      *domainCMS.Article
+	locales      []*domainCMS.Locale
+	publicTags   []*domainCMS.TagListItem
+	redirects    []domainCMS.URLRedirect
 }
 
 func (*testRepo) LocaleEnabled(context.Context, string) (bool, error) { return true, nil }
 func (r *testRepo) ListLocales(context.Context) ([]*domainCMS.Locale, error) {
+	if r.locales != nil {
+		return r.locales, nil
+	}
 	if r.locale == nil {
 		return nil, nil
 	}
@@ -130,6 +136,9 @@ func (*testRepo) SaveURLRedirect(context.Context, *domainCMS.URLRedirect) error 
 func (*testRepo) FindURLRedirect(context.Context, string, string) (*domainCMS.URLRedirect, error) {
 	return nil, shared.ErrNotFound
 }
+func (r *testRepo) ListURLRedirects(context.Context, string, shared.PageQuery) ([]domainCMS.URLRedirect, int64, error) {
+	return r.redirects, int64(len(r.redirects)), nil
+}
 func (*testRepo) ListArticleCategories(context.Context, uint) ([]domainCMS.ArticleCategory, error) {
 	return nil, nil
 }
@@ -172,8 +181,37 @@ func (r *testRepo) ListPublicArticles(context.Context, string, *string, shared.P
 	return r.publicList, int64(len(r.publicList)), nil
 }
 func (*testRepo) PublicTagExists(context.Context, string, string) (bool, error) { return true, nil }
+func (r *testRepo) ListPublicTags(context.Context, string, shared.PageQuery) ([]*domainCMS.TagListItem, int64, error) {
+	return r.publicTags, int64(len(r.publicTags)), nil
+}
 func (*testRepo) ListPublicTagArticles(context.Context, string, string, shared.PageQuery) ([]*domainCMS.PublicArticleListItem, int64, error) {
 	return nil, 0, nil
+}
+func TestListPublishedLocalesExcludesDisabledLocales(t *testing.T) {
+	svc := New(testTx{}, &testRepo{locales: []*domainCMS.Locale{
+		{Code: "zh-CN", Name: "Chinese", IsEnabled: true, IsDefault: true, SortOrder: 1},
+		{Code: "en-US", Name: "English", IsEnabled: false, SortOrder: 2},
+	}})
+	locales, err := svc.ListPublishedLocales(context.Background())
+	if err != nil || len(locales) != 1 || locales[0].Code != "zh-CN" || !locales[0].IsDefault {
+		t.Fatalf("locales = %#v, err = %v", locales, err)
+	}
+}
+
+func TestListPublishedTagsAndRedirects(t *testing.T) {
+	repo := &testRepo{
+		publicTags: []*domainCMS.TagListItem{{Tag: domainCMS.Tag{ID: 3}, TagTranslation: domainCMS.TagTranslation{TagID: 3, Locale: "zh-CN", Name: "Go", Slug: "go"}}},
+		redirects:  []domainCMS.URLRedirect{{Locale: "zh-CN", SourcePath: "/zh-CN/articles/old", TargetPath: "/zh-CN/articles/new", StatusCode: 301}},
+	}
+	svc := New(testTx{}, repo)
+	tags, tagPage, err := svc.ListPublishedTags(context.Background(), ListPublicTagsCmd{Locale: "zh-CN", Page: shared.NewPageQuery(1, 10)})
+	if err != nil || len(tags) != 1 || tags[0].Slug != "go" || tagPage.Total != 1 {
+		t.Fatalf("tags = %#v, page = %#v, err = %v", tags, tagPage, err)
+	}
+	redirects, redirectPage, err := svc.ListPublicRedirects(context.Background(), ListPublicRedirectsCmd{Locale: "zh-CN", Page: shared.NewPageQuery(1, 10)})
+	if err != nil || len(redirects) != 1 || redirects[0].SourcePath != "/zh-CN/articles/old" || redirectPage.Total != 1 {
+		t.Fatalf("redirects = %#v, page = %#v, err = %v", redirects, redirectPage, err)
+	}
 }
 func TestMoveCategoryRejectsDescendantAsParent(t *testing.T) {
 	repo := &testRepo{descendant: true}

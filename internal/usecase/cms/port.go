@@ -33,12 +33,15 @@ type AdminService interface {
 }
 
 type PublicContentService interface {
+	ListPublishedLocales(context.Context) ([]*LocaleResult, error)
 	GetPublishedArticle(context.Context, string, string) (*PublicArticleResult, error)
 	ListPublishedArticles(context.Context, ListPublicArticlesCmd) ([]*PublicArticleListResult, shared.PageResult, error)
 	ListPublishedCategoryArticles(context.Context, ListPublicCategoryArticlesCmd) ([]*PublicArticleListResult, shared.PageResult, error)
 	ListPublishedCategories(context.Context, string) ([]*CategoryTreeResult, error)
 	ListPublicSitemapEntries(context.Context, ListPublicSitemapEntriesCmd) ([]*SitemapEntryResult, shared.PageResult, error)
 	ResolveRedirect(context.Context, string, string) (*RedirectResult, error)
+	ListPublicRedirects(context.Context, ListPublicRedirectsCmd) ([]*RedirectResult, shared.PageResult, error)
+	ListPublishedTags(context.Context, ListPublicTagsCmd) ([]*TagResult, shared.PageResult, error)
 	ListPublishedTagArticles(context.Context, ListPublicTagArticlesCmd) ([]*PublicArticleListResult, shared.PageResult, error)
 }
 
