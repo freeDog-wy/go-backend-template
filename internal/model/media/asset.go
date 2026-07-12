@@ -14,6 +14,7 @@ type Asset struct {
 	CleanupAttempts                               int
 	CleanupLastError                              string
 	CleanupClaimedAt                              *time.Time
+	FailureReason                                 string
 }
 
 func (Asset) TableName() string { return "media_assets" }

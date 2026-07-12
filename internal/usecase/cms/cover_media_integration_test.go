@@ -136,12 +136,15 @@ func TestCoverMediaIntegrationUploadCompleteAndPublish(t *testing.T) {
 	if err := mediaSvc.Complete(ctx, spoofed.ID, userID); !errors.Is(err, svcMedia.ErrMediaValidationFailed) {
 		t.Fatalf("complete spoofed object error = %v, want validation failure", err)
 	}
-	spoofedAsset, err := mediaRepo.Find(ctx, spoofed.ID)
-	if err != nil {
+	if _, err := storage.OpenObject(ctx, spoofed.ObjectKey); err == nil {
+		t.Fatal("invalid media object still exists in S3")
+	}
+	var spoofedAsset modelMedia.Asset
+	if err := db.Unscoped().First(&spoofedAsset, spoofed.ID).Error; err != nil {
 		t.Fatalf("find spoofed media: %v", err)
 	}
-	if spoofedAsset.Status != "failed" {
-		t.Fatalf("spoofed media status = %q, want failed", spoofedAsset.Status)
+	if spoofedAsset.Status != "deleted" || spoofedAsset.DeletedAt == nil || spoofedAsset.FailureReason != "invalid_image" {
+		t.Fatalf("spoofed media = %#v", spoofedAsset)
 	}
 	if err := cmsSvc.SetArticleCover(ctx, SetArticleCoverCmd{ArticleID: article.ID, MediaID: &spoofed.ID, ActorUserID: userID}); err == nil {
 		t.Fatal("set failed media as cover succeeded")
@@ -159,7 +162,7 @@ func TestCoverMediaIntegrationUploadCompleteAndPublish(t *testing.T) {
 	if err := db.Model(&modelMedia.Asset{}).Where("id = ?", expiredUpload.ID).Update("upload_expires_at", expiredAt).Error; err != nil {
 		t.Fatalf("expire media upload: %v", err)
 	}
-	cleaned, err := mediaSvc.CleanupExpiredUploads(ctx, 10)
+	cleaned, err := mediaSvc.CleanupStaleUploads(ctx, 10)
 	if err != nil {
 		t.Fatalf("cleanup expired uploads: %v", err)
 	}

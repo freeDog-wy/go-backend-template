@@ -11,7 +11,7 @@ type MediaAdminService interface {
 }
 
 type MediaMaintenanceService interface {
-	CleanupExpiredUploads(context.Context, int) (int, error)
+	CleanupStaleUploads(context.Context, int) (int, error)
 }
 
 var _ MediaAdminService = (*Service)(nil)

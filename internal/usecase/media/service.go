@@ -164,19 +164,19 @@ func (s *Service) Complete(ctx context.Context, id, userID uint) error {
 	}
 	info, err := s.storage.HeadObject(ctx, a.ObjectKey)
 	if err != nil {
-		return s.failValidation(ctx, id)
+		return s.failValidation(ctx, id, "object_unavailable")
 	}
 	if info.Size <= 0 || info.Size > maxImageBytes || info.Size != a.SizeBytes || imagevalidate.NormalizeContentType(info.ContentType) != imagevalidate.NormalizeContentType(a.MimeType) {
-		return s.failValidation(ctx, id)
+		return s.failValidation(ctx, id, "object_metadata_mismatch")
 	}
 	body, err := s.storage.OpenObject(ctx, a.ObjectKey)
 	if err != nil {
-		return s.failValidation(ctx, id)
+		return s.failValidation(ctx, id, "object_unavailable")
 	}
 	defer body.Close()
 	metadata, err := imagevalidate.Validate(body, a.MimeType, info.Size, imageConstraints)
 	if err != nil {
-		return s.failValidation(ctx, id)
+		return s.failValidation(ctx, id, validationFailureReason(err))
 	}
 	if err := s.repo.MarkReady(ctx, id, metadata.ContentType, info.Size, metadata.Width, metadata.Height, now); err != nil {
 		if errors.Is(err, shared.ErrNotFound) {
@@ -187,12 +187,12 @@ func (s *Service) Complete(ctx context.Context, id, userID uint) error {
 	return nil
 }
 
-func (s *Service) CleanupExpiredUploads(ctx context.Context, batchSize int) (int, error) {
+func (s *Service) CleanupStaleUploads(ctx context.Context, batchSize int) (int, error) {
 	if s.storage == nil {
 		return 0, nil
 	}
 	now := time.Now().UTC()
-	assets, err := s.repo.ClaimExpired(ctx, now, now.Add(-uploadCleanupLease), batchSize)
+	assets, err := s.repo.ClaimCleanupCandidates(ctx, now, now.Add(-uploadCleanupLease), batchSize)
 	if err != nil {
 		return 0, err
 	}
@@ -219,11 +219,35 @@ func (s *Service) CleanupExpiredUploads(ctx context.Context, batchSize int) (int
 	return cleaned, firstErr
 }
 
-func (s *Service) failValidation(ctx context.Context, id uint) error {
-	if err := s.repo.MarkFailed(ctx, id); err != nil {
+func (s *Service) failValidation(ctx context.Context, id uint, reason string) error {
+	if err := s.repo.MarkFailed(ctx, id, reason); err != nil {
 		return err
 	}
+	asset, err := s.repo.Find(ctx, id)
+	if err != nil {
+		return err
+	}
+	if err := s.storage.DeleteObject(ctx, asset.ObjectKey); err != nil {
+		_ = s.repo.RecordCleanupFailure(ctx, id, err.Error())
+		return ErrMediaValidationFailed
+	}
+	if err := s.repo.MarkDeleted(ctx, id, time.Now().UTC()); err != nil {
+		_ = s.repo.RecordCleanupFailure(ctx, id, err.Error())
+	}
 	return ErrMediaValidationFailed
+}
+
+func validationFailureReason(err error) string {
+	switch {
+	case errors.Is(err, imagevalidate.ErrContentTypeMismatch):
+		return "content_type_mismatch"
+	case errors.Is(err, imagevalidate.ErrImageDimensions):
+		return "image_dimensions_exceeded"
+	case errors.Is(err, imagevalidate.ErrImageTooLarge):
+		return "image_too_large"
+	default:
+		return "invalid_image"
+	}
 }
 
 func allowed(v string) bool {

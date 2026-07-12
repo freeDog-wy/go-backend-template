@@ -51,13 +51,13 @@ func (r *Repository) MarkReady(ctx context.Context, id uint, mime string, size i
 func (r *Repository) MarkExpired(ctx context.Context, id uint, now time.Time) error {
 	return database.DB(ctx, r.db).Model(&model.Asset{}).Where("id = ? AND status = 'pending' AND upload_expires_at <= ?", id, now).Update("status", "expired").Error
 }
-func (r *Repository) ClaimExpired(ctx context.Context, now, retryBefore time.Time, batchSize int) ([]model.Asset, error) {
+func (r *Repository) ClaimCleanupCandidates(ctx context.Context, now, retryBefore time.Time, batchSize int) ([]model.Asset, error) {
 	if batchSize <= 0 {
 		return []model.Asset{}, nil
 	}
 	assets := make([]model.Asset, 0, batchSize)
 	err := database.DB(ctx, r.db).Transaction(func(tx *gorm.DB) error {
-		if err := tx.Where("(status = 'pending' AND upload_expires_at <= ?) OR (status = 'expired' AND (cleanup_claimed_at IS NULL OR cleanup_claimed_at <= ?))", now, retryBefore).Order("upload_expires_at NULLS FIRST, id").Limit(batchSize).Clauses(clause.Locking{Strength: "UPDATE", Options: "SKIP LOCKED"}).Find(&assets).Error; err != nil {
+		if err := tx.Where("(status = 'pending' AND upload_expires_at <= ?) OR (status IN ('expired', 'failed') AND (cleanup_claimed_at IS NULL OR cleanup_claimed_at <= ?))", now, retryBefore).Order("upload_expires_at NULLS FIRST, id").Limit(batchSize).Clauses(clause.Locking{Strength: "UPDATE", Options: "SKIP LOCKED"}).Find(&assets).Error; err != nil {
 			return err
 		}
 		if len(assets) == 0 {
@@ -67,12 +67,12 @@ func (r *Repository) ClaimExpired(ctx context.Context, now, retryBefore time.Tim
 		for _, asset := range assets {
 			ids = append(ids, asset.ID)
 		}
-		return tx.Model(&model.Asset{}).Where("id IN ? AND status IN ('pending', 'expired')", ids).Updates(map[string]any{"status": "expired", "cleanup_claimed_at": now}).Error
+		return tx.Model(&model.Asset{}).Where("id IN ? AND status IN ('pending', 'expired', 'failed')", ids).Updates(map[string]any{"status": "expired", "cleanup_claimed_at": now}).Error
 	})
 	return assets, err
 }
 func (r *Repository) MarkDeleted(ctx context.Context, id uint, now time.Time) error {
-	res := database.DB(ctx, r.db).Model(&model.Asset{}).Where("id = ? AND status = 'expired'", id).Updates(map[string]any{"status": "deleted", "deleted_at": now, "cleanup_last_error": "", "cleanup_claimed_at": nil})
+	res := database.DB(ctx, r.db).Model(&model.Asset{}).Where("id = ? AND status IN ('expired', 'failed')", id).Updates(map[string]any{"status": "deleted", "deleted_at": now, "cleanup_last_error": "", "cleanup_claimed_at": nil})
 	if res.Error != nil {
 		return res.Error
 	}
@@ -82,10 +82,10 @@ func (r *Repository) MarkDeleted(ctx context.Context, id uint, now time.Time) er
 	return nil
 }
 func (r *Repository) RecordCleanupFailure(ctx context.Context, id uint, message string) error {
-	return database.DB(ctx, r.db).Model(&model.Asset{}).Where("id = ? AND status = 'expired'", id).Updates(map[string]any{"cleanup_attempts": gorm.Expr("cleanup_attempts + 1"), "cleanup_last_error": message, "cleanup_claimed_at": nil}).Error
+	return database.DB(ctx, r.db).Model(&model.Asset{}).Where("id = ? AND status IN ('expired', 'failed')", id).Updates(map[string]any{"cleanup_attempts": gorm.Expr("cleanup_attempts + 1"), "cleanup_last_error": message, "cleanup_claimed_at": nil}).Error
 }
-func (r *Repository) MarkFailed(ctx context.Context, id uint) error {
-	res := database.DB(ctx, r.db).Model(&model.Asset{}).Where("id = ? AND status = 'pending'", id).Update("status", "failed")
+func (r *Repository) MarkFailed(ctx context.Context, id uint, reason string) error {
+	res := database.DB(ctx, r.db).Model(&model.Asset{}).Where("id = ? AND status = 'pending'", id).Updates(map[string]any{"status": "failed", "failure_reason": reason})
 	if res.Error != nil {
 		return res.Error
 	}

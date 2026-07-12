@@ -153,10 +153,10 @@ func registerMediaCleanupJob(cfg *config.Config, appLogger logger.Logger, runner
 	}
 	service := UsecaseMedia.New(database.NewTxManager(db), RepoMedia.New(db), storage)
 	if err := runner.Register(scheduler.Job{
-		Name:     "media.cleanup_expired_uploads",
+		Name:     "media.cleanup_stale_uploads",
 		Interval: time.Duration(cfg.Cron.MediaUploadCleanupIntervalSeconds) * time.Second,
 		Run: func(ctx context.Context) error {
-			_, err := service.CleanupExpiredUploads(ctx, cfg.Cron.MediaUploadCleanupBatchSize)
+			_, err := service.CleanupStaleUploads(ctx, cfg.Cron.MediaUploadCleanupBatchSize)
 			return err
 		},
 	}); err != nil {

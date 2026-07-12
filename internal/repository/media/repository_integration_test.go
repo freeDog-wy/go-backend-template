@@ -46,8 +46,9 @@ func TestRepositoryIntegrationListReadyPublic(t *testing.T) {
 	expired := &modelMedia.Asset{UploaderUserID: userID, ObjectKey: "cms/expired.png", OriginalFilename: "expired.png", MimeType: "image/png", SizeBytes: 10, Status: "pending", UploadExpiresAt: &expiredAt}
 	futureExpiry := now.Add(time.Hour)
 	futurePending := &modelMedia.Asset{UploaderUserID: userID, ObjectKey: "cms/future.png", OriginalFilename: "future.png", MimeType: "image/png", SizeBytes: 10, Status: "pending", UploadExpiresAt: &futureExpiry}
+	failed := &modelMedia.Asset{UploaderUserID: userID, ObjectKey: "cms/failed.png", OriginalFilename: "failed.png", MimeType: "image/png", SizeBytes: 10, Status: "failed", FailureReason: "invalid_image"}
 	deleted := &modelMedia.Asset{UploaderUserID: userID, ObjectKey: "cms/deleted.png", OriginalFilename: "deleted.png", MimeType: "image/png", SizeBytes: 10, Status: "ready", DeletedAt: &now}
-	for _, asset := range []*modelMedia.Asset{ready, pending, expired, futurePending, deleted} {
+	for _, asset := range []*modelMedia.Asset{ready, pending, expired, futurePending, failed, deleted} {
 		if err := db.Create(asset).Error; err != nil {
 			t.Fatalf("create media asset: %v", err)
 		}
@@ -69,11 +70,11 @@ func TestRepositoryIntegrationListReadyPublic(t *testing.T) {
 	}
 
 	repo := New(db)
-	claimed, err := repo.ClaimExpired(ctx, now, now.Add(-time.Minute), 10)
+	claimed, err := repo.ClaimCleanupCandidates(ctx, now, now.Add(-time.Minute), 10)
 	if err != nil {
 		t.Fatalf("claim expired media: %v", err)
 	}
-	if len(claimed) != 1 || claimed[0].ID != expired.ID {
+	if len(claimed) != 2 || !containsAssetID(claimed, expired.ID) || !containsAssetID(claimed, failed.ID) {
 		t.Fatalf("claimed media = %#v", claimed)
 	}
 	var expiredAfterClaim modelMedia.Asset
@@ -86,13 +87,22 @@ func TestRepositoryIntegrationListReadyPublic(t *testing.T) {
 	if err := repo.RecordCleanupFailure(ctx, expired.ID, "temporary S3 error"); err != nil {
 		t.Fatalf("record cleanup failure: %v", err)
 	}
-	reclaimed, err := repo.ClaimExpired(ctx, now, now.Add(-time.Minute), 10)
+	reclaimed, err := repo.ClaimCleanupCandidates(ctx, now, now.Add(-time.Minute), 10)
 	if err != nil {
 		t.Fatalf("reclaim expired media: %v", err)
 	}
 	if len(reclaimed) != 1 || reclaimed[0].ID != expired.ID {
 		t.Fatalf("reclaimed media = %#v", reclaimed)
 	}
+}
+
+func containsAssetID(assets []modelMedia.Asset, id uint) bool {
+	for _, asset := range assets {
+		if asset.ID == id {
+			return true
+		}
+	}
+	return false
 }
 
 func migrationDir(t *testing.T) string {
