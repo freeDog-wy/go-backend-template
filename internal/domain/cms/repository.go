@@ -17,6 +17,7 @@ type Repository interface {
 	CountEnabledLocales(ctx context.Context) (int64, error)
 	CreateCategory(ctx context.Context, category *Category, translation *CategoryTranslation) error
 	UpsertCategoryTranslation(ctx context.Context, translation *CategoryTranslation) error
+	FindCategoryTranslation(ctx context.Context, categoryID uint, locale string) (*CategoryTranslation, error)
 	FindCategory(ctx context.Context, id uint) (*Category, error)
 	IsCategoryDescendant(ctx context.Context, ancestorID, candidateID uint) (bool, error)
 	MoveCategory(ctx context.Context, id uint, parentID *uint, sortOrder int) error
@@ -30,6 +31,9 @@ type Repository interface {
 	RestoreArticle(ctx context.Context, id uint) error
 	CreateArticleTranslation(ctx context.Context, translation *ArticleTranslation) error
 	FindArticleTranslation(ctx context.Context, articleID uint, locale string) (*ArticleTranslation, error)
+	RedirectSourceExists(ctx context.Context, locale, sourcePath string) (bool, error)
+	SaveURLRedirect(ctx context.Context, redirect *URLRedirect) error
+	FindURLRedirect(ctx context.Context, locale, sourcePath string) (*URLRedirect, error)
 	ListArticleCategories(ctx context.Context, articleID uint) ([]ArticleCategory, error)
 	SaveArticleTranslation(ctx context.Context, translation *ArticleTranslation) error
 	ReplaceArticleCategories(ctx context.Context, articleID uint, categoryIDs []uint, primaryCategoryID *uint) error

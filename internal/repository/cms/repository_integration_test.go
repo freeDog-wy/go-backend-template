@@ -95,11 +95,29 @@ func TestRepositoryIntegrationCMSConstraintsAndPublicVisibility(t *testing.T) {
 	if entries, total, err := repo.ListPublicSitemapEntries(ctx, "zh-CN", shared.NewPageQuery(1, 20)); err != nil || total < 2 || len(entries) < 2 {
 		t.Fatalf("sitemap entries = %#v, total=%d, err=%v", entries, total, err)
 	}
+	redirectService := svcCMS.New(database.NewTxManager(db), repo)
+	oldArticleSlug := translation2.Slug
+	if _, err := redirectService.UpdateTranslation(ctx, svcCMS.UpdateTranslationCmd{ArticleID: article2.ID, Locale: "zh-CN", Title: translation2.Title, Slug: "published-renamed", Summary: translation2.Summary, Content: translation2.Content, ContentFormat: translation2.ContentFormat, SEOTitle: translation2.SEOTitle, SEODescription: translation2.SEODescription, CanonicalURL: translation2.CanonicalURL}); err != nil {
+		t.Fatalf("rename article slug: %v", err)
+	}
+	if _, err := redirectService.UpdateTranslation(ctx, svcCMS.UpdateTranslationCmd{ArticleID: article2.ID, Locale: "zh-CN", Title: translation2.Title, Slug: "published-final", Summary: translation2.Summary, Content: translation2.Content, ContentFormat: translation2.ContentFormat, SEOTitle: translation2.SEOTitle, SEODescription: translation2.SEODescription, CanonicalURL: translation2.CanonicalURL}); err != nil {
+		t.Fatalf("rename article slug again: %v", err)
+	}
+	translation2.Slug = "published-final"
+	if redirect, err := repo.FindURLRedirect(ctx, "zh-CN", "/zh-CN/articles/"+oldArticleSlug); err != nil || redirect.TargetPath != "/zh-CN/articles/published-final" {
+		t.Fatalf("article redirect = %#v, %v", redirect, err)
+	}
+	if _, err := redirectService.UpsertCategoryTranslation(ctx, svcCMS.UpsertCategoryTranslationCmd{CategoryID: category.ID, Locale: "zh-CN", Name: "Root", Slug: "root-renamed"}); err != nil {
+		t.Fatalf("rename category slug: %v", err)
+	}
+	if redirect, err := repo.FindURLRedirect(ctx, "zh-CN", "/zh-CN/categories/root"); err != nil || redirect.TargetPath != "/zh-CN/categories/root-renamed" {
+		t.Fatalf("category redirect = %#v, %v", redirect, err)
+	}
 	publicArticles, total, err := repo.ListPublicArticles(ctx, "zh-CN", nil, shared.NewPageQuery(1, 20))
 	if err != nil || total != 1 || len(publicArticles) != 1 || publicArticles[0].Article.ID != article2.ID {
 		t.Fatalf("public list = %#v, total=%d, err=%v", publicArticles, total, err)
 	}
-	categorySlug := "root"
+	categorySlug := "root-renamed"
 	categoryArticles, total, err := repo.ListPublicArticles(ctx, "zh-CN", &categorySlug, shared.NewPageQuery(1, 20))
 	if err != nil || total != 1 || len(categoryArticles) != 1 || categoryArticles[0].Article.ID != article2.ID {
 		t.Fatalf("category public list = %#v, total=%d, err=%v", categoryArticles, total, err)

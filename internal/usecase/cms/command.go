@@ -25,6 +25,8 @@ type CreateTranslationCmd struct {
 type UpdateTranslationCmd struct {
 	ArticleID                                                                                    uint
 	Locale, Title, Slug, Summary, Content, ContentFormat, SEOTitle, SEODescription, CanonicalURL string
+	ActorUserID                                                                                  uint
+	IP, UserAgent                                                                                string
 }
 type PublishTranslationCmd struct {
 	ArticleID     uint
@@ -80,6 +82,8 @@ type UpdateLocaleCmd struct {
 type UpsertCategoryTranslationCmd struct {
 	CategoryID                                                uint
 	Locale, Name, Slug, Description, SEOTitle, SEODescription string
+	ActorUserID                                               uint
+	IP, UserAgent                                             string
 }
 type GetArticleTranslationCmd struct {
 	ArticleID uint

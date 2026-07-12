@@ -130,8 +130,42 @@ func (s *Service) UpsertCategoryTranslation(ctx context.Context, cmd UpsertCateg
 	if err != nil {
 		return nil, mapCategory(err)
 	}
-	translation := &domainCMS.CategoryTranslation{CategoryID: cmd.CategoryID, Locale: strings.TrimSpace(cmd.Locale), Name: strings.TrimSpace(cmd.Name), Slug: strings.TrimSpace(cmd.Slug), Description: cmd.Description, SEOTitle: cmd.SEOTitle, SEODescription: cmd.SEODescription}
-	if err := s.repo.UpsertCategoryTranslation(ctx, translation); err != nil {
+	locale := strings.TrimSpace(cmd.Locale)
+	translation := &domainCMS.CategoryTranslation{CategoryID: cmd.CategoryID, Locale: locale, Name: strings.TrimSpace(cmd.Name), Slug: strings.TrimSpace(cmd.Slug), Description: cmd.Description, SEOTitle: cmd.SEOTitle, SEODescription: cmd.SEODescription}
+	old, oldErr := s.repo.FindCategoryTranslation(ctx, cmd.CategoryID, locale)
+	if oldErr != nil && !errors.Is(oldErr, shared.ErrNotFound) {
+		return nil, oldErr
+	}
+	if err := s.tx.Do(ctx, func(ctx context.Context) error {
+		if old != nil && old.Slug != translation.Slug {
+			enabled, err := s.repo.LocaleEnabled(ctx, locale)
+			if err != nil {
+				return err
+			}
+			if category.Enabled && enabled {
+				if err := s.ensureSlugAvailable(ctx, locale, categoryPath(locale, translation.Slug)); err != nil {
+					return err
+				}
+			}
+		}
+		if err := s.repo.UpsertCategoryTranslation(ctx, translation); err != nil {
+			return err
+		}
+		if old != nil && old.Slug != translation.Slug {
+			enabled, err := s.repo.LocaleEnabled(ctx, locale)
+			if err != nil {
+				return err
+			}
+			if category.Enabled && enabled {
+				redirect := &domainCMS.URLRedirect{Locale: locale, SourcePath: categoryPath(locale, old.Slug), TargetPath: categoryPath(locale, translation.Slug), StatusCode: 301}
+				if err := s.repo.SaveURLRedirect(ctx, redirect); err != nil {
+					return err
+				}
+				return s.publishAudit(ctx, cmd.ActorUserID, "category", cmd.CategoryID, domainAudit.ActionCMSSlugChanged, cmd.IP, cmd.UserAgent, map[string]any{"locale": locale, "old_slug": old.Slug, "new_slug": translation.Slug})
+			}
+		}
+		return nil
+	}); err != nil {
 		return nil, err
 	}
 	return &CategoryResult{ID: category.ID, ParentID: category.ParentID, SortOrder: category.SortOrder, Locale: translation.Locale, Name: translation.Name, Slug: translation.Slug}, nil
@@ -225,11 +259,46 @@ func (s *Service) UpdateTranslation(ctx context.Context, cmd UpdateTranslationCm
 	if err != nil {
 		return nil, err
 	}
+	oldSlug := tr.Slug
+	wasPublic := tr.Status == domainCMS.TranslationPublished && tr.PublishedAt != nil && !tr.PublishedAt.After(s.now())
 	tr.Title, tr.Slug, tr.Summary, tr.Content, tr.ContentFormat, tr.SEOTitle, tr.SEODescription, tr.CanonicalURL = cmd.Title, cmd.Slug, cmd.Summary, cmd.Content, cmd.ContentFormat, cmd.SEOTitle, cmd.SEODescription, cmd.CanonicalURL
-	if err := s.repo.SaveArticleTranslation(ctx, tr); err != nil {
+	if err := s.tx.Do(ctx, func(ctx context.Context) error {
+		if oldSlug != tr.Slug && wasPublic {
+			if err := s.ensureSlugAvailable(ctx, tr.Locale, articlePath(tr.Locale, tr.Slug)); err != nil {
+				return err
+			}
+		}
+		if err := s.repo.SaveArticleTranslation(ctx, tr); err != nil {
+			return err
+		}
+		if oldSlug != tr.Slug && wasPublic {
+			redirect := &domainCMS.URLRedirect{Locale: tr.Locale, SourcePath: articlePath(tr.Locale, oldSlug), TargetPath: articlePath(tr.Locale, tr.Slug), StatusCode: 301}
+			if err := s.repo.SaveURLRedirect(ctx, redirect); err != nil {
+				return err
+			}
+			return s.publishAudit(ctx, cmd.ActorUserID, "article_translation", tr.ID, domainAudit.ActionCMSSlugChanged, cmd.IP, cmd.UserAgent, map[string]any{"article_id": cmd.ArticleID, "locale": tr.Locale, "old_slug": oldSlug, "new_slug": tr.Slug})
+		}
+		return nil
+	}); err != nil {
 		return nil, err
 	}
 	return articleResult(cmd.ArticleID, tr), nil
+}
+func (s *Service) ResolveRedirect(ctx context.Context, locale, sourcePath string) (*RedirectResult, error) {
+	if err := s.requireLocale(ctx, locale); err != nil {
+		return nil, err
+	}
+	if !strings.HasPrefix(sourcePath, "/"+locale+"/") {
+		return nil, domainCMS.ErrInvalidInput
+	}
+	redirect, err := s.repo.FindURLRedirect(ctx, locale, sourcePath)
+	if errors.Is(err, shared.ErrNotFound) {
+		return nil, domainCMS.ErrRedirectNotFound
+	}
+	if err != nil {
+		return nil, err
+	}
+	return &RedirectResult{SourcePath: redirect.SourcePath, TargetPath: redirect.TargetPath, StatusCode: redirect.StatusCode}, nil
 }
 func (s *Service) PublishTranslation(ctx context.Context, cmd PublishTranslationCmd) (*ArticleResult, error) {
 	tr, err := s.translation(ctx, cmd.ArticleID, cmd.Locale)
@@ -585,6 +654,18 @@ func (s *Service) publishAuditText(ctx context.Context, actorUserID uint, target
 	}
 	return s.eventBus.Publish(ctx, domainAudit.LogRequested{ActorUserID: actor, TargetType: targetType, TargetID: targetID, Action: action, Result: domainAudit.ResultSuccess, IP: ip, UserAgent: userAgent, Metadata: metadata})
 }
+func (s *Service) ensureSlugAvailable(ctx context.Context, locale, path string) error {
+	exists, err := s.repo.RedirectSourceExists(ctx, locale, path)
+	if err != nil {
+		return err
+	}
+	if exists {
+		return domainCMS.ErrSlugReserved
+	}
+	return nil
+}
+func articlePath(locale, slug string) string  { return fmt.Sprintf("/%s/articles/%s", locale, slug) }
+func categoryPath(locale, slug string) string { return fmt.Sprintf("/%s/categories/%s", locale, slug) }
 func localeResult(locale *domainCMS.Locale) *LocaleResult {
 	return &LocaleResult{Code: locale.Code, Name: locale.Name, IsDefault: locale.IsDefault, IsEnabled: locale.IsEnabled, SortOrder: locale.SortOrder}
 }

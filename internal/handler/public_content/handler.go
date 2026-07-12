@@ -16,6 +16,7 @@ func (h *Handler) RegisterRoutes(r *gin.Engine) {
 	r.GET("/api/v1/public/:locale/articles", h.ListArticles)
 	r.GET("/api/v1/public/:locale/categories/:slug/articles", h.ListCategoryArticles)
 	r.GET("/api/v1/public/:locale/sitemap-entries", h.ListSitemapEntries)
+	r.GET("/api/v1/public/:locale/redirects", h.ResolveRedirect)
 	r.GET("/api/v1/public/:locale/articles/:slug", h.GetArticle)
 }
 func (h *Handler) ListCategories(c *gin.Context) {
@@ -65,6 +66,14 @@ func (h *Handler) ListSitemapEntries(c *gin.Context) {
 	}
 	handler.OKPage(c, entries, handler.MetaFromPageResult(page))
 }
+func (h *Handler) ResolveRedirect(c *gin.Context) {
+	result, err := h.content.ResolveRedirect(c, c.Param("locale"), c.Query("source_path"))
+	if err != nil {
+		fail(c, err)
+		return
+	}
+	handler.OK(c, result)
+}
 func (h *Handler) GetArticle(c *gin.Context) {
 	article, err := h.content.GetPublishedArticle(c, c.Param("locale"), c.Param("slug"))
 	if err != nil {
@@ -83,6 +92,8 @@ func fail(c *gin.Context, err error) {
 		handler.Fail(c, "LOCALE_NOT_FOUND", "locale is not enabled")
 	case errors.Is(err, domainCMS.ErrInvalidInput):
 		handler.Fail(c, "INVALID_INPUT", "invalid public content query")
+	case errors.Is(err, domainCMS.ErrRedirectNotFound):
+		handler.Fail(c, "REDIRECT_NOT_FOUND", "redirect not found")
 	default:
 		handler.Fail(c, "INTERNAL_ERROR", err.Error())
 	}

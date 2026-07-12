@@ -60,6 +60,9 @@ func (*testRepo) CreateCategory(context.Context, *domainCMS.Category, *domainCMS
 func (*testRepo) UpsertCategoryTranslation(context.Context, *domainCMS.CategoryTranslation) error {
 	return nil
 }
+func (*testRepo) FindCategoryTranslation(context.Context, uint, string) (*domainCMS.CategoryTranslation, error) {
+	return nil, shared.ErrNotFound
+}
 func (*testRepo) FindCategory(_ context.Context, id uint) (*domainCMS.Category, error) {
 	return &domainCMS.Category{ID: id}, nil
 }
@@ -94,6 +97,13 @@ func (r *testRepo) FindArticleTranslation(context.Context, uint, string) (*domai
 		return nil, shared.ErrNotFound
 	}
 	return r.tr, nil
+}
+func (*testRepo) RedirectSourceExists(context.Context, string, string) (bool, error) {
+	return false, nil
+}
+func (*testRepo) SaveURLRedirect(context.Context, *domainCMS.URLRedirect) error { return nil }
+func (*testRepo) FindURLRedirect(context.Context, string, string) (*domainCMS.URLRedirect, error) {
+	return nil, shared.ErrNotFound
 }
 func (*testRepo) ListArticleCategories(context.Context, uint) ([]domainCMS.ArticleCategory, error) {
 	return nil, nil

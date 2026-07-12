@@ -200,7 +200,8 @@ func (h *Handler) UpsertCategoryTranslation(c *gin.Context) {
 		invalid(c)
 		return
 	}
-	result, err := h.cms.UpsertCategoryTranslation(c, svcCMS.UpsertCategoryTranslationCmd{CategoryID: id, Locale: c.Param("locale"), Name: req.Name, Slug: req.Slug, Description: req.Description, SEOTitle: req.SEOTitle, SEODescription: req.SEODescription})
+	meta := handler.AuditMetaFromRequest(c)
+	result, err := h.cms.UpsertCategoryTranslation(c, svcCMS.UpsertCategoryTranslationCmd{CategoryID: id, Locale: c.Param("locale"), Name: req.Name, Slug: req.Slug, Description: req.Description, SEOTitle: req.SEOTitle, SEODescription: req.SEODescription, ActorUserID: handlerMiddleware.CurrentUserID(c), IP: meta.IP, UserAgent: meta.UserAgent})
 	if err != nil {
 		fail(c, err)
 		return
@@ -312,7 +313,8 @@ func (h *Handler) UpdateTranslation(c *gin.Context) {
 		invalid(c)
 		return
 	}
-	result, err := h.cms.UpdateTranslation(c, svcCMS.UpdateTranslationCmd{ArticleID: id, Locale: c.Param("locale"), Title: req.Title, Slug: req.Slug, Summary: req.Summary, Content: req.Content, ContentFormat: req.ContentFormat, SEOTitle: req.SEOTitle, SEODescription: req.SEODescription, CanonicalURL: req.CanonicalURL})
+	meta := handler.AuditMetaFromRequest(c)
+	result, err := h.cms.UpdateTranslation(c, svcCMS.UpdateTranslationCmd{ArticleID: id, Locale: c.Param("locale"), Title: req.Title, Slug: req.Slug, Summary: req.Summary, Content: req.Content, ContentFormat: req.ContentFormat, SEOTitle: req.SEOTitle, SEODescription: req.SEODescription, CanonicalURL: req.CanonicalURL, ActorUserID: handlerMiddleware.CurrentUserID(c), IP: meta.IP, UserAgent: meta.UserAgent})
 	if err != nil {
 		fail(c, err)
 		return
@@ -372,6 +374,8 @@ func fail(c *gin.Context, err error) {
 		handler.Fail(c, "ARTICLE_ALREADY_DELETED", "article is already deleted")
 	case errors.Is(err, domainCMS.ErrArticleActive):
 		handler.Fail(c, "ARTICLE_NOT_DELETED", "article is not deleted")
+	case errors.Is(err, domainCMS.ErrSlugReserved):
+		handler.Fail(c, "SLUG_RESERVED", "slug is reserved by a redirect")
 	default:
 		handler.Fail(c, "INTERNAL_ERROR", err.Error())
 	}

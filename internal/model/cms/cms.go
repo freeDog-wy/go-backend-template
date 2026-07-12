@@ -77,3 +77,14 @@ type ArticleCategory struct {
 }
 
 func (ArticleCategory) TableName() string { return "article_categories" }
+
+type URLRedirect struct {
+	ID         uint `gorm:"primaryKey"`
+	Locale     string
+	SourcePath string
+	TargetPath string
+	StatusCode int
+	CreatedAt  time.Time
+}
+
+func (URLRedirect) TableName() string { return "url_redirects" }

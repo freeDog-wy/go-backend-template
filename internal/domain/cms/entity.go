@@ -102,3 +102,8 @@ type SitemapEntry struct {
 	Slug      string
 	UpdatedAt time.Time
 }
+type URLRedirect struct {
+	Locale, SourcePath, TargetPath string
+	StatusCode                     int
+	CreatedAt                      time.Time
+}

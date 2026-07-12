@@ -97,6 +97,14 @@ func (r *Repository) UpsertCategoryTranslation(ctx context.Context, tr *domainCM
 	return r.conn(ctx).Clauses(clause.OnConflict{Columns: []clause.Column{{Name: "category_id"}, {Name: "locale"}}, DoUpdates: clause.Assignments(map[string]any{"name": m.Name, "slug": m.Slug, "description": m.Description, "seo_title": m.SEOTitle, "seo_description": m.SEODescription, "updated_at": time.Now()})}).Create(&m).Error
 }
 
+func (r *Repository) FindCategoryTranslation(ctx context.Context, categoryID uint, locale string) (*domainCMS.CategoryTranslation, error) {
+	var m modelCMS.CategoryTranslation
+	if err := r.conn(ctx).Where("category_id = ? AND locale = ?", categoryID, locale).First(&m).Error; err != nil {
+		return nil, mapNotFound(err)
+	}
+	return &domainCMS.CategoryTranslation{CategoryID: m.CategoryID, Locale: m.Locale, Name: m.Name, Slug: m.Slug, Description: m.Description, SEOTitle: m.SEOTitle, SEODescription: m.SEODescription}, nil
+}
+
 func (r *Repository) FindCategory(ctx context.Context, id uint) (*domainCMS.Category, error) {
 	var m modelCMS.Category
 	if err := r.conn(ctx).First(&m, id).Error; err != nil {
@@ -245,6 +253,30 @@ func (r *Repository) FindArticleTranslation(ctx context.Context, articleID uint,
 		return nil, mapNotFound(err)
 	}
 	return translationEntity(m), nil
+}
+
+func (r *Repository) RedirectSourceExists(ctx context.Context, locale, sourcePath string) (bool, error) {
+	var count int64
+	err := r.conn(ctx).Model(&modelCMS.URLRedirect{}).Where("locale = ? AND source_path = ?", locale, sourcePath).Count(&count).Error
+	return count > 0, err
+}
+func (r *Repository) SaveURLRedirect(ctx context.Context, redirect *domainCMS.URLRedirect) error {
+	db := r.conn(ctx)
+	if err := db.Model(&modelCMS.URLRedirect{}).Where("locale = ? AND target_path = ?", redirect.Locale, redirect.SourcePath).Update("target_path", redirect.TargetPath).Error; err != nil {
+		return err
+	}
+	m := modelCMS.URLRedirect{Locale: redirect.Locale, SourcePath: redirect.SourcePath, TargetPath: redirect.TargetPath, StatusCode: redirect.StatusCode}
+	if m.StatusCode == 0 {
+		m.StatusCode = 301
+	}
+	return db.Clauses(clause.OnConflict{Columns: []clause.Column{{Name: "locale"}, {Name: "source_path"}}, DoUpdates: clause.Assignments(map[string]any{"target_path": m.TargetPath, "status_code": m.StatusCode})}).Create(&m).Error
+}
+func (r *Repository) FindURLRedirect(ctx context.Context, locale, sourcePath string) (*domainCMS.URLRedirect, error) {
+	var m modelCMS.URLRedirect
+	if err := r.conn(ctx).Where("locale = ? AND source_path = ?", locale, sourcePath).First(&m).Error; err != nil {
+		return nil, mapNotFound(err)
+	}
+	return &domainCMS.URLRedirect{Locale: m.Locale, SourcePath: m.SourcePath, TargetPath: m.TargetPath, StatusCode: m.StatusCode, CreatedAt: m.CreatedAt}, nil
 }
 
 func (r *Repository) ListArticleCategories(ctx context.Context, articleID uint) ([]domainCMS.ArticleCategory, error) {

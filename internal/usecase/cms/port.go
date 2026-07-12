@@ -33,6 +33,7 @@ type PublicContentService interface {
 	ListPublishedCategoryArticles(context.Context, ListPublicCategoryArticlesCmd) ([]*PublicArticleListResult, shared.PageResult, error)
 	ListPublishedCategories(context.Context, string) ([]*CategoryTreeResult, error)
 	ListPublicSitemapEntries(context.Context, ListPublicSitemapEntriesCmd) ([]*SitemapEntryResult, shared.PageResult, error)
+	ResolveRedirect(context.Context, string, string) (*RedirectResult, error)
 }
 
 var _ AdminService = (*Service)(nil)

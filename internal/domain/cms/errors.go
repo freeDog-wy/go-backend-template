@@ -13,4 +13,6 @@ var (
 	ErrLastEnabledLocale = errors.New("at least one locale must remain enabled")
 	ErrArticleDeleted    = errors.New("article already deleted")
 	ErrArticleActive     = errors.New("article is not deleted")
+	ErrSlugReserved      = errors.New("slug is reserved by a redirect")
+	ErrRedirectNotFound  = errors.New("redirect not found")
 )

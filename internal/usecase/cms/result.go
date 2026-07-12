@@ -96,3 +96,8 @@ type SitemapEntryResult struct {
 	URL          string    `json:"url"`
 	LastModified time.Time `json:"last_modified"`
 }
+type RedirectResult struct {
+	SourcePath string `json:"source_path"`
+	TargetPath string `json:"target_path"`
+	StatusCode int    `json:"status_code"`
+}

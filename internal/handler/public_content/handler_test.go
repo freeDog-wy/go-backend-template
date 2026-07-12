@@ -33,6 +33,9 @@ func (s contentStub) ListPublishedCategories(context.Context, string) ([]*svcCMS
 func (s contentStub) ListPublicSitemapEntries(context.Context, svcCMS.ListPublicSitemapEntriesCmd) ([]*svcCMS.SitemapEntryResult, shared.PageResult, error) {
 	return nil, shared.PageResult{}, s.err
 }
+func (s contentStub) ResolveRedirect(context.Context, string, string) (*svcCMS.RedirectResult, error) {
+	return nil, s.err
+}
 func TestGetArticleReturnsBusinessNotFoundWithHTTP200(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	r := gin.New()
