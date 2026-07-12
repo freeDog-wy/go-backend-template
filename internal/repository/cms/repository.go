@@ -125,6 +125,17 @@ func (r *Repository) MoveCategory(ctx context.Context, id uint, parentID *uint, 
 	return nil
 }
 
+func (r *Repository) UpdateCategory(ctx context.Context, id uint, enabled bool, sortOrder int) error {
+	result := r.conn(ctx).Model(&modelCMS.Category{}).Where("id = ?", id).Updates(map[string]any{"is_enabled": enabled, "sort_order": sortOrder})
+	if result.Error != nil {
+		return result.Error
+	}
+	if result.RowsAffected == 0 {
+		return shared.ErrNotFound
+	}
+	return nil
+}
+
 func (r *Repository) ListCategories(ctx context.Context) ([]*domainCMS.Category, error) {
 	var models []modelCMS.Category
 	if err := r.conn(ctx).Order("parent_id NULLS FIRST, sort_order, id").Find(&models).Error; err != nil {
@@ -190,11 +201,42 @@ func (r *Repository) CreateArticle(ctx context.Context, article *domainCMS.Artic
 }
 
 func (r *Repository) FindArticle(ctx context.Context, id uint) (*domainCMS.Article, error) {
+	return r.findArticle(ctx, id, false)
+}
+func (r *Repository) FindArticleIncludingDeleted(ctx context.Context, id uint) (*domainCMS.Article, error) {
+	return r.findArticle(ctx, id, true)
+}
+func (r *Repository) findArticle(ctx context.Context, id uint, includeDeleted bool) (*domainCMS.Article, error) {
 	var m modelCMS.Article
-	if err := r.conn(ctx).Where("deleted_at IS NULL").First(&m, id).Error; err != nil {
+	db := r.conn(ctx)
+	if !includeDeleted {
+		db = db.Where("deleted_at IS NULL")
+	}
+	if err := db.First(&m, id).Error; err != nil {
 		return nil, mapNotFound(err)
 	}
 	return &domainCMS.Article{ID: m.ID, AuthorUserID: m.AuthorUserID, CreatedAt: m.CreatedAt, UpdatedAt: m.UpdatedAt, DeletedAt: m.DeletedAt}, nil
+}
+
+func (r *Repository) SoftDeleteArticle(ctx context.Context, id uint, deletedAt time.Time) error {
+	result := r.conn(ctx).Model(&modelCMS.Article{}).Where("id = ? AND deleted_at IS NULL", id).Updates(map[string]any{"deleted_at": deletedAt})
+	if result.Error != nil {
+		return result.Error
+	}
+	if result.RowsAffected == 0 {
+		return shared.ErrNotFound
+	}
+	return nil
+}
+func (r *Repository) RestoreArticle(ctx context.Context, id uint) error {
+	result := r.conn(ctx).Model(&modelCMS.Article{}).Where("id = ? AND deleted_at IS NOT NULL", id).Update("deleted_at", nil)
+	if result.Error != nil {
+		return result.Error
+	}
+	if result.RowsAffected == 0 {
+		return shared.ErrNotFound
+	}
+	return nil
 }
 
 func (r *Repository) FindArticleTranslation(ctx context.Context, articleID uint, locale string) (*domainCMS.ArticleTranslation, error) {
@@ -253,8 +295,11 @@ func (r *Repository) ReplaceArticleCategories(ctx context.Context, articleID uin
 	return db.Create(&records).Error
 }
 
-func (r *Repository) ListArticleTranslations(ctx context.Context, locale string, page shared.PageQuery) ([]*domainCMS.ArticleListItem, int64, error) {
-	db := r.conn(ctx).Table("article_translations").Joins("JOIN articles ON articles.id = article_translations.article_id").Where("article_translations.locale = ? AND articles.deleted_at IS NULL", locale)
+func (r *Repository) ListArticleTranslations(ctx context.Context, locale string, includeDeleted bool, page shared.PageQuery) ([]*domainCMS.ArticleListItem, int64, error) {
+	db := r.conn(ctx).Table("article_translations").Joins("JOIN articles ON articles.id = article_translations.article_id").Where("article_translations.locale = ?", locale)
+	if !includeDeleted {
+		db = db.Where("articles.deleted_at IS NULL")
+	}
 	var total int64
 	if err := db.Count(&total).Error; err != nil {
 		return nil, 0, err

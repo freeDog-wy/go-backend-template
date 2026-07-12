@@ -8,9 +8,11 @@ type CreateCategoryCmd struct {
 	Locale, Name, Slug, Description, SEOTitle, SEODescription string
 }
 type MoveCategoryCmd struct {
-	CategoryID uint
-	ParentID   *uint
-	SortOrder  int
+	CategoryID    uint
+	ParentID      *uint
+	SortOrder     int
+	ActorUserID   uint
+	IP, UserAgent string
 }
 type CreateArticleCmd struct {
 	AuthorUserID                                                                                 uint
@@ -25,12 +27,16 @@ type UpdateTranslationCmd struct {
 	Locale, Title, Slug, Summary, Content, ContentFormat, SEOTitle, SEODescription, CanonicalURL string
 }
 type PublishTranslationCmd struct {
-	ArticleID uint
-	Locale    string
+	ArticleID     uint
+	Locale        string
+	ActorUserID   uint
+	IP, UserAgent string
 }
 type ArchiveTranslationCmd struct {
-	ArticleID uint
-	Locale    string
+	ArticleID     uint
+	Locale        string
+	ActorUserID   uint
+	IP, UserAgent string
 }
 type ListCategoriesCmd struct{ Locale string }
 type ReplaceArticleCategoriesCmd struct {
@@ -39,8 +45,9 @@ type ReplaceArticleCategoriesCmd struct {
 	PrimaryCategoryID *uint
 }
 type ListArticlesCmd struct {
-	Locale string
-	Page   shared.PageQuery
+	Locale         string
+	IncludeDeleted bool
+	Page           shared.PageQuery
 }
 type ListPublicArticlesCmd struct {
 	Locale string
@@ -52,15 +59,19 @@ type ListPublicCategoryArticlesCmd struct {
 	Page         shared.PageQuery
 }
 type CreateLocaleCmd struct {
-	Code, Name string
-	SortOrder  int
+	Code, Name    string
+	SortOrder     int
+	ActorUserID   uint
+	IP, UserAgent string
 }
 type UpdateLocaleCmd struct {
-	Code      string
-	Name      string
-	IsEnabled bool
-	SortOrder int
-	IsDefault bool
+	Code          string
+	Name          string
+	IsEnabled     bool
+	SortOrder     int
+	IsDefault     bool
+	ActorUserID   uint
+	IP, UserAgent string
 }
 type UpsertCategoryTranslationCmd struct {
 	CategoryID                                                uint
@@ -69,4 +80,21 @@ type UpsertCategoryTranslationCmd struct {
 type GetArticleTranslationCmd struct {
 	ArticleID uint
 	Locale    string
+}
+type UpdateCategoryCmd struct {
+	CategoryID    uint
+	IsEnabled     bool
+	SortOrder     int
+	ActorUserID   uint
+	IP, UserAgent string
+}
+type DeleteArticleCmd struct {
+	ArticleID     uint
+	ActorUserID   uint
+	IP, UserAgent string
+}
+type RestoreArticleCmd struct {
+	ArticleID     uint
+	ActorUserID   uint
+	IP, UserAgent string
 }

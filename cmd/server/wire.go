@@ -117,7 +117,7 @@ func initApp(cfg *config.Config) *App {
 		time.Duration(cfg.Auth.AccessTokenTTLMinutes)*time.Minute,
 		time.Duration(cfg.Auth.RefreshTokenTTLHours)*time.Hour,
 	)
-	cmsSvc := SvcCMS.New(txManager, cmsRepo)
+	cmsSvc := SvcCMS.New(txManager, cmsRepo, eventBus)
 	if err := bootstrapSvc.BootstrapAdmin(context.Background(), SvcBootstrap.BootstrapAdminCmd{
 		Enabled:  cfg.BootstrapAdmin.Enabled,
 		Name:     cfg.BootstrapAdmin.Name,

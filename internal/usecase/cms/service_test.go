@@ -13,6 +13,13 @@ type testTx struct{}
 
 func (testTx) Do(ctx context.Context, fn func(context.Context) error) error { return fn(ctx) }
 
+type recordingEventBus struct{ events []shared.Event }
+
+func (b *recordingEventBus) Publish(_ context.Context, events ...shared.Event) error {
+	b.events = append(b.events, events...)
+	return nil
+}
+
 type testRepo struct {
 	descendant   bool
 	tr           *domainCMS.ArticleTranslation
@@ -22,6 +29,7 @@ type testRepo struct {
 	publicList   []*domainCMS.PublicArticleListItem
 	locale       *domainCMS.Locale
 	enabledCount int64
+	article      *domainCMS.Article
 }
 
 func (*testRepo) LocaleEnabled(context.Context, string) (bool, error) { return true, nil }
@@ -59,6 +67,7 @@ func (r *testRepo) IsCategoryDescendant(context.Context, uint, uint) (bool, erro
 	return r.descendant, nil
 }
 func (*testRepo) MoveCategory(context.Context, uint, *uint, int) error          { return nil }
+func (*testRepo) UpdateCategory(context.Context, uint, bool, int) error         { return nil }
 func (*testRepo) ListCategories(context.Context) ([]*domainCMS.Category, error) { return nil, nil }
 func (r *testRepo) ListCategoryTreeItems(context.Context, string) ([]*domainCMS.CategoryTreeItem, error) {
 	return r.tree, nil
@@ -69,6 +78,14 @@ func (*testRepo) CreateArticle(context.Context, *domainCMS.Article, *domainCMS.A
 func (*testRepo) FindArticle(_ context.Context, id uint) (*domainCMS.Article, error) {
 	return &domainCMS.Article{ID: id}, nil
 }
+func (r *testRepo) FindArticleIncludingDeleted(_ context.Context, id uint) (*domainCMS.Article, error) {
+	if r.article != nil {
+		return r.article, nil
+	}
+	return &domainCMS.Article{ID: id}, nil
+}
+func (*testRepo) SoftDeleteArticle(context.Context, uint, time.Time) error { return nil }
+func (*testRepo) RestoreArticle(context.Context, uint) error               { return nil }
 func (*testRepo) CreateArticleTranslation(context.Context, *domainCMS.ArticleTranslation) error {
 	return nil
 }
@@ -88,7 +105,7 @@ func (r *testRepo) ReplaceArticleCategories(_ context.Context, _ uint, ids []uin
 	r.replaced = ids
 	return nil
 }
-func (*testRepo) ListArticleTranslations(context.Context, string, shared.PageQuery) ([]*domainCMS.ArticleListItem, int64, error) {
+func (*testRepo) ListArticleTranslations(context.Context, string, bool, shared.PageQuery) ([]*domainCMS.ArticleListItem, int64, error) {
 	return nil, 0, nil
 }
 func (r *testRepo) FindPublicArticle(context.Context, string, string) (*domainCMS.PublicArticle, error) {
@@ -188,6 +205,24 @@ func TestUpdateLocaleRejectsDisablingLastEnabledLocale(t *testing.T) {
 	repo := &testRepo{locale: &domainCMS.Locale{Code: "en-US", Name: "English", IsEnabled: true}, enabledCount: 1}
 	_, err := New(testTx{}, repo).UpdateLocale(context.Background(), UpdateLocaleCmd{Code: "en-US", Name: "English", IsEnabled: false})
 	if !errors.Is(err, domainCMS.ErrLastEnabledLocale) {
+		t.Fatalf("error = %v", err)
+	}
+}
+func TestDeleteArticleWritesAuditEvent(t *testing.T) {
+	bus := &recordingEventBus{}
+	repo := &testRepo{article: &domainCMS.Article{ID: 7}}
+	svc := New(testTx{}, repo, bus)
+	svc.now = func() time.Time { return time.Date(2026, 1, 2, 3, 4, 5, 0, time.UTC) }
+	if err := svc.DeleteArticle(context.Background(), DeleteArticleCmd{ArticleID: 7, ActorUserID: 3, IP: "127.0.0.1"}); err != nil {
+		t.Fatal(err)
+	}
+	if len(bus.events) != 1 || bus.events[0].EventName() != "audit.log.requested" {
+		t.Fatalf("events = %#v", bus.events)
+	}
+}
+func TestRestoreArticleRequiresDeletedArticle(t *testing.T) {
+	err := New(testTx{}, &testRepo{article: &domainCMS.Article{ID: 7}}).RestoreArticle(context.Background(), RestoreArticleCmd{ArticleID: 7})
+	if !errors.Is(err, domainCMS.ErrArticleActive) {
 		t.Fatalf("error = %v", err)
 	}
 }

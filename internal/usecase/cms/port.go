@@ -13,11 +13,14 @@ type AdminService interface {
 	CreateCategory(context.Context, CreateCategoryCmd) (*CategoryResult, error)
 	UpsertCategoryTranslation(context.Context, UpsertCategoryTranslationCmd) (*CategoryResult, error)
 	MoveCategory(context.Context, MoveCategoryCmd) error
+	UpdateCategory(context.Context, UpdateCategoryCmd) (*CategoryResult, error)
 	CreateArticle(context.Context, CreateArticleCmd) (*ArticleResult, error)
 	CreateTranslation(context.Context, CreateTranslationCmd) (*ArticleResult, error)
 	UpdateTranslation(context.Context, UpdateTranslationCmd) (*ArticleResult, error)
 	PublishTranslation(context.Context, PublishTranslationCmd) (*ArticleResult, error)
 	ArchiveTranslation(context.Context, ArchiveTranslationCmd) (*ArticleResult, error)
+	DeleteArticle(context.Context, DeleteArticleCmd) error
+	RestoreArticle(context.Context, RestoreArticleCmd) error
 	ListCategories(context.Context, ListCategoriesCmd) ([]*CategoryTreeResult, error)
 	ReplaceArticleCategories(context.Context, ReplaceArticleCategoriesCmd) error
 	ListArticles(context.Context, ListArticlesCmd) ([]*ArticleResult, shared.PageResult, error)

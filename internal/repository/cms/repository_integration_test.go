@@ -14,8 +14,11 @@ import (
 	domainCMS "github.com/freeDog-wy/go-backend-template/internal/domain/cms"
 	"github.com/freeDog-wy/go-backend-template/internal/domain/shared"
 	"github.com/freeDog-wy/go-backend-template/internal/infra/database"
+	infraOutbox "github.com/freeDog-wy/go-backend-template/internal/infra/outbox"
 	modelCMS "github.com/freeDog-wy/go-backend-template/internal/model/cms"
+	repoOutbox "github.com/freeDog-wy/go-backend-template/internal/repository/outbox"
 	"github.com/freeDog-wy/go-backend-template/internal/testsupport"
+	svcCMS "github.com/freeDog-wy/go-backend-template/internal/usecase/cms"
 )
 
 func TestRepositoryIntegrationCMSConstraintsAndPublicVisibility(t *testing.T) {
@@ -109,6 +112,24 @@ func TestRepositoryIntegrationCMSConstraintsAndPublicVisibility(t *testing.T) {
 	duplicate := &domainCMS.ArticleTranslation{ArticleID: article2.ID, Locale: "zh-CN", Title: "Duplicate", Slug: draft.Slug, ContentFormat: "markdown", Status: domainCMS.TranslationDraft}
 	if err := repo.CreateArticleTranslation(ctx, duplicate); err == nil {
 		t.Fatal("expected locale slug uniqueness error")
+	}
+
+	service := svcCMS.New(database.NewTxManager(db), repo, infraOutbox.NewEventBus(repoOutbox.New(db)))
+	if err := service.DeleteArticle(ctx, svcCMS.DeleteArticleCmd{ArticleID: article2.ID, ActorUserID: authorID}); err != nil {
+		t.Fatalf("delete article: %v", err)
+	}
+	if _, err := repo.FindPublicArticle(ctx, "zh-CN", translation2.Slug); !errors.Is(err, shared.ErrNotFound) {
+		t.Fatalf("deleted public lookup error = %v", err)
+	}
+	var auditOutboxCount int64
+	if err := db.Table("outbox_events").Where("event_name = ?", "audit.log.requested").Count(&auditOutboxCount).Error; err != nil || auditOutboxCount != 1 {
+		t.Fatalf("audit outbox count = %d, err=%v", auditOutboxCount, err)
+	}
+	if err := service.RestoreArticle(ctx, svcCMS.RestoreArticleCmd{ArticleID: article2.ID, ActorUserID: authorID}); err != nil {
+		t.Fatalf("restore article: %v", err)
+	}
+	if got, err := repo.FindPublicArticle(ctx, "zh-CN", translation2.Slug); err != nil || got.Article.ID != article2.ID {
+		t.Fatalf("restored public article = %#v, %v", got, err)
 	}
 }
 

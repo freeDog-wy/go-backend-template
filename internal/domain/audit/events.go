@@ -1,15 +1,23 @@
 package audit
 
 const (
-	ActionLogin             = "login"
-	ActionLogout            = "logout"
-	ActionVerifyEmail       = "verify_email"
-	ActionResetPassword     = "reset_password"
-	ActionChangePassword    = "change_password"
-	ActionUserStatusChanged = "user_status_changed"
-	ActionUserRolesChanged  = "user_roles_changed"
-	ResultSuccess           = "success"
-	ResultFailure           = "failure"
+	ActionLogin               = "login"
+	ActionLogout              = "logout"
+	ActionVerifyEmail         = "verify_email"
+	ActionResetPassword       = "reset_password"
+	ActionChangePassword      = "change_password"
+	ActionUserStatusChanged   = "user_status_changed"
+	ActionUserRolesChanged    = "user_roles_changed"
+	ActionCMSArticleDeleted   = "cms_article_deleted"
+	ActionCMSArticleRestored  = "cms_article_restored"
+	ActionCMSArticlePublished = "cms_article_published"
+	ActionCMSArticleArchived  = "cms_article_archived"
+	ActionCMSCategoryMoved    = "cms_category_moved"
+	ActionCMSCategoryUpdated  = "cms_category_updated"
+	ActionCMSLocaleCreated    = "cms_locale_created"
+	ActionCMSLocaleUpdated    = "cms_locale_updated"
+	ResultSuccess             = "success"
+	ResultFailure             = "failure"
 )
 
 type LogRequested struct {

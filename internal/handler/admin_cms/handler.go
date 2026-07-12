@@ -29,9 +29,12 @@ func (h *Handler) RegisterRoutes(r *gin.Engine) {
 	g.POST("/categories", handlerMiddleware.RequirePermission(h.auth, h.authorizer, "cms.category.manage"), h.CreateCategory)
 	g.GET("/categories", handlerMiddleware.RequirePermission(h.auth, h.authorizer, "cms.category.manage"), h.ListCategories)
 	g.PATCH("/categories/:id/move", handlerMiddleware.RequirePermission(h.auth, h.authorizer, "cms.category.manage"), h.MoveCategory)
+	g.PATCH("/categories/:id", handlerMiddleware.RequirePermission(h.auth, h.authorizer, "cms.category.manage"), h.UpdateCategory)
 	g.PUT("/categories/:id/translations/:locale", handlerMiddleware.RequirePermission(h.auth, h.authorizer, "cms.category.manage"), h.UpsertCategoryTranslation)
 	g.POST("/articles", handlerMiddleware.RequirePermission(h.auth, h.authorizer, "cms.article.create"), h.CreateArticle)
 	g.GET("/articles", handlerMiddleware.RequirePermission(h.auth, h.authorizer, "cms.article.update"), h.ListArticles)
+	g.DELETE("/articles/:id", handlerMiddleware.RequirePermission(h.auth, h.authorizer, "cms.article.archive"), h.DeleteArticle)
+	g.POST("/articles/:id/restore", handlerMiddleware.RequirePermission(h.auth, h.authorizer, "cms.article.archive"), h.RestoreArticle)
 	g.GET("/articles/:id/translations/:locale", handlerMiddleware.RequirePermission(h.auth, h.authorizer, "cms.article.update"), h.GetArticleTranslation)
 	g.PUT("/articles/:id/categories", handlerMiddleware.RequirePermission(h.auth, h.authorizer, "cms.article.update"), h.ReplaceArticleCategories)
 	g.POST("/articles/:id/translations", handlerMiddleware.RequirePermission(h.auth, h.authorizer, "cms.article.update"), h.CreateTranslation)
@@ -53,6 +56,10 @@ type categoryReq struct {
 type moveReq struct {
 	ParentID  *uint `json:"parent_id"`
 	SortOrder int   `json:"sort_order"`
+}
+type updateCategoryReq struct {
+	IsEnabled bool `json:"is_enabled"`
+	SortOrder int  `json:"sort_order"`
 }
 type replaceArticleCategoriesReq struct {
 	CategoryIDs       []uint `json:"category_ids"`
@@ -117,7 +124,8 @@ func (h *Handler) CreateLocale(c *gin.Context) {
 		invalid(c)
 		return
 	}
-	result, err := h.cms.CreateLocale(c, svcCMS.CreateLocaleCmd{Code: req.Code, Name: req.Name, SortOrder: req.SortOrder})
+	meta := handler.AuditMetaFromRequest(c)
+	result, err := h.cms.CreateLocale(c, svcCMS.CreateLocaleCmd{Code: req.Code, Name: req.Name, SortOrder: req.SortOrder, ActorUserID: handlerMiddleware.CurrentUserID(c), IP: meta.IP, UserAgent: meta.UserAgent})
 	if err != nil {
 		fail(c, err)
 		return
@@ -130,7 +138,8 @@ func (h *Handler) UpdateLocale(c *gin.Context) {
 		invalid(c)
 		return
 	}
-	result, err := h.cms.UpdateLocale(c, svcCMS.UpdateLocaleCmd{Code: c.Param("code"), Name: req.Name, IsEnabled: req.IsEnabled, SortOrder: req.SortOrder, IsDefault: req.IsDefault})
+	meta := handler.AuditMetaFromRequest(c)
+	result, err := h.cms.UpdateLocale(c, svcCMS.UpdateLocaleCmd{Code: c.Param("code"), Name: req.Name, IsEnabled: req.IsEnabled, SortOrder: req.SortOrder, IsDefault: req.IsDefault, ActorUserID: handlerMiddleware.CurrentUserID(c), IP: meta.IP, UserAgent: meta.UserAgent})
 	if err != nil {
 		fail(c, err)
 		return
@@ -156,11 +165,30 @@ func (h *Handler) MoveCategory(c *gin.Context) {
 		invalid(c)
 		return
 	}
-	if err := h.cms.MoveCategory(c, svcCMS.MoveCategoryCmd{CategoryID: id, ParentID: req.ParentID, SortOrder: req.SortOrder}); err != nil {
+	meta := handler.AuditMetaFromRequest(c)
+	if err := h.cms.MoveCategory(c, svcCMS.MoveCategoryCmd{CategoryID: id, ParentID: req.ParentID, SortOrder: req.SortOrder, ActorUserID: handlerMiddleware.CurrentUserID(c), IP: meta.IP, UserAgent: meta.UserAgent}); err != nil {
 		fail(c, err)
 		return
 	}
 	handler.OK(c, gin.H{"id": id})
+}
+func (h *Handler) UpdateCategory(c *gin.Context) {
+	id, ok := idParam(c)
+	if !ok {
+		return
+	}
+	var req updateCategoryReq
+	if err := c.ShouldBindJSON(&req); err != nil {
+		invalid(c)
+		return
+	}
+	meta := handler.AuditMetaFromRequest(c)
+	result, err := h.cms.UpdateCategory(c, svcCMS.UpdateCategoryCmd{CategoryID: id, IsEnabled: req.IsEnabled, SortOrder: req.SortOrder, ActorUserID: handlerMiddleware.CurrentUserID(c), IP: meta.IP, UserAgent: meta.UserAgent})
+	if err != nil {
+		fail(c, err)
+		return
+	}
+	handler.OK(c, result)
 }
 func (h *Handler) UpsertCategoryTranslation(c *gin.Context) {
 	id, ok := idParam(c)
@@ -198,12 +226,36 @@ func (h *Handler) ListArticles(c *gin.Context) {
 		invalid(c)
 		return
 	}
-	results, page, err := h.cms.ListArticles(c, svcCMS.ListArticlesCmd{Locale: c.Query("locale"), Page: query.ToDomain()})
+	results, page, err := h.cms.ListArticles(c, svcCMS.ListArticlesCmd{Locale: c.Query("locale"), IncludeDeleted: c.Query("include_deleted") == "true", Page: query.ToDomain()})
 	if err != nil {
 		fail(c, err)
 		return
 	}
 	handler.OKPage(c, results, handler.MetaFromPageResult(page))
+}
+func (h *Handler) DeleteArticle(c *gin.Context) {
+	id, ok := idParam(c)
+	if !ok {
+		return
+	}
+	meta := handler.AuditMetaFromRequest(c)
+	if err := h.cms.DeleteArticle(c, svcCMS.DeleteArticleCmd{ArticleID: id, ActorUserID: handlerMiddleware.CurrentUserID(c), IP: meta.IP, UserAgent: meta.UserAgent}); err != nil {
+		fail(c, err)
+		return
+	}
+	handler.OK(c, gin.H{"id": id})
+}
+func (h *Handler) RestoreArticle(c *gin.Context) {
+	id, ok := idParam(c)
+	if !ok {
+		return
+	}
+	meta := handler.AuditMetaFromRequest(c)
+	if err := h.cms.RestoreArticle(c, svcCMS.RestoreArticleCmd{ArticleID: id, ActorUserID: handlerMiddleware.CurrentUserID(c), IP: meta.IP, UserAgent: meta.UserAgent}); err != nil {
+		fail(c, err)
+		return
+	}
+	handler.OK(c, gin.H{"id": id})
 }
 func (h *Handler) GetArticleTranslation(c *gin.Context) {
 	id, ok := idParam(c)
@@ -277,9 +329,11 @@ func (h *Handler) changeState(c *gin.Context, publish bool) {
 	var result *svcCMS.ArticleResult
 	var err error
 	if publish {
-		result, err = h.cms.PublishTranslation(c, svcCMS.PublishTranslationCmd{ArticleID: id, Locale: c.Param("locale")})
+		meta := handler.AuditMetaFromRequest(c)
+		result, err = h.cms.PublishTranslation(c, svcCMS.PublishTranslationCmd{ArticleID: id, Locale: c.Param("locale"), ActorUserID: handlerMiddleware.CurrentUserID(c), IP: meta.IP, UserAgent: meta.UserAgent})
 	} else {
-		result, err = h.cms.ArchiveTranslation(c, svcCMS.ArchiveTranslationCmd{ArticleID: id, Locale: c.Param("locale")})
+		meta := handler.AuditMetaFromRequest(c)
+		result, err = h.cms.ArchiveTranslation(c, svcCMS.ArchiveTranslationCmd{ArticleID: id, Locale: c.Param("locale"), ActorUserID: handlerMiddleware.CurrentUserID(c), IP: meta.IP, UserAgent: meta.UserAgent})
 	}
 	if err != nil {
 		fail(c, err)
@@ -314,6 +368,10 @@ func fail(c *gin.Context, err error) {
 		handler.Fail(c, "DEFAULT_LOCALE_CANNOT_BE_DISABLED", "default locale cannot be disabled")
 	case errors.Is(err, domainCMS.ErrLastEnabledLocale):
 		handler.Fail(c, "LAST_ENABLED_LOCALE", "at least one locale must remain enabled")
+	case errors.Is(err, domainCMS.ErrArticleDeleted):
+		handler.Fail(c, "ARTICLE_ALREADY_DELETED", "article is already deleted")
+	case errors.Is(err, domainCMS.ErrArticleActive):
+		handler.Fail(c, "ARTICLE_NOT_DELETED", "article is not deleted")
 	default:
 		handler.Fail(c, "INTERNAL_ERROR", err.Error())
 	}

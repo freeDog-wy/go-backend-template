@@ -3,6 +3,9 @@ package cms
 import (
 	"context"
 	"errors"
+	"strconv"
+
+	domainAudit "github.com/freeDog-wy/go-backend-template/internal/domain/audit"
 	domainCMS "github.com/freeDog-wy/go-backend-template/internal/domain/cms"
 	"github.com/freeDog-wy/go-backend-template/internal/domain/shared"
 	"strings"
@@ -10,13 +13,18 @@ import (
 )
 
 type Service struct {
-	tx   shared.TxManager
-	repo domainCMS.Repository
-	now  func() time.Time
+	tx       shared.TxManager
+	repo     domainCMS.Repository
+	now      func() time.Time
+	eventBus shared.EventBus
 }
 
-func New(tx shared.TxManager, repo domainCMS.Repository) *Service {
-	return &Service{tx: tx, repo: repo, now: time.Now}
+func New(tx shared.TxManager, repo domainCMS.Repository, eventBuses ...shared.EventBus) *Service {
+	service := &Service{tx: tx, repo: repo, now: time.Now}
+	if len(eventBuses) > 0 {
+		service.eventBus = eventBuses[0]
+	}
+	return service
 }
 
 func (s *Service) ListLocales(ctx context.Context) ([]*LocaleResult, error) {
@@ -36,7 +44,12 @@ func (s *Service) CreateLocale(ctx context.Context, cmd CreateLocaleCmd) (*Local
 		return nil, domainCMS.ErrInvalidInput
 	}
 	locale := &domainCMS.Locale{Code: code, Name: name, IsEnabled: true, SortOrder: cmd.SortOrder}
-	if err := s.repo.CreateLocale(ctx, locale); err != nil {
+	if err := s.tx.Do(ctx, func(ctx context.Context) error {
+		if err := s.repo.CreateLocale(ctx, locale); err != nil {
+			return err
+		}
+		return s.publishAuditText(ctx, cmd.ActorUserID, "locale", locale.Code, domainAudit.ActionCMSLocaleCreated, cmd.IP, cmd.UserAgent, map[string]any{"name": locale.Name, "sort_order": locale.SortOrder})
+	}); err != nil {
 		return nil, err
 	}
 	return localeResult(locale), nil
@@ -65,6 +78,7 @@ func (s *Service) UpdateLocale(ctx context.Context, cmd UpdateLocaleCmd) (*Local
 		return nil, domainCMS.ErrInvalidInput
 	}
 	locale.Name, locale.IsEnabled, locale.SortOrder = strings.TrimSpace(cmd.Name), cmd.IsEnabled, cmd.SortOrder
+	oldName, oldEnabled, oldSortOrder, oldDefault := locale.Name, locale.IsEnabled, locale.SortOrder, locale.IsDefault
 	if err := s.tx.Do(ctx, func(ctx context.Context) error {
 		if err := s.repo.UpdateLocale(ctx, locale); err != nil {
 			return err
@@ -75,7 +89,7 @@ func (s *Service) UpdateLocale(ctx context.Context, cmd UpdateLocaleCmd) (*Local
 			}
 			locale.IsDefault = true
 		}
-		return nil
+		return s.publishAuditText(ctx, cmd.ActorUserID, "locale", locale.Code, domainAudit.ActionCMSLocaleUpdated, cmd.IP, cmd.UserAgent, map[string]any{"old_name": oldName, "new_name": locale.Name, "old_enabled": oldEnabled, "new_enabled": locale.IsEnabled, "old_sort_order": oldSortOrder, "new_sort_order": locale.SortOrder, "old_default": oldDefault, "new_default": locale.IsDefault})
 	}); err != nil {
 		return nil, err
 	}
@@ -143,7 +157,31 @@ func (s *Service) MoveCategory(ctx context.Context, cmd MoveCategoryCmd) error {
 			return domainCMS.ErrCategoryCycle
 		}
 	}
-	return s.repo.MoveCategory(ctx, cmd.CategoryID, cmd.ParentID, cmd.SortOrder)
+	return s.tx.Do(ctx, func(ctx context.Context) error {
+		if err := s.repo.MoveCategory(ctx, cmd.CategoryID, cmd.ParentID, cmd.SortOrder); err != nil {
+			return err
+		}
+		return s.publishAudit(ctx, cmd.ActorUserID, "category", cmd.CategoryID, domainAudit.ActionCMSCategoryMoved, cmd.IP, cmd.UserAgent, map[string]any{"parent_id": cmd.ParentID, "sort_order": cmd.SortOrder})
+	})
+}
+func (s *Service) UpdateCategory(ctx context.Context, cmd UpdateCategoryCmd) (*CategoryResult, error) {
+	if cmd.CategoryID == 0 {
+		return nil, domainCMS.ErrInvalidInput
+	}
+	category, err := s.repo.FindCategory(ctx, cmd.CategoryID)
+	if err != nil {
+		return nil, mapCategory(err)
+	}
+	if err := s.tx.Do(ctx, func(ctx context.Context) error {
+		if err := s.repo.UpdateCategory(ctx, cmd.CategoryID, cmd.IsEnabled, cmd.SortOrder); err != nil {
+			return err
+		}
+		return s.publishAudit(ctx, cmd.ActorUserID, "category", cmd.CategoryID, domainAudit.ActionCMSCategoryUpdated, cmd.IP, cmd.UserAgent, map[string]any{"old_enabled": category.Enabled, "new_enabled": cmd.IsEnabled, "old_sort_order": category.SortOrder, "new_sort_order": cmd.SortOrder})
+	}); err != nil {
+		return nil, err
+	}
+	category.Enabled, category.SortOrder = cmd.IsEnabled, cmd.SortOrder
+	return &CategoryResult{ID: category.ID, ParentID: category.ParentID, SortOrder: category.SortOrder}, nil
 }
 func (s *Service) CreateArticle(ctx context.Context, cmd CreateArticleCmd) (*ArticleResult, error) {
 	if cmd.AuthorUserID == 0 {
@@ -199,7 +237,12 @@ func (s *Service) PublishTranslation(ctx context.Context, cmd PublishTranslation
 	}
 	now := s.now().UTC()
 	tr.Status, tr.PublishedAt = domainCMS.TranslationPublished, &now
-	if err := s.repo.SaveArticleTranslation(ctx, tr); err != nil {
+	if err := s.tx.Do(ctx, func(ctx context.Context) error {
+		if err := s.repo.SaveArticleTranslation(ctx, tr); err != nil {
+			return err
+		}
+		return s.publishAudit(ctx, cmd.ActorUserID, "article_translation", tr.ID, domainAudit.ActionCMSArticlePublished, cmd.IP, cmd.UserAgent, map[string]any{"article_id": cmd.ArticleID, "locale": cmd.Locale})
+	}); err != nil {
 		return nil, err
 	}
 	return articleResult(cmd.ArticleID, tr), nil
@@ -210,10 +253,52 @@ func (s *Service) ArchiveTranslation(ctx context.Context, cmd ArchiveTranslation
 		return nil, err
 	}
 	tr.Status = domainCMS.TranslationArchived
-	if err := s.repo.SaveArticleTranslation(ctx, tr); err != nil {
+	if err := s.tx.Do(ctx, func(ctx context.Context) error {
+		if err := s.repo.SaveArticleTranslation(ctx, tr); err != nil {
+			return err
+		}
+		return s.publishAudit(ctx, cmd.ActorUserID, "article_translation", tr.ID, domainAudit.ActionCMSArticleArchived, cmd.IP, cmd.UserAgent, map[string]any{"article_id": cmd.ArticleID, "locale": cmd.Locale})
+	}); err != nil {
 		return nil, err
 	}
 	return articleResult(cmd.ArticleID, tr), nil
+}
+func (s *Service) DeleteArticle(ctx context.Context, cmd DeleteArticleCmd) error {
+	if cmd.ArticleID == 0 {
+		return domainCMS.ErrInvalidInput
+	}
+	article, err := s.repo.FindArticleIncludingDeleted(ctx, cmd.ArticleID)
+	if err != nil {
+		return mapArticle(err)
+	}
+	if article.DeletedAt != nil {
+		return domainCMS.ErrArticleDeleted
+	}
+	now := s.now().UTC()
+	return s.tx.Do(ctx, func(ctx context.Context) error {
+		if err := s.repo.SoftDeleteArticle(ctx, cmd.ArticleID, now); err != nil {
+			return err
+		}
+		return s.publishAudit(ctx, cmd.ActorUserID, "article", cmd.ArticleID, domainAudit.ActionCMSArticleDeleted, cmd.IP, cmd.UserAgent, map[string]any{"deleted_at": now})
+	})
+}
+func (s *Service) RestoreArticle(ctx context.Context, cmd RestoreArticleCmd) error {
+	if cmd.ArticleID == 0 {
+		return domainCMS.ErrInvalidInput
+	}
+	article, err := s.repo.FindArticleIncludingDeleted(ctx, cmd.ArticleID)
+	if err != nil {
+		return mapArticle(err)
+	}
+	if article.DeletedAt == nil {
+		return domainCMS.ErrArticleActive
+	}
+	return s.tx.Do(ctx, func(ctx context.Context) error {
+		if err := s.repo.RestoreArticle(ctx, cmd.ArticleID); err != nil {
+			return err
+		}
+		return s.publishAudit(ctx, cmd.ActorUserID, "article", cmd.ArticleID, domainAudit.ActionCMSArticleRestored, cmd.IP, cmd.UserAgent, map[string]any{"deleted_at": article.DeletedAt})
+	})
 }
 func (s *Service) ListCategories(ctx context.Context, cmd ListCategoriesCmd) ([]*CategoryTreeResult, error) {
 	if err := s.requireLocale(ctx, cmd.Locale); err != nil {
@@ -289,7 +374,7 @@ func (s *Service) ListArticles(ctx context.Context, cmd ListArticlesCmd) ([]*Art
 		return nil, shared.PageResult{}, err
 	}
 	page := shared.NewPageQuery(cmd.Page.Page, cmd.Page.PerPage)
-	items, total, err := s.repo.ListArticleTranslations(ctx, cmd.Locale, page)
+	items, total, err := s.repo.ListArticleTranslations(ctx, cmd.Locale, cmd.IncludeDeleted, page)
 	if err != nil {
 		return nil, shared.PageResult{}, err
 	}
@@ -439,6 +524,19 @@ func validLocale(code string) bool {
 		}
 	}
 	return true
+}
+func (s *Service) publishAudit(ctx context.Context, actorUserID uint, targetType string, targetID uint, action, ip, userAgent string, metadata map[string]any) error {
+	return s.publishAuditText(ctx, actorUserID, targetType, strconv.FormatUint(uint64(targetID), 10), action, ip, userAgent, metadata)
+}
+func (s *Service) publishAuditText(ctx context.Context, actorUserID uint, targetType, targetID, action, ip, userAgent string, metadata map[string]any) error {
+	if s.eventBus == nil {
+		return nil
+	}
+	var actor *uint
+	if actorUserID != 0 {
+		actor = &actorUserID
+	}
+	return s.eventBus.Publish(ctx, domainAudit.LogRequested{ActorUserID: actor, TargetType: targetType, TargetID: targetID, Action: action, Result: domainAudit.ResultSuccess, IP: ip, UserAgent: userAgent, Metadata: metadata})
 }
 func localeResult(locale *domainCMS.Locale) *LocaleResult {
 	return &LocaleResult{Code: locale.Code, Name: locale.Name, IsDefault: locale.IsDefault, IsEnabled: locale.IsEnabled, SortOrder: locale.SortOrder}

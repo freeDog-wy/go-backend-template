@@ -11,4 +11,6 @@ var (
 	ErrLocaleNotFound    = errors.New("locale not found")
 	ErrLocaleDefault     = errors.New("default locale cannot be disabled")
 	ErrLastEnabledLocale = errors.New("at least one locale must remain enabled")
+	ErrArticleDeleted    = errors.New("article already deleted")
+	ErrArticleActive     = errors.New("article is not deleted")
 )
