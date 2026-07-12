@@ -9,6 +9,7 @@ import (
 	"github.com/freeDog-wy/go-backend-template/internal/config"
 	"github.com/freeDog-wy/go-backend-template/internal/handler"
 	HdlAdminCMS "github.com/freeDog-wy/go-backend-template/internal/handler/admin_cms"
+	HdlAdminMedia "github.com/freeDog-wy/go-backend-template/internal/handler/admin_media"
 	HdlAdminRole "github.com/freeDog-wy/go-backend-template/internal/handler/admin_role"
 	HdlAdminUser "github.com/freeDog-wy/go-backend-template/internal/handler/admin_user"
 	HdlAuth "github.com/freeDog-wy/go-backend-template/internal/handler/auth"
@@ -22,12 +23,14 @@ import (
 	"github.com/freeDog-wy/go-backend-template/internal/infra/database"
 	"github.com/freeDog-wy/go-backend-template/internal/infra/logging"
 	InfraOutbox "github.com/freeDog-wy/go-backend-template/internal/infra/outbox"
+	"github.com/freeDog-wy/go-backend-template/internal/infra/storage"
 	infraToken "github.com/freeDog-wy/go-backend-template/internal/infra/token"
 	"github.com/freeDog-wy/go-backend-template/internal/infra/tracing"
 	RepoAuth "github.com/freeDog-wy/go-backend-template/internal/repository/auth"
 	RepoAuthorization "github.com/freeDog-wy/go-backend-template/internal/repository/authorization"
 	RepoCMS "github.com/freeDog-wy/go-backend-template/internal/repository/cms"
 	RepoIdentity "github.com/freeDog-wy/go-backend-template/internal/repository/identity"
+	RepoMedia "github.com/freeDog-wy/go-backend-template/internal/repository/media"
 	RepoOutbox "github.com/freeDog-wy/go-backend-template/internal/repository/outbox"
 	RepoVerification "github.com/freeDog-wy/go-backend-template/internal/repository/verification"
 	svcAuth "github.com/freeDog-wy/go-backend-template/internal/usecase/auth"
@@ -35,6 +38,7 @@ import (
 	SvcBootstrap "github.com/freeDog-wy/go-backend-template/internal/usecase/bootstrap"
 	SvcCMS "github.com/freeDog-wy/go-backend-template/internal/usecase/cms"
 	SvcIdentity "github.com/freeDog-wy/go-backend-template/internal/usecase/identity"
+	SvcMedia "github.com/freeDog-wy/go-backend-template/internal/usecase/media"
 	SvcVerification "github.com/freeDog-wy/go-backend-template/internal/usecase/verification"
 	"github.com/freeDog-wy/go-backend-template/pkg/captcha"
 	"github.com/freeDog-wy/go-backend-template/pkg/ratelimit"
@@ -93,6 +97,7 @@ func initApp(cfg *config.Config) *App {
 	outboxRepo := RepoOutbox.New(db)
 	verifyRepo := RepoVerification.New(db)
 	cmsRepo := RepoCMS.New(db)
+	mediaRepo := RepoMedia.New(db)
 
 	pwdHasher := crypto.NewBcryptHasher(0)
 	eventBus := InfraOutbox.NewEventBus(outboxRepo)
@@ -118,6 +123,15 @@ func initApp(cfg *config.Config) *App {
 		time.Duration(cfg.Auth.RefreshTokenTTLHours)*time.Hour,
 	)
 	cmsSvc := SvcCMS.New(txManager, cmsRepo, eventBus)
+	var mediaStorage SvcMedia.Storage
+	if cfg.Storage.R2.AccountID != "" && cfg.Storage.R2.AccessKeyID != "" && cfg.Storage.R2.SecretAccessKey != "" && cfg.Storage.R2.Bucket != "" {
+		r2, err := storage.NewR2(context.Background(), cfg.Storage.R2)
+		if err != nil {
+			panic("failed to initialize R2: " + err.Error())
+		}
+		mediaStorage = r2
+	}
+	mediaSvc := SvcMedia.New(txManager, mediaRepo, mediaStorage)
 	if err := bootstrapSvc.BootstrapAdmin(context.Background(), SvcBootstrap.BootstrapAdminCmd{
 		Enabled:  cfg.BootstrapAdmin.Enabled,
 		Name:     cfg.BootstrapAdmin.Name,
@@ -139,6 +153,7 @@ func initApp(cfg *config.Config) *App {
 	adminUserHdl := HdlAdminUser.New(authSvc, authorizationSvc, authorizationSvc, identitySvc)
 	meHdl := HdlMe.New(authSvc, authSvc, identitySvc)
 	adminCMSHdl := HdlAdminCMS.New(authSvc, authorizationSvc, cmsSvc)
+	adminMediaHdl := HdlAdminMedia.New(authSvc, authorizationSvc, mediaSvc)
 	publicContentHdl := HdlPublicContent.New(cmsSvc)
 
 	registry := handler.NewRegistry()
@@ -149,6 +164,7 @@ func initApp(cfg *config.Config) *App {
 	registry.Add(adminUserHdl)
 	registry.Add(meHdl)
 	registry.Add(adminCMSHdl)
+	registry.Add(adminMediaHdl)
 	registry.Add(publicContentHdl)
 
 	if cfg.App.Mode == "production" {

@@ -77,6 +77,9 @@ func (s *Service) RequestUpload(ctx context.Context, r UploadRequest) (*UploadRe
 	return &UploadResult{ID: a.ID, ObjectKey: key, UploadURL: p.URL, Headers: p.Headers, ExpiresAt: p.ExpiresAt, Status: a.Status}, nil
 }
 func (s *Service) Complete(ctx context.Context, id, userID uint) error {
+	if s.storage == nil {
+		return fmt.Errorf("object storage is not configured")
+	}
 	a, err := s.repo.Find(ctx, id)
 	if err != nil {
 		return err

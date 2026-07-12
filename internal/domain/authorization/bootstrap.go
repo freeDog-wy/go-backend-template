@@ -22,6 +22,7 @@ var defaultPermissionDefinitions = []permissionDefinition{
 	{code: "cms.category.manage", name: "Manage CMS Categories", description: "Manage CMS category hierarchy"},
 	{code: "cms.locale.manage", name: "Manage CMS Locales", description: "Manage CMS locales"},
 	{code: "cms.tag.manage", name: "Manage CMS Tags", description: "Manage CMS tags"},
+	{code: "cms.media.upload", name: "Upload CMS Media", description: "Upload CMS media"},
 }
 
 func NewSuperAdminRole() (*Role, error) {
