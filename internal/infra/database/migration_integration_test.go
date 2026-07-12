@@ -36,8 +36,8 @@ func TestMigrationsApplyInitialSchema(t *testing.T) {
 	if err != nil {
 		t.Fatalf("migration version: %v", err)
 	}
-	if version != 6 || dirty {
-		t.Fatalf("migration version = (%d, dirty=%t), want (6, false)", version, dirty)
+	if version != 7 || dirty {
+		t.Fatalf("migration version = (%d, dirty=%t), want (7, false)", version, dirty)
 	}
 
 	for _, table := range initialTables {
@@ -78,6 +78,7 @@ var initialTables = []string{
 	"articles",
 	"article_translations",
 	"article_categories",
+	"tags", "tag_translations", "article_tags", "url_redirects", "media_assets", "media_translations",
 }
 
 func tableExists(t *testing.T, db *sql.DB, table string) bool {

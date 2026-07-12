@@ -20,6 +20,7 @@ type PresignedUpload struct {
 }
 type R2 struct {
 	bucket, prefix string
+	client         *s3.Client
 	presigner      *s3.PresignClient
 	ttl            time.Duration
 }
@@ -37,7 +38,20 @@ func NewR2(ctx context.Context, cfg appConfig.R2Config) (*R2, error) {
 	if ttl <= 0 {
 		ttl = 15 * time.Minute
 	}
-	return &R2{bucket: cfg.Bucket, prefix: strings.Trim(cfg.Prefix, "/"), presigner: s3.NewPresignClient(client), ttl: ttl}, nil
+	return &R2{bucket: cfg.Bucket, prefix: strings.Trim(cfg.Prefix, "/"), client: client, presigner: s3.NewPresignClient(client), ttl: ttl}, nil
+}
+
+type ObjectInfo struct {
+	ContentType string
+	Size        int64
+}
+
+func (r *R2) HeadObject(ctx context.Context, key string) (*ObjectInfo, error) {
+	out, err := r.client.HeadObject(ctx, &s3.HeadObjectInput{Bucket: aws.String(r.bucket), Key: aws.String(key)})
+	if err != nil {
+		return nil, err
+	}
+	return &ObjectInfo{ContentType: aws.ToString(out.ContentType), Size: aws.ToInt64(out.ContentLength)}, nil
 }
 func (r *R2) ObjectKey(name string) string {
 	name = strings.TrimLeft(name, "/")
