@@ -1,4 +1,4 @@
-.PHONY: server worker cron docker-build docker-server docker-worker docker-cron docker-migrate migrate-up migrate-down migrate-version release-prepare release-check release-tag release-push release project-branch test test-unit test-integration test-db-integration test-redis-integration test-kafka-integration test-ci test-verbose test-auth test-mq test-support test-consumption-integration
+.PHONY: server worker cron docker-build docker-server docker-worker docker-cron docker-migrate migrate-up migrate-down migrate-version release-prepare release-check release-tag release-push release project-branch test test-unit test-integration test-db-integration test-redis-integration test-kafka-integration test-s3-integration test-ci test-verbose test-auth test-mq test-support test-consumption-integration
 
 GO ?= go
 DOCKER ?= docker
@@ -88,7 +88,7 @@ test: test-unit
 test-unit:
 	$(GO) test ./...
 
-test-integration: test-db-integration test-redis-integration test-kafka-integration
+test-integration: test-db-integration test-redis-integration test-kafka-integration test-s3-integration
 
 test-db-integration:
 	$(GO) test -tags=integration ./internal/infra/database ./internal/repository/...
@@ -98,6 +98,9 @@ test-redis-integration:
 
 test-kafka-integration:
 	$(GO) test -tags=integration ./internal/infra/mq
+
+test-s3-integration:
+	$(GO) test -tags=integration ./internal/infra/storage
 
 test-ci: test-unit test-integration
 

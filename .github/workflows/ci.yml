@@ -37,7 +37,7 @@ jobs:
         run: make docker-build IMAGE_TAG=ci-${{ github.sha }}
 
       - name: Start integration dependencies
-        run: docker compose -f deploy/docker-compose.yml up -d --wait --wait-timeout 120 postgres redis kafka
+        run: docker compose -f deploy/docker-compose.yml up -d --wait --wait-timeout 120 postgres redis kafka minio
 
       - name: Integration tests
         env:
@@ -46,6 +46,11 @@ jobs:
           TEST_REDIS_PASSWORD: ""
           TEST_REDIS_DB: "15"
           TEST_KAFKA_BROKERS: localhost:9092
+          TEST_S3_ENDPOINT: http://localhost:9000
+          TEST_S3_REGION: us-east-1
+          TEST_S3_ACCESS_KEY_ID: minioadmin
+          TEST_S3_SECRET_ACCESS_KEY: minioadmin
+          TEST_S3_BUCKET: go-backend-template-test
           TRACING_ENDPOINT: ""
         run: make test-integration
 

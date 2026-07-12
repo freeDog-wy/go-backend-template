@@ -88,11 +88,13 @@ bootstrap_admin:
   password: ""
 
 storage:
-  r2:
-    account_id: ""
+  s3:
+    endpoint: ""
+    region: "auto"
     access_key_id: ""
     secret_access_key: ""
     bucket: ""
     public_base_url: ""
     prefix: "cms"
+    use_path_style: true
     presign_ttl_minutes: 15

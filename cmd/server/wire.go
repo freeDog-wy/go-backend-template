@@ -125,12 +125,12 @@ func initApp(cfg *config.Config) *App {
 	)
 	cmsSvc := SvcCMS.New(txManager, cmsRepo, eventBus)
 	var mediaStorage domainMedia.Storage
-	if cfg.Storage.R2.AccountID != "" && cfg.Storage.R2.AccessKeyID != "" && cfg.Storage.R2.SecretAccessKey != "" && cfg.Storage.R2.Bucket != "" {
-		r2, err := storage.NewR2(context.Background(), cfg.Storage.R2)
+	if cfg.Storage.S3.Endpoint != "" && cfg.Storage.S3.AccessKeyID != "" && cfg.Storage.S3.SecretAccessKey != "" && cfg.Storage.S3.Bucket != "" {
+		s3Storage, err := storage.NewS3(context.Background(), cfg.Storage.S3)
 		if err != nil {
-			panic("failed to initialize R2: " + err.Error())
+			panic("failed to initialize S3 storage: " + err.Error())
 		}
-		mediaStorage = r2
+		mediaStorage = s3Storage
 	}
 	mediaSvc := SvcMedia.New(txManager, mediaRepo, mediaStorage)
 	cmsSvc.SetMediaFinder(mediaSvc)

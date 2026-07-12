@@ -41,3 +41,34 @@ func TestLoadUsesDotEnvWithoutOverridingProcessEnvironment(t *testing.T) {
 		t.Fatalf("smtp host = %q, want from-process", cfg.Email.SmtpHost)
 	}
 }
+
+func TestLoadBindsS3Environment(t *testing.T) {
+	originalDir, err := os.Getwd()
+	if err != nil {
+		t.Fatal(err)
+	}
+	tempDir := t.TempDir()
+	if err := os.Chdir(tempDir); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.Chdir(originalDir) })
+
+	configPath := filepath.Join(tempDir, "config.yaml")
+	if err := os.WriteFile(configPath, []byte("storage:\n  s3:\n    endpoint: http://from-yaml\n    bucket: yaml-bucket\n"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("STORAGE_S3_ENDPOINT", "http://from-environment")
+	t.Setenv("STORAGE_S3_REGION", "us-east-1")
+	t.Setenv("STORAGE_S3_ACCESS_KEY_ID", "test-access-key")
+	t.Setenv("STORAGE_S3_SECRET_ACCESS_KEY", "test-secret-key")
+	t.Setenv("STORAGE_S3_BUCKET", "environment-bucket")
+	t.Setenv("STORAGE_S3_USE_PATH_STYLE", "true")
+
+	cfg := Load(configPath)
+	if cfg.Storage.S3.Endpoint != "http://from-environment" || cfg.Storage.S3.Bucket != "environment-bucket" {
+		t.Fatalf("S3 config = %#v, want environment overrides", cfg.Storage.S3)
+	}
+	if cfg.Storage.S3.Region != "us-east-1" || !cfg.Storage.S3.UsePathStyle {
+		t.Fatalf("S3 config = %#v, want region and path-style binding", cfg.Storage.S3)
+	}
+}
