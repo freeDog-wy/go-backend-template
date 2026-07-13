@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/json"
+	"fmt"
 	"strconv"
 	"strings"
 	"time"
@@ -28,12 +29,15 @@ type jwtClaims struct {
 	Exp int64  `json:"exp"`
 }
 
-func NewJWTManager(issuer, audience, secret string) *JWTManager {
-	return &JWTManager{
-		issuer:   issuer,
-		audience: audience,
-		secret:   []byte(secret),
+func NewJWTManager(issuer, audience, secret string) (*JWTManager, error) {
+	secret = strings.TrimSpace(secret)
+	if len(secret) < 32 {
+		return nil, fmt.Errorf("jwt secret must contain at least 32 bytes")
 	}
+	if secret == "change-me" || strings.Contains(strings.ToLower(secret), "replace-with") {
+		return nil, fmt.Errorf("jwt secret must not use an example value")
+	}
+	return &JWTManager{issuer: issuer, audience: audience, secret: []byte(secret)}, nil
 }
 
 var _ domainAuth.AccessTokenManager = (*JWTManager)(nil)

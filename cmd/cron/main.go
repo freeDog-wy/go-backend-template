@@ -19,9 +19,15 @@ func main() {
 	flag.StringVar(&configPath, "config", "config.yaml", "Path to the configuration file")
 	flag.Parse()
 
-	cfg := config.Load(configPath)
+	cfg, err := config.Load(configPath)
+	if err != nil {
+		log.Fatalf("load configuration: %v", err)
+	}
 
-	cronApp := initCronApp(cfg)
+	cronApp, err := initCronApp(cfg)
+	if err != nil {
+		log.Fatalf("initialize cron: %v", err)
+	}
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()

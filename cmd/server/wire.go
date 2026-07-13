@@ -2,6 +2,8 @@ package main
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"net/http"
 	"strconv"
 	"time"
@@ -66,17 +68,17 @@ func (a *App) Shutdown(ctx context.Context) error {
 	return nil
 }
 
-func initApp(cfg *config.Config) *App {
+func initApp(cfg *config.Config) (*App, error) {
 	tp, err := tracing.Init(cfg.App.Mode, cfg.Tracing.Endpoint, "go-backend-template-server")
 	if err != nil {
-		panic("failed to init tracing: " + err.Error())
+		return nil, fmt.Errorf("initialize tracing: %w", err)
 	}
 
 	appLogger := logging.Init(cfg.App.Mode)
 
 	rdb, err := cache.NewRedis(cfg.Redis.Addr, cfg.Redis.Password, cfg.Redis.DB)
 	if err != nil {
-		panic("failed to init redis: " + err.Error())
+		return nil, fmt.Errorf("initialize redis: %w", err)
 	}
 
 	captchaGenerator := captcha.NewWithStore(captcha.Config{
@@ -85,10 +87,13 @@ func initApp(cfg *config.Config) *App {
 		Length: cfg.Captcha.Length,
 	}, captcha.NewRedisStore(rdb, "captcha:", 5*time.Minute))
 
-	db := database.NewPostgresDB(cfg.Database.DSN)
+	db, err := database.NewPostgresDB(cfg.Database.DSN)
+	if err != nil {
+		return nil, fmt.Errorf("initialize postgres: %w", err)
+	}
 	sqlDB, err := db.DB()
 	if err != nil {
-		panic("failed to get database health check handle: " + err.Error())
+		return nil, fmt.Errorf("get postgres health check handle: %w", err)
 	}
 	txManager := database.NewTxManager(db)
 
@@ -104,7 +109,10 @@ func initApp(cfg *config.Config) *App {
 	eventBus := InfraOutbox.NewEventBus(outboxRepo)
 	sessionStore := cache.NewRefreshSessionStore(rdb)
 	rateLimiter := ratelimit.NewRateLimiter(rdb, "rate_limit")
-	tokenManager := infraToken.NewJWTManager(cfg.Auth.JWTIssuer, cfg.Auth.JWTAudience, cfg.Auth.JWTSecret)
+	tokenManager, err := infraToken.NewJWTManager(cfg.Auth.JWTIssuer, cfg.Auth.JWTAudience, cfg.Auth.JWTSecret)
+	if err != nil {
+		return nil, fmt.Errorf("initialize jwt manager: %w", err)
+	}
 
 	verificationSvc := SvcVerification.New(txManager, userRepo, verifyRepo, credentialRepo, pwdHasher, sessionStore, eventBus, appLogger)
 	authorizationSvc := SvcAuthorization.New(txManager, authorizationRepo, userRepo, eventBus, appLogger)
@@ -125,11 +133,21 @@ func initApp(cfg *config.Config) *App {
 	)
 	cmsSvc := SvcCMS.New(txManager, cmsRepo, eventBus)
 	var mediaStorage domainMedia.Storage
-	if cfg.Storage.S3.Endpoint != "" && cfg.Storage.S3.AccessKeyID != "" && cfg.Storage.S3.SecretAccessKey != "" && cfg.Storage.S3.Bucket != "" {
-		s3Storage, err := storage.NewS3(context.Background(), cfg.Storage.S3)
-		if err != nil {
-			panic("failed to initialize S3 storage: " + err.Error())
-		}
+	s3Storage, err := storage.NewS3(context.Background(), storage.Options{
+		Endpoint:          cfg.Storage.S3.Endpoint,
+		Region:            cfg.Storage.S3.Region,
+		AccessKeyID:       cfg.Storage.S3.AccessKeyID,
+		SecretAccessKey:   cfg.Storage.S3.SecretAccessKey,
+		Bucket:            cfg.Storage.S3.Bucket,
+		PublicBaseURL:     cfg.Storage.S3.PublicBaseURL,
+		Prefix:            cfg.Storage.S3.Prefix,
+		UsePathStyle:      cfg.Storage.S3.UsePathStyle,
+		PresignTTLMinutes: cfg.Storage.S3.PresignTTLMinutes,
+	})
+	if err != nil && !errors.Is(err, storage.ErrNotConfigured) {
+		return nil, fmt.Errorf("initialize S3 storage: %w", err)
+	}
+	if err == nil {
 		mediaStorage = s3Storage
 	}
 	mediaSvc := SvcMedia.New(txManager, mediaRepo, mediaStorage)
@@ -141,7 +159,7 @@ func initApp(cfg *config.Config) *App {
 		Email:    cfg.BootstrapAdmin.Email,
 		Password: cfg.BootstrapAdmin.Password,
 	}); err != nil {
-		panic("failed to bootstrap admin: " + err.Error())
+		return nil, fmt.Errorf("bootstrap admin: %w", err)
 	}
 
 	captchaHdl := HdlCaptcha.New(captchaGenerator)
@@ -203,5 +221,5 @@ func initApp(cfg *config.Config) *App {
 	return &App{
 		server: server,
 		tp:     tp,
-	}
+	}, nil
 }

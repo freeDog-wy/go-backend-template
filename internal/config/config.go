@@ -114,6 +114,7 @@ type ServerConfig struct {
 }
 
 type EmailConfig struct {
+	Mode         string
 	SmtpHost     string
 	SmtpPort     int
 	SmtpUser     string
@@ -158,9 +159,9 @@ type BootstrapAdminConfig struct {
 	Password string
 }
 
-func Load(configPath string) *Config {
+func Load(configPath string) (*Config, error) {
 	if err := envfile.Load(".env"); err != nil {
-		panic(fmt.Errorf("failed to load .env: %w", err))
+		return nil, fmt.Errorf("load .env: %w", err)
 	}
 
 	v := viper.New()
@@ -171,6 +172,7 @@ func Load(configPath string) *Config {
 	v.SetDefault("server.port", 8080)
 	v.SetDefault("server.readTimeout", 30)
 	v.SetDefault("server.writeTimeout", 30)
+	v.SetDefault("email.mode", "log")
 	v.SetDefault("email.smtpPort", 465)
 	v.SetDefault("email.siteBaseURL", "http://localhost:5173")
 	v.SetDefault("mq.events_name", "domain.events")
@@ -181,7 +183,7 @@ func Load(configPath string) *Config {
 	v.SetDefault("rate_limit.window_seconds", 60)
 	v.SetDefault("auth.jwtIssuer", "go-backend-template")
 	v.SetDefault("auth.jwtAudience", "go-backend-template-client")
-	v.SetDefault("auth.jwtSecret", "change-me")
+	v.SetDefault("auth.jwtSecret", "")
 	v.SetDefault("auth.accessTokenTTLMinutes", 15)
 	v.SetDefault("auth.refreshTokenTTLHours", 24*7)
 	v.SetDefault("auth.loginFailThreshold", 5)
@@ -246,7 +248,7 @@ func Load(configPath string) *Config {
 	}
 
 	if err := v.ReadInConfig(); err != nil {
-		panic(fmt.Errorf("failed to read config file (%s): %v", configPath, err))
+		return nil, fmt.Errorf("read config file %s: %w", configPath, err)
 	}
 
 	// Environment variables override file configuration. Explicitly setting the
@@ -257,7 +259,7 @@ func Load(configPath string) *Config {
 
 	var cfg Config
 	if err := v.Unmarshal(&cfg); err != nil {
-		panic(fmt.Errorf("failed to unmarshal config: %v", err))
+		return nil, fmt.Errorf("unmarshal config: %w", err)
 	}
 
 	if strings.TrimSpace(cfg.Cron.DLQInspectionGroup) == "" {
@@ -267,7 +269,7 @@ func Load(configPath string) *Config {
 		cfg.Cron.DLQReplayGroup = strings.TrimSpace(cfg.Worker.ConsumerGroup) + "-dlq-replay"
 	}
 
-	return &cfg
+	return &cfg, nil
 }
 
 func applyEnvOverrides(v *viper.Viper) {
@@ -287,7 +289,7 @@ var configEnvBindings = map[string]string{
 	"rate_limit.enabled": "RATE_LIMIT_ENABLED", "rate_limit.requests": "RATE_LIMIT_REQUESTS", "rate_limit.window_seconds": "RATE_LIMIT_WINDOW_SECONDS",
 	"worker.consumer_group": "WORKER_CONSUMER_GROUP", "worker.probe.ip": "WORKER_PROBE_IP", "worker.probe.port": "WORKER_PROBE_PORT", "worker.consumer_max_retries": "WORKER_CONSUMER_MAX_RETRIES", "worker.consumer_processing_lock_seconds": "WORKER_CONSUMER_PROCESSING_LOCK_SECONDS", "worker.kafka_read_min_bytes": "WORKER_KAFKA_READ_MIN_BYTES", "worker.kafka_read_max_bytes": "WORKER_KAFKA_READ_MAX_BYTES", "worker.kafka_max_wait_seconds": "WORKER_KAFKA_MAX_WAIT_SECONDS", "worker.kafka_dead_letter_topic": "WORKER_KAFKA_DEAD_LETTER_TOPIC",
 	"auth.jwtIssuer": "AUTH_JWT_ISSUER", "auth.jwtAudience": "AUTH_JWT_AUDIENCE", "auth.jwtSecret": "AUTH_JWT_SECRET", "auth.accessTokenTTLMinutes": "AUTH_ACCESS_TOKEN_TTL_MINUTES", "auth.refreshTokenTTLHours": "AUTH_REFRESH_TOKEN_TTL_HOURS", "auth.loginFailThreshold": "AUTH_LOGIN_FAIL_THRESHOLD",
-	"email.smtpHost": "EMAIL_SMTP_HOST", "email.smtpPort": "EMAIL_SMTP_PORT", "email.smtpUser": "EMAIL_SMTP_USER", "email.smtpPassword": "EMAIL_SMTP_PASSWORD", "email.fromAddress": "EMAIL_FROM_ADDRESS", "email.siteBaseURL": "EMAIL_SITE_BASE_URL",
+	"email.mode": "EMAIL_MODE", "email.smtpHost": "EMAIL_SMTP_HOST", "email.smtpPort": "EMAIL_SMTP_PORT", "email.smtpUser": "EMAIL_SMTP_USER", "email.smtpPassword": "EMAIL_SMTP_PASSWORD", "email.fromAddress": "EMAIL_FROM_ADDRESS", "email.siteBaseURL": "EMAIL_SITE_BASE_URL",
 	"captcha.width": "CAPTCHA_WIDTH", "captcha.height": "CAPTCHA_HEIGHT", "captcha.length": "CAPTCHA_LENGTH",
 	"cron.enabled": "CRON_ENABLED", "cron.probe.ip": "CRON_PROBE_IP", "cron.probe.port": "CRON_PROBE_PORT", "cron.outbox_publish_interval_seconds": "CRON_OUTBOX_PUBLISH_INTERVAL_SECONDS", "cron.outbox_batch_size": "CRON_OUTBOX_BATCH_SIZE", "cron.verification_cleanup_interval_seconds": "CRON_VERIFICATION_CLEANUP_INTERVAL_SECONDS", "cron.media_upload_cleanup_interval_seconds": "CRON_MEDIA_UPLOAD_CLEANUP_INTERVAL_SECONDS", "cron.media_upload_cleanup_batch_size": "CRON_MEDIA_UPLOAD_CLEANUP_BATCH_SIZE",
 	"tracing.endpoint":        "TRACING_ENDPOINT",

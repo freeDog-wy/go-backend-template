@@ -2,13 +2,20 @@
 package cache
 
 import (
-	"context"
+	"fmt"
+	"strings"
 	"time"
 
 	"github.com/redis/go-redis/v9"
 )
 
 func NewRedis(addr, password string, db int) (*redis.Client, error) {
+	if strings.TrimSpace(addr) == "" {
+		return nil, fmt.Errorf("redis address is required")
+	}
+	if db < 0 {
+		return nil, fmt.Errorf("redis database index must not be negative")
+	}
 	rdb := redis.NewClient(&redis.Options{
 		Addr:         addr,
 		Password:     password,
@@ -21,12 +28,6 @@ func NewRedis(addr, password string, db int) (*redis.Client, error) {
 		WriteTimeout: 3 * time.Second,
 	})
 	rdb.AddHook(newTracingHook(addr, db))
-
-	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
-	defer cancel()
-	if err := rdb.Ping(ctx).Err(); err != nil {
-		return nil, err
-	}
 
 	return rdb, nil
 }

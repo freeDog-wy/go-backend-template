@@ -10,7 +10,10 @@ import (
 func TestJWTManagerIssueAndParse(t *testing.T) {
 	t.Parallel()
 
-	manager := NewJWTManager("issuer", "audience", "secret")
+	manager, err := NewJWTManager("issuer", "audience", "a-32-byte-secret-for-jwt-unit-test")
+	if err != nil {
+		t.Fatal(err)
+	}
 	now := time.Unix(1_700_000_000, 0)
 
 	token, err := manager.IssueAccessToken(domainAuth.AccessClaims{
@@ -42,7 +45,10 @@ func TestJWTManagerIssueAndParse(t *testing.T) {
 func TestJWTManagerRejectsExpiredToken(t *testing.T) {
 	t.Parallel()
 
-	manager := NewJWTManager("issuer", "audience", "secret")
+	manager, err := NewJWTManager("issuer", "audience", "a-32-byte-secret-for-jwt-unit-test")
+	if err != nil {
+		t.Fatal(err)
+	}
 	now := time.Unix(1_700_000_000, 0)
 
 	token, err := manager.IssueAccessToken(domainAuth.AccessClaims{
@@ -60,5 +66,15 @@ func TestJWTManagerRejectsExpiredToken(t *testing.T) {
 
 	if _, err := manager.ParseAccessToken(token, now.Add(2*time.Minute)); err == nil {
 		t.Fatal("ParseAccessToken() expected error for expired token")
+	}
+}
+
+func TestNewJWTManagerRejectsUnsafeSecrets(t *testing.T) {
+	t.Parallel()
+
+	for _, secret := range []string{"", "change-me", "replace-with-a-local-development-secret", "too-short"} {
+		if _, err := NewJWTManager("issuer", "audience", secret); err == nil {
+			t.Fatalf("NewJWTManager(%q) expected an error", secret)
+		}
 	}
 }

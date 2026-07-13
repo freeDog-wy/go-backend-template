@@ -33,7 +33,10 @@ func TestLoadUsesDotEnvWithoutOverridingProcessEnvironment(t *testing.T) {
 	}
 	t.Setenv("EMAIL_SMTP_HOST", "from-process")
 
-	cfg := Load(configPath)
+	cfg, err := Load(configPath)
+	if err != nil {
+		t.Fatal(err)
+	}
 	if cfg.Email.SmtpPassword != "from-dotenv" {
 		t.Fatalf("smtp password = %q, want from-dotenv", cfg.Email.SmtpPassword)
 	}
@@ -64,7 +67,10 @@ func TestLoadBindsS3Environment(t *testing.T) {
 	t.Setenv("STORAGE_S3_BUCKET", "environment-bucket")
 	t.Setenv("STORAGE_S3_USE_PATH_STYLE", "true")
 
-	cfg := Load(configPath)
+	cfg, err := Load(configPath)
+	if err != nil {
+		t.Fatal(err)
+	}
 	if cfg.Storage.S3.Endpoint != "http://from-environment" || cfg.Storage.S3.Bucket != "environment-bucket" {
 		t.Fatalf("S3 config = %#v, want environment overrides", cfg.Storage.S3)
 	}

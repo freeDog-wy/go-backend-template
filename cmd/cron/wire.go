@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"errors"
+	"fmt"
 	"strings"
 	"sync/atomic"
 	"time"
@@ -21,6 +22,7 @@ import (
 	UsecaseMessaging "github.com/freeDog-wy/go-backend-template/internal/usecase/messaging"
 	UsecaseSupport "github.com/freeDog-wy/go-backend-template/internal/usecase/support"
 	UsecaseVerification "github.com/freeDog-wy/go-backend-template/internal/usecase/verification"
+	pkgkafka "github.com/freeDog-wy/go-backend-template/pkg/kafka"
 	"github.com/freeDog-wy/go-backend-template/pkg/logger"
 	"github.com/freeDog-wy/go-backend-template/pkg/scheduler"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
@@ -58,10 +60,10 @@ func (a *CronApp) Shutdown(ctx context.Context) error {
 	return err
 }
 
-func initCronApp(cfg *config.Config) *CronApp {
+func initCronApp(cfg *config.Config) (*CronApp, error) {
 	tp, err := tracing.Init(cfg.App.Mode, cfg.Tracing.Endpoint, "go-backend-template-cron")
 	if err != nil {
-		panic("failed to init tracing: " + err.Error())
+		return nil, fmt.Errorf("initialize tracing: %w", err)
 	}
 
 	appLogger := logging.Init(cfg.App.Mode)
@@ -82,19 +84,22 @@ func initCronApp(cfg *config.Config) *CronApp {
 	}
 	if cfg.Cron.Enabled {
 		if cfg.Cron.OutboxPublishIntervalSeconds <= 0 {
-			panic("cron.outbox_publish_interval_seconds must be greater than zero")
+			return nil, fmt.Errorf("cron.outbox_publish_interval_seconds must be greater than zero")
 		}
 		if cfg.Cron.OutboxBatchSize <= 0 {
-			panic("cron.outbox_batch_size must be greater than zero")
+			return nil, fmt.Errorf("cron.outbox_batch_size must be greater than zero")
 		}
 		if cfg.Cron.VerificationCleanupIntervalSeconds <= 0 {
-			panic("cron.verification_cleanup_interval_seconds must be greater than zero")
+			return nil, fmt.Errorf("cron.verification_cleanup_interval_seconds must be greater than zero")
 		}
 
-		db := database.NewPostgresDB(cfg.Database.DSN)
+		db, err := database.NewPostgresDB(cfg.Database.DSN)
+		if err != nil {
+			return nil, fmt.Errorf("initialize postgres: %w", err)
+		}
 		sqlDB, err := db.DB()
 		if err != nil {
-			panic("failed to get database health check handle: " + err.Error())
+			return nil, fmt.Errorf("get postgres health check handle: %w", err)
 		}
 		checks["database"] = HdlHealth.CheckFunc(sqlDB.PingContext)
 		checks["kafka"] = HdlHealth.CheckFunc(func(ctx context.Context) error {
@@ -102,7 +107,10 @@ func initCronApp(cfg *config.Config) *CronApp {
 		})
 
 		outboxRepo := RepoOutbox.New(db)
-		publisher := mq.NewPublisherFromConfig(cfg, appLogger)
+		publisher, err := mq.NewPublisher(mq.KafkaOptions{Brokers: cfg.MQ.Kafka.Brokers, Topic: cfg.MQ.EventsName, ClientID: cfg.MQ.Kafka.ClientID}, appLogger)
+		if err != nil {
+			return nil, fmt.Errorf("initialize kafka publisher: %w", err)
+		}
 		outboxPublisher := UsecaseSupport.NewOutboxPublisher(
 			outboxRepo,
 			mq.NewOutboxPublisherAdapter(publisher),
@@ -111,14 +119,16 @@ func initCronApp(cfg *config.Config) *CronApp {
 		)
 		verificationRepo := RepoVerification.New(db)
 		verificationCron := UsecaseVerification.NewCron(verificationRepo, appLogger)
-		registerMediaCleanupJob(cfg, appLogger, runner, db)
+		if err := registerMediaCleanupJob(cfg, appLogger, runner, db); err != nil {
+			return nil, err
+		}
 
 		if err := runner.Register(scheduler.Job{
 			Name:     "outbox.publish_pending_events",
 			Interval: time.Duration(cfg.Cron.OutboxPublishIntervalSeconds) * time.Second,
 			Run:      outboxPublisher.PublishPending,
 		}); err != nil {
-			panic("failed to register outbox publisher job: " + err.Error())
+			return nil, fmt.Errorf("register outbox publisher job: %w", err)
 		}
 
 		if err := runner.Register(scheduler.Job{
@@ -126,30 +136,42 @@ func initCronApp(cfg *config.Config) *CronApp {
 			Interval: time.Duration(cfg.Cron.VerificationCleanupIntervalSeconds) * time.Second,
 			Run:      verificationCron.CleanupExpiredTokens,
 		}); err != nil {
-			panic("failed to register verification cleanup job: " + err.Error())
+			return nil, fmt.Errorf("register verification cleanup job: %w", err)
 		}
 
-		registerKafkaDLQJobs(cfg, appLogger, runner)
+		if err := registerKafkaDLQJobs(cfg, appLogger, runner); err != nil {
+			return nil, err
+		}
 	}
 
 	cronApp.probeServer = HdlHealth.NewServer(cfg.Cron.Probe.Address(), checks, 2*time.Second)
-	return cronApp
+	return cronApp, nil
 }
 
-func registerMediaCleanupJob(cfg *config.Config, appLogger logger.Logger, runner *scheduler.Runner, db *gorm.DB) {
-	if cfg.Storage.S3.Endpoint == "" || cfg.Storage.S3.AccessKeyID == "" || cfg.Storage.S3.SecretAccessKey == "" || cfg.Storage.S3.Bucket == "" {
+func registerMediaCleanupJob(cfg *config.Config, appLogger logger.Logger, runner *scheduler.Runner, db *gorm.DB) error {
+	storage, err := InfraStorage.NewS3(context.Background(), InfraStorage.Options{
+		Endpoint:          cfg.Storage.S3.Endpoint,
+		Region:            cfg.Storage.S3.Region,
+		AccessKeyID:       cfg.Storage.S3.AccessKeyID,
+		SecretAccessKey:   cfg.Storage.S3.SecretAccessKey,
+		Bucket:            cfg.Storage.S3.Bucket,
+		PublicBaseURL:     cfg.Storage.S3.PublicBaseURL,
+		Prefix:            cfg.Storage.S3.Prefix,
+		UsePathStyle:      cfg.Storage.S3.UsePathStyle,
+		PresignTTLMinutes: cfg.Storage.S3.PresignTTLMinutes,
+	})
+	if errors.Is(err, InfraStorage.ErrNotConfigured) {
 		appLogger.Info("media upload cleanup is disabled because S3 storage is not configured")
-		return
+		return nil
+	}
+	if err != nil {
+		return fmt.Errorf("initialize S3 storage for media cleanup: %w", err)
 	}
 	if cfg.Cron.MediaUploadCleanupIntervalSeconds <= 0 {
-		panic("cron.media_upload_cleanup_interval_seconds must be greater than zero")
+		return fmt.Errorf("cron.media_upload_cleanup_interval_seconds must be greater than zero")
 	}
 	if cfg.Cron.MediaUploadCleanupBatchSize <= 0 {
-		panic("cron.media_upload_cleanup_batch_size must be greater than zero")
-	}
-	storage, err := InfraStorage.NewS3(context.Background(), cfg.Storage.S3)
-	if err != nil {
-		panic("failed to initialize S3 storage for media cleanup: " + err.Error())
+		return fmt.Errorf("cron.media_upload_cleanup_batch_size must be greater than zero")
 	}
 	service := UsecaseMedia.New(database.NewTxManager(db), RepoMedia.New(db), storage)
 	if err := runner.Register(scheduler.Job{
@@ -160,23 +182,27 @@ func registerMediaCleanupJob(cfg *config.Config, appLogger logger.Logger, runner
 			return err
 		},
 	}); err != nil {
-		panic("failed to register media cleanup job: " + err.Error())
+		return fmt.Errorf("register media cleanup job: %w", err)
 	}
+	return nil
 }
 
-func registerKafkaDLQJobs(cfg *config.Config, appLogger logger.Logger, runner *scheduler.Runner) {
+func registerKafkaDLQJobs(cfg *config.Config, appLogger logger.Logger, runner *scheduler.Runner) error {
 	if cfg.Cron.DLQInspectionEnabled {
 		if cfg.Cron.DLQInspectionIntervalSeconds <= 0 {
-			panic("cron.dlq_inspection_interval_seconds must be greater than zero")
+			return fmt.Errorf("cron.dlq_inspection_interval_seconds must be greater than zero")
 		}
 		if cfg.Cron.DLQInspectionBatchSize <= 0 {
-			panic("cron.dlq_inspection_batch_size must be greater than zero")
+			return fmt.Errorf("cron.dlq_inspection_batch_size must be greater than zero")
 		}
 		if strings.TrimSpace(cfg.Cron.DLQInspectionGroup) == "" {
-			panic("cron.dlq_inspection_group must not be empty")
+			return fmt.Errorf("cron.dlq_inspection_group must not be empty")
 		}
 
-		inspector := mq.NewDeadLetterInspectorFromConfig(cfg, cfg.Cron.DLQInspectionGroup, appLogger)
+		inspector, err := mq.NewDeadLetterInspector(deadLetterOptions(cfg, cfg.Cron.DLQInspectionGroup), appLogger)
+		if err != nil {
+			return fmt.Errorf("initialize kafka dead letter inspector: %w", err)
+		}
 		service := UsecaseMessaging.NewDeadLetterUsecase(
 			inspector,
 			nil,
@@ -190,36 +216,67 @@ func registerKafkaDLQJobs(cfg *config.Config, appLogger logger.Logger, runner *s
 			Interval: time.Duration(cfg.Cron.DLQInspectionIntervalSeconds) * time.Second,
 			Run:      service.InspectDeadLetters,
 		}); err != nil {
-			panic("failed to register dlq inspection job: " + err.Error())
+			return fmt.Errorf("register dlq inspection job: %w", err)
 		}
 	}
 
 	if cfg.Cron.DLQReplayEnabled {
 		if cfg.Cron.DLQReplayIntervalSeconds <= 0 {
-			panic("cron.dlq_replay_interval_seconds must be greater than zero")
+			return fmt.Errorf("cron.dlq_replay_interval_seconds must be greater than zero")
 		}
 		if cfg.Cron.DLQReplayBatchSize <= 0 {
-			panic("cron.dlq_replay_batch_size must be greater than zero")
+			return fmt.Errorf("cron.dlq_replay_batch_size must be greater than zero")
 		}
 		if strings.TrimSpace(cfg.Cron.DLQReplayGroup) == "" {
-			panic("cron.dlq_replay_group must not be empty")
+			return fmt.Errorf("cron.dlq_replay_group must not be empty")
 		}
 
-		replayer := mq.NewDeadLetterReplayerFromConfig(cfg, cfg.Cron.DLQReplayGroup, appLogger)
+		replayer, err := mq.NewDeadLetterReplayer(deadLetterOptions(cfg, cfg.Cron.DLQReplayGroup), appLogger)
+		if err != nil {
+			return fmt.Errorf("initialize kafka dead letter replayer: %w", err)
+		}
+		target, err := mq.ResolveDeadLetterReplayTarget(cfg.MQ.EventsName, cfg.Cron.DLQReplayTarget, retryLevels(cfg))
+		if err != nil {
+			return err
+		}
 		service := UsecaseMessaging.NewDeadLetterUsecase(
 			nil,
 			replayer,
 			appLogger,
 			0,
 			cfg.Cron.DLQReplayBatchSize,
-			mq.ResolveDeadLetterReplayTargetFromConfig(cfg),
+			target,
 		)
 		if err := runner.Register(scheduler.Job{
 			Name:     "mq.dlq.replay",
 			Interval: time.Duration(cfg.Cron.DLQReplayIntervalSeconds) * time.Second,
 			Run:      service.ReplayDeadLetters,
 		}); err != nil {
-			panic("failed to register dlq replay job: " + err.Error())
+			return fmt.Errorf("register dlq replay job: %w", err)
 		}
 	}
+	return nil
+}
+
+func deadLetterOptions(cfg *config.Config, groupID string) mq.DeadLetterOptions {
+	return mq.DeadLetterOptions{
+		KafkaOptions: mq.KafkaOptions{
+			Brokers:  cfg.MQ.Kafka.Brokers,
+			Topic:    mq.ResolveDeadLetterTopic(cfg.MQ.EventsName, cfg.Worker.KafkaDeadLetterTopic),
+			ClientID: cfg.MQ.Kafka.ClientID,
+		},
+		GroupID:     strings.TrimSpace(groupID),
+		MinBytes:    cfg.Worker.KafkaReadMinBytes,
+		MaxBytes:    cfg.Worker.KafkaReadMaxBytes,
+		MaxWait:     time.Duration(cfg.Worker.KafkaMaxWaitSeconds) * time.Second,
+		PollTimeout: time.Duration(cfg.Worker.KafkaMaxWaitSeconds) * time.Second,
+	}
+}
+
+func retryLevels(cfg *config.Config) []pkgkafka.RetryLevel {
+	levels := make([]pkgkafka.RetryLevel, 0, len(cfg.Worker.KafkaRetryTopics))
+	for _, level := range cfg.Worker.KafkaRetryTopics {
+		levels = append(levels, pkgkafka.RetryLevel{Topic: level.Topic, Delay: time.Duration(level.DelaySeconds) * time.Second})
+	}
+	return levels
 }

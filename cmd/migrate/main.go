@@ -30,7 +30,10 @@ func main() {
 	flag.BoolVar(&showVersion, "version", false, "Print the current migration version")
 	flag.Parse()
 
-	cfg := config.Load(configPath)
+	cfg, err := config.Load(configPath)
+	if err != nil {
+		log.Fatalf("load configuration: %v", err)
+	}
 	m, err := database.NewMigrator(cfg.Database.DSN, migrationDir)
 	if err != nil {
 		log.Fatalf("open migrator: %v", err)

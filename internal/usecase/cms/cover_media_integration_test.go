@@ -16,7 +16,6 @@ import (
 	"testing"
 	"time"
 
-	appConfig "github.com/freeDog-wy/go-backend-template/internal/config"
 	"github.com/freeDog-wy/go-backend-template/internal/infra/database"
 	infraStorage "github.com/freeDog-wy/go-backend-template/internal/infra/storage"
 	modelMedia "github.com/freeDog-wy/go-backend-template/internal/model/media"
@@ -48,7 +47,7 @@ func TestCoverMediaIntegrationUploadCompleteAndPublish(t *testing.T) {
 	}
 
 	resource := testsupport.OpenS3(t)
-	storage, err := infraStorage.NewS3(ctx, appConfig.S3Config{
+	storage, err := infraStorage.NewS3(ctx, infraStorage.Options{
 		Endpoint:        resource.Endpoint,
 		Region:          resource.Region,
 		AccessKeyID:     resource.AccessKeyID,

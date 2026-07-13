@@ -47,12 +47,13 @@ worker:
 auth:
   jwt_issuer: "go-backend-template"
   jwt_audience: "go-backend-template-client"
-  jwt_secret: "change-me"
+  jwt_secret: ""
   access_token_ttl_minutes: 15
   refresh_token_ttl_hours: 168
   login_fail_threshold: 5
 
 email:
+  mode: "log"
   smtp_host: "smtp.qiye.aliyun.com"
   smtp_port: 465
   smtp_user: "godfree@elseif.site"

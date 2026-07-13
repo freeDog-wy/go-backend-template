@@ -4,6 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
+	"strings"
 	"sync/atomic"
 	"time"
 
@@ -21,6 +23,7 @@ import (
 	SvcAudit "github.com/freeDog-wy/go-backend-template/internal/usecase/audit"
 	SvcVerification "github.com/freeDog-wy/go-backend-template/internal/usecase/verification"
 	"github.com/freeDog-wy/go-backend-template/pkg/email"
+	pkgkafka "github.com/freeDog-wy/go-backend-template/pkg/kafka"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 )
 
@@ -47,31 +50,58 @@ func (w *Worker) Shutdown(ctx context.Context) error {
 	return err
 }
 
-func initWorker(cfg *config.Config) *Worker {
+func initWorker(cfg *config.Config) (*Worker, error) {
 	tp, err := tracing.Init(cfg.App.Mode, cfg.Tracing.Endpoint, "go-backend-template-worker")
 	if err != nil {
-		panic("failed to init tracing: " + err.Error())
+		return nil, fmt.Errorf("initialize tracing: %w", err)
 	}
 
 	appLogger := logging.Init(cfg.App.Mode)
-	db := database.NewPostgresDB(cfg.Database.DSN)
+	db, err := database.NewPostgresDB(cfg.Database.DSN)
+	if err != nil {
+		return nil, fmt.Errorf("initialize postgres: %w", err)
+	}
 	sqlDB, err := db.DB()
 	if err != nil {
-		panic("failed to get database health check handle: " + err.Error())
+		return nil, fmt.Errorf("get postgres health check handle: %w", err)
 	}
 
-	emailSender := email.New(email.Config{
+	if cfg.App.Mode == "production" && !strings.EqualFold(strings.TrimSpace(cfg.Email.Mode), string(email.ModeSMTP)) {
+		return nil, fmt.Errorf("email.mode must be smtp in production")
+	}
+	emailSender, err := email.New(email.Config{
+		Mode:         email.Mode(cfg.Email.Mode),
 		SmtpHost:     cfg.Email.SmtpHost,
 		SmtpPort:     cfg.Email.SmtpPort,
 		SmtpUser:     cfg.Email.SmtpUser,
 		SmtpPassword: cfg.Email.SmtpPassword,
 		FromAddress:  cfg.Email.FromAddress,
 	})
+	if err != nil {
+		return nil, fmt.Errorf("initialize email sender: %w", err)
+	}
 
 	verificationConsumer := SvcVerification.NewConsumer(emailSender, cfg.Email.SiteBaseURL, appLogger)
 	auditConsumer := SvcAudit.NewConsumer(RepoAudit.New(db), appLogger)
 
-	consumer := mq.NewConsumerFromConfig(cfg, RepoConsumption.New(db), appLogger)
+	retryLevels := make([]pkgkafka.RetryLevel, 0, len(cfg.Worker.KafkaRetryTopics))
+	for _, level := range cfg.Worker.KafkaRetryTopics {
+		retryLevels = append(retryLevels, pkgkafka.RetryLevel{Topic: level.Topic, Delay: time.Duration(level.DelaySeconds) * time.Second})
+	}
+	consumer, err := mq.NewConsumer(mq.ConsumerOptions{
+		KafkaOptions:      mq.KafkaOptions{Brokers: cfg.MQ.Kafka.Brokers, Topic: cfg.MQ.EventsName, ClientID: cfg.MQ.Kafka.ClientID},
+		GroupID:           cfg.Worker.ConsumerGroup,
+		MaxRetries:        cfg.Worker.ConsumerMaxRetries,
+		ProcessingLockTTL: time.Duration(cfg.Worker.ConsumerProcessingLockSeconds) * time.Second,
+		MinBytes:          cfg.Worker.KafkaReadMinBytes,
+		MaxBytes:          cfg.Worker.KafkaReadMaxBytes,
+		MaxWait:           time.Duration(cfg.Worker.KafkaMaxWaitSeconds) * time.Second,
+		RetryLevels:       retryLevels,
+		DeadLetterTopic:   mq.ResolveDeadLetterTopic(cfg.MQ.EventsName, cfg.Worker.KafkaDeadLetterTopic),
+	}, RepoConsumption.New(db), appLogger)
+	if err != nil {
+		return nil, fmt.Errorf("initialize kafka consumer: %w", err)
+	}
 	worker := &Worker{
 		consumer: consumer,
 		tp:       tp,
@@ -121,5 +151,5 @@ func initWorker(cfg *config.Config) *Worker {
 		return auditConsumer.OnLogRequested(ctx, evt)
 	})
 
-	return worker
+	return worker, nil
 }

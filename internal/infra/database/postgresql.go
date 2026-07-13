@@ -2,29 +2,34 @@ package database
 
 import (
 	"context"
+	"fmt"
+	"strings"
 	"time"
 
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 )
 
-func NewPostgresDB(dsn string) *gorm.DB {
+func NewPostgresDB(dsn string) (*gorm.DB, error) {
+	if strings.TrimSpace(dsn) == "" {
+		return nil, fmt.Errorf("postgres dsn is required")
+	}
 	db, err := gorm.Open(postgres.Open(dsn), &gorm.Config{})
 	if err != nil {
-		panic("failed to connect database: " + err.Error())
+		return nil, fmt.Errorf("open postgres: %w", err)
 	}
 	if err := db.Use(newTracingPlugin()); err != nil {
-		panic("failed to init gorm tracing: " + err.Error())
+		return nil, fmt.Errorf("initialize postgres tracing: %w", err)
 	}
 	sqlDB, err := db.DB()
 	if err != nil {
-		panic("failed to get database instance: " + err.Error())
+		return nil, fmt.Errorf("get postgres database handle: %w", err)
 	}
 	sqlDB.SetConnMaxIdleTime(time.Duration(5) * time.Minute)
 	sqlDB.SetConnMaxLifetime(time.Duration(30) * time.Minute)
 	sqlDB.SetMaxIdleConns(10)
 	sqlDB.SetMaxOpenConns(100)
-	return db
+	return db, nil
 }
 
 func NewTxManager(db *gorm.DB) *TxManager {

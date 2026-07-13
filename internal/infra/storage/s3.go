@@ -2,6 +2,7 @@ package storage
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"strings"
@@ -11,9 +12,22 @@ import (
 	awsconfig "github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/credentials"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
-	appConfig "github.com/freeDog-wy/go-backend-template/internal/config"
 	domainMedia "github.com/freeDog-wy/go-backend-template/internal/domain/media"
 )
+
+var ErrNotConfigured = errors.New("s3 storage is not configured")
+
+type Options struct {
+	Endpoint          string
+	Region            string
+	AccessKeyID       string
+	SecretAccessKey   string
+	Bucket            string
+	PublicBaseURL     string
+	Prefix            string
+	UsePathStyle      bool
+	PresignTTLMinutes int
+}
 
 type S3 struct {
 	bucket, prefix string
@@ -25,9 +39,12 @@ type S3 struct {
 
 var _ domainMedia.Storage = (*S3)(nil)
 
-func NewS3(ctx context.Context, cfg appConfig.S3Config) (*S3, error) {
+func NewS3(ctx context.Context, cfg Options) (*S3, error) {
+	if strings.TrimSpace(cfg.Endpoint) == "" && strings.TrimSpace(cfg.AccessKeyID) == "" && strings.TrimSpace(cfg.SecretAccessKey) == "" && strings.TrimSpace(cfg.Bucket) == "" {
+		return nil, ErrNotConfigured
+	}
 	if strings.TrimSpace(cfg.Endpoint) == "" || strings.TrimSpace(cfg.AccessKeyID) == "" || strings.TrimSpace(cfg.SecretAccessKey) == "" || strings.TrimSpace(cfg.Bucket) == "" {
-		return nil, fmt.Errorf("S3 endpoint, access_key_id, secret_access_key and bucket are required")
+		return nil, fmt.Errorf("incomplete S3 configuration: endpoint, access_key_id, secret_access_key and bucket are required")
 	}
 	region := strings.TrimSpace(cfg.Region)
 	if region == "" {

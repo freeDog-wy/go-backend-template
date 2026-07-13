@@ -9,13 +9,12 @@ import (
 	"net/http"
 	"testing"
 
-	appConfig "github.com/freeDog-wy/go-backend-template/internal/config"
 	"github.com/freeDog-wy/go-backend-template/internal/testsupport"
 )
 
 func TestS3IntegrationPresignedUploadAndHeadObject(t *testing.T) {
 	resource := testsupport.OpenS3(t)
-	adapter, err := NewS3(context.Background(), appConfig.S3Config{
+	adapter, err := NewS3(context.Background(), Options{
 		Endpoint:        resource.Endpoint,
 		Region:          resource.Region,
 		AccessKeyID:     resource.AccessKeyID,

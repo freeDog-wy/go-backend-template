@@ -65,7 +65,7 @@ func TestRepositoryIntegrationCMSConstraintsAndPublicVisibility(t *testing.T) {
 		t.Fatalf("draft public lookup error = %v", err)
 	}
 	article2, translation2 := createArticle(ctx, repo, authorID, "published")
-	now := time.Now().UTC()
+	now := time.Now().UTC().Add(-time.Second) // ensure published_at is in the past
 	translation2.Status, translation2.PublishedAt = domainCMS.TranslationPublished, &now
 	if err := repo.SaveArticleTranslation(ctx, translation2); err != nil {
 		t.Fatalf("publish translation: %v", err)

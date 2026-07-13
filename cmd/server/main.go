@@ -18,9 +18,15 @@ func main() {
 	flag.StringVar(&configPath, "config", "config.yaml", "Path to the configuration file")
 	flag.Parse()
 
-	cfg := config.Load(configPath)
+	cfg, err := config.Load(configPath)
+	if err != nil {
+		log.Fatalf("load configuration: %v", err)
+	}
 
-	app := initApp(cfg)
+	app, err := initApp(cfg)
+	if err != nil {
+		log.Fatalf("initialize server: %v", err)
+	}
 
 	go func() {
 		if err := app.Run(); err != nil && err != http.ErrServerClosed {
