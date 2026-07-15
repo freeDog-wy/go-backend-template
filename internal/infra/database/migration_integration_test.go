@@ -36,8 +36,8 @@ func TestMigrationsApplyInitialSchema(t *testing.T) {
 	if err != nil {
 		t.Fatalf("migration version: %v", err)
 	}
-	if version != 10 || dirty {
-		t.Fatalf("migration version = (%d, dirty=%t), want (10, false)", version, dirty)
+	if version != 11 || dirty {
+		t.Fatalf("migration version = (%d, dirty=%t), want (11, false)", version, dirty)
 	}
 
 	for _, table := range initialTables {
@@ -81,6 +81,7 @@ var initialTables = []string{
 	"article_categories",
 	"tags", "tag_translations", "article_tags", "url_redirects", "media_assets", "media_translations",
 	"mcp_service_accounts",
+	"idempotency_records",
 }
 
 func assertMCPServiceAccountSchema(t *testing.T, db *sql.DB) {
