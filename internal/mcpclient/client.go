@@ -26,6 +26,46 @@ type ArticleInput struct {
 	CanonicalURL   string `json:"canonical_url,omitempty"`
 }
 
+type CategoryInput struct {
+	ParentID       *uint  `json:"parent_id,omitempty"`
+	SortOrder      int    `json:"sort_order"`
+	Locale         string `json:"locale"`
+	Name           string `json:"name"`
+	Slug           string `json:"slug"`
+	Description    string `json:"description,omitempty"`
+	SEOTitle       string `json:"seo_title,omitempty"`
+	SEODescription string `json:"seo_description,omitempty"`
+}
+
+type CategoryStateInput struct {
+	IsEnabled bool `json:"is_enabled"`
+	SortOrder int  `json:"sort_order"`
+}
+
+type CategoryMoveInput struct {
+	ParentID  *uint `json:"parent_id,omitempty"`
+	SortOrder int   `json:"sort_order"`
+}
+
+type CategoryTranslationInput struct {
+	Name           string `json:"name"`
+	Slug           string `json:"slug"`
+	Description    string `json:"description,omitempty"`
+	SEOTitle       string `json:"seo_title,omitempty"`
+	SEODescription string `json:"seo_description,omitempty"`
+}
+
+type TagInput struct {
+	Locale string `json:"locale"`
+	Name   string `json:"name"`
+	Slug   string `json:"slug"`
+}
+
+type TagTranslationInput struct {
+	Name string `json:"name"`
+	Slug string `json:"slug"`
+}
+
 type TokenProvider interface {
 	Token(context.Context) (string, error)
 }
@@ -99,6 +139,10 @@ func (c *Client) CreateArticleDraft(ctx context.Context, input ArticleInput) (js
 	return c.write(ctx, http.MethodPost, "/api/v1/admin/cms/articles", input)
 }
 
+func (c *Client) CreateArticleTranslation(ctx context.Context, articleID uint, input ArticleInput) (json.RawMessage, error) {
+	return c.write(ctx, http.MethodPost, "/api/v1/admin/cms/articles/"+strconv.FormatUint(uint64(articleID), 10)+"/translations", input)
+}
+
 func (c *Client) UpdateArticleTranslation(ctx context.Context, articleID uint, locale string, input ArticleInput) (json.RawMessage, error) {
 	return c.write(ctx, http.MethodPut, "/api/v1/admin/cms/articles/"+strconv.FormatUint(uint64(articleID), 10)+"/translations/"+url.PathEscape(locale), input)
 }
@@ -117,6 +161,42 @@ func (c *Client) PreviewPublish(ctx context.Context, articleID uint, locale stri
 
 func (c *Client) PublishArticleTranslation(ctx context.Context, articleID uint, locale string) (json.RawMessage, error) {
 	return c.write(ctx, http.MethodPost, "/api/v1/admin/cms/articles/"+strconv.FormatUint(uint64(articleID), 10)+"/translations/"+url.PathEscape(locale)+"/publish", nil)
+}
+
+func (c *Client) ArchiveArticleTranslation(ctx context.Context, articleID uint, locale string) (json.RawMessage, error) {
+	return c.write(ctx, http.MethodPost, "/api/v1/admin/cms/articles/"+strconv.FormatUint(uint64(articleID), 10)+"/translations/"+url.PathEscape(locale)+"/archive", nil)
+}
+
+func (c *Client) RestoreArticle(ctx context.Context, articleID uint) (json.RawMessage, error) {
+	return c.write(ctx, http.MethodPost, "/api/v1/admin/cms/articles/"+strconv.FormatUint(uint64(articleID), 10)+"/restore", nil)
+}
+
+func (c *Client) SetArticleCover(ctx context.Context, articleID uint, mediaID *uint) (json.RawMessage, error) {
+	return c.write(ctx, http.MethodPut, "/api/v1/admin/cms/articles/"+strconv.FormatUint(uint64(articleID), 10)+"/cover", map[string]any{"media_id": mediaID})
+}
+
+func (c *Client) CreateCategory(ctx context.Context, input CategoryInput) (json.RawMessage, error) {
+	return c.write(ctx, http.MethodPost, "/api/v1/admin/cms/categories", input)
+}
+
+func (c *Client) UpdateCategory(ctx context.Context, categoryID uint, input CategoryStateInput) (json.RawMessage, error) {
+	return c.write(ctx, http.MethodPatch, "/api/v1/admin/cms/categories/"+strconv.FormatUint(uint64(categoryID), 10), input)
+}
+
+func (c *Client) MoveCategory(ctx context.Context, categoryID uint, input CategoryMoveInput) (json.RawMessage, error) {
+	return c.write(ctx, http.MethodPatch, "/api/v1/admin/cms/categories/"+strconv.FormatUint(uint64(categoryID), 10)+"/move", input)
+}
+
+func (c *Client) UpsertCategoryTranslation(ctx context.Context, categoryID uint, locale string, input CategoryTranslationInput) (json.RawMessage, error) {
+	return c.write(ctx, http.MethodPut, "/api/v1/admin/cms/categories/"+strconv.FormatUint(uint64(categoryID), 10)+"/translations/"+url.PathEscape(locale), input)
+}
+
+func (c *Client) CreateTag(ctx context.Context, input TagInput) (json.RawMessage, error) {
+	return c.write(ctx, http.MethodPost, "/api/v1/admin/cms/tags", input)
+}
+
+func (c *Client) UpsertTagTranslation(ctx context.Context, tagID uint, locale string, input TagTranslationInput) (json.RawMessage, error) {
+	return c.write(ctx, http.MethodPut, "/api/v1/admin/cms/tags/"+strconv.FormatUint(uint64(tagID), 10)+"/translations/"+url.PathEscape(locale), input)
 }
 
 func pageQuery(locale string, page, perPage int) url.Values {

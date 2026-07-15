@@ -192,6 +192,14 @@ mcp:
 | `cms.article.publish` | 发布指定语言翻译 | `cms.article.publish`，并完成 Codex 人工确认 |
 | `cms.article.archive` | 归档指定语言翻译 | `cms.article.archive`，并完成 Codex 人工确认 |
 
+当前实现还提供下列运营维护工具，均为写操作并经 Codex 确认：
+
+- `cms.category.create`、`cms.category.update`、`cms.category.move`、`cms.category.upsert_translation`
+- `cms.tag.create`、`cms.tag.upsert_translation`
+- `cms.article.create_translation`、`cms.article.restore`、`cms.article.set_cover`
+
+已注册 `cms.draft_from_brief`、`cms.pre_publish_review` 和 `cms.weekly_content_review` 三个 MCP prompt；它们仅编排读取、检查与人工确认，不能绕过写工具的确认机制。
+
 `publish`、`archive` 及未来的 `delete`、分类移动工具必须标记为写操作。Codex 的 `default_tools_approval_mode = "writes"` 是第一道人工确认；服务端仍须执行状态机、权限和输入校验。
 
 `cms.article.publish` 不接收由模型编造的“已确认”布尔值。建议其输入只包含文章 ID、locale 和可选幂等键；操作前由 `preview_publish` 展示标题、slug、当前状态、计划发布语言和发布时间，再由 Codex 的写操作确认流程决定是否调用发布工具。

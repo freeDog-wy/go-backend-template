@@ -47,6 +47,7 @@ GET /api/v1/public/:locale/sitemap-entries
 - 管理端已提供语言、分类、标签、文章、翻译、发布/归档、文章分类/标签、封面和媒体管理路由。
 - 路由由 RBAC 保护，当前已注册 `cms.article.create`、`cms.article.update`、`cms.article.publish`、`cms.article.archive`、`cms.category.manage`、`cms.tag.manage`、`cms.locale.manage`、`cms.media.upload` 权限。
 - 关键 CMS 写操作写入审计事件，包括发布、归档、删除、恢复、slug 变更、分类移动、标签关联和封面变更。
+- 私有 stdio MCP 已提供文章草稿、翻译、关联、预检、发布、归档、恢复和封面维护，以及分类、标签的创建、更新、移动和多语言翻译维护工具；所有写工具依赖现有 CMS RBAC，并由 Codex 写操作确认。
 
 ### SEO 与重定向
 
