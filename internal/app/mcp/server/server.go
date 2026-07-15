@@ -1,4 +1,4 @@
-package mcpserver
+package server
 
 import (
 	"context"
@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/freeDog-wy/go-backend-template/internal/mcpclient"
+	mcpclient "github.com/freeDog-wy/go-backend-template/internal/app/mcp/client"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 

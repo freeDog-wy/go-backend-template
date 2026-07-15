@@ -10,7 +10,7 @@ import (
 	infraOutbox "github.com/freeDog-wy/go-backend-template/internal/infra/outbox"
 	svcAuth "github.com/freeDog-wy/go-backend-template/internal/usecase/auth"
 	svcBootstrap "github.com/freeDog-wy/go-backend-template/internal/usecase/bootstrap"
-	svcMCP "github.com/freeDog-wy/go-backend-template/internal/usecase/mcp"
+	svcServiceAccount "github.com/freeDog-wy/go-backend-template/internal/usecase/service_account"
 )
 
 func bootstrapServer(ctx context.Context, cfg *config.Config, services *serverServices) error {
@@ -30,8 +30,8 @@ func newMCPServiceTokenHandler(ctx context.Context, cfg *config.Config, infra *s
 		return nil, nil
 	}
 
-	bootstrap := svcMCP.NewBootstrapService(infra.txManager, repos.mcpServiceAccount, repos.user, repos.authorization, infra.passwordHasher, infra.sessionStore, infra.logger)
-	if err := bootstrap.Bootstrap(ctx, svcMCP.BootstrapCmd{
+	bootstrap := svcServiceAccount.NewBootstrapService(infra.txManager, repos.mcpServiceAccount, repos.user, repos.authorization, infra.passwordHasher, infra.sessionStore, infra.logger)
+	if err := bootstrap.Bootstrap(ctx, svcServiceAccount.BootstrapCmd{
 		Enabled:               true,
 		Name:                  cfg.MCP.ServiceAccountName,
 		Email:                 cfg.MCP.ServiceAccountEmail,

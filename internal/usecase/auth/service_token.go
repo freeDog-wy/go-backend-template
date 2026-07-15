@@ -13,13 +13,13 @@ import (
 	domainAudit "github.com/freeDog-wy/go-backend-template/internal/domain/audit"
 	domainAuth "github.com/freeDog-wy/go-backend-template/internal/domain/auth"
 	domainIdentity "github.com/freeDog-wy/go-backend-template/internal/domain/identity"
-	domainMCP "github.com/freeDog-wy/go-backend-template/internal/domain/mcp"
+	domainServiceAccount "github.com/freeDog-wy/go-backend-template/internal/domain/service_account"
 	domainShared "github.com/freeDog-wy/go-backend-template/internal/domain/shared"
 	"github.com/freeDog-wy/go-backend-template/pkg/logger"
 )
 
 type ServiceTokenService struct {
-	accountRepo  domainMCP.ServiceAccountRepository
+	accountRepo  domainServiceAccount.Repository
 	userRepo     domainIdentity.Repository
 	sessionStore domainAuth.SessionStore
 	hasher       domainShared.PasswordHasher
@@ -31,7 +31,7 @@ type ServiceTokenService struct {
 	ttl          time.Duration
 }
 
-func NewServiceTokenService(accountRepo domainMCP.ServiceAccountRepository, userRepo domainIdentity.Repository, sessionStore domainAuth.SessionStore, hasher domainShared.PasswordHasher, tokenManager domainAuth.AccessTokenManager, eventBus domainShared.EventBus, log logger.Logger, issuer, audience string, ttl time.Duration) *ServiceTokenService {
+func NewServiceTokenService(accountRepo domainServiceAccount.Repository, userRepo domainIdentity.Repository, sessionStore domainAuth.SessionStore, hasher domainShared.PasswordHasher, tokenManager domainAuth.AccessTokenManager, eventBus domainShared.EventBus, log logger.Logger, issuer, audience string, ttl time.Duration) *ServiceTokenService {
 	return &ServiceTokenService{accountRepo: accountRepo, userRepo: userRepo, sessionStore: sessionStore, hasher: hasher, tokenManager: tokenManager, eventBus: eventBus, logger: log, issuer: issuer, audience: audience, ttl: ttl}
 }
 
@@ -81,7 +81,7 @@ func (s *ServiceTokenService) IssueServiceToken(ctx context.Context, cmd IssueSe
 	return &ServiceTokenResult{AccessToken: accessToken, ExpiresIn: int(s.ttl.Seconds())}, nil
 }
 
-func (s *ServiceTokenService) matchesServiceSecret(account *domainMCP.ServiceAccount, secret string, now time.Time) bool {
+func (s *ServiceTokenService) matchesServiceSecret(account *domainServiceAccount.ServiceAccount, secret string, now time.Time) bool {
 	return s.hasher.Verify(secret, account.GetClientSecretHash()) || (account.PreviousSecretActive(now) && s.hasher.Verify(secret, account.GetPreviousClientSecretHash()))
 }
 

@@ -12,10 +12,10 @@ import (
 	"syscall"
 	"time"
 
+	mcpauth "github.com/freeDog-wy/go-backend-template/internal/app/mcp/auth"
+	mcpclient "github.com/freeDog-wy/go-backend-template/internal/app/mcp/client"
+	mcpserver "github.com/freeDog-wy/go-backend-template/internal/app/mcp/server"
 	"github.com/freeDog-wy/go-backend-template/internal/config"
-	"github.com/freeDog-wy/go-backend-template/internal/mcpauth"
-	"github.com/freeDog-wy/go-backend-template/internal/mcpclient"
-	"github.com/freeDog-wy/go-backend-template/internal/mcpserver"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 

@@ -1,4 +1,4 @@
-package mcp
+package serviceaccount
 
 import (
 	"context"
@@ -7,7 +7,7 @@ import (
 
 	domainAuthorization "github.com/freeDog-wy/go-backend-template/internal/domain/authorization"
 	domainIdentity "github.com/freeDog-wy/go-backend-template/internal/domain/identity"
-	domainMCP "github.com/freeDog-wy/go-backend-template/internal/domain/mcp"
+	domainServiceAccount "github.com/freeDog-wy/go-backend-template/internal/domain/service_account"
 	domainShared "github.com/freeDog-wy/go-backend-template/internal/domain/shared"
 )
 
@@ -76,12 +76,16 @@ func (*bootstrapTx) Do(ctx context.Context, fn func(context.Context) error) erro
 
 type bootstrapAccountRepo struct{}
 
-func (*bootstrapAccountRepo) Create(context.Context, *domainMCP.ServiceAccount) error { return nil }
-func (*bootstrapAccountRepo) Update(context.Context, *domainMCP.ServiceAccount) error { return nil }
-func (*bootstrapAccountRepo) FindByClientID(context.Context, string) (*domainMCP.ServiceAccount, error) {
+func (*bootstrapAccountRepo) Create(context.Context, *domainServiceAccount.ServiceAccount) error {
+	return nil
+}
+func (*bootstrapAccountRepo) Update(context.Context, *domainServiceAccount.ServiceAccount) error {
+	return nil
+}
+func (*bootstrapAccountRepo) FindByClientID(context.Context, string) (*domainServiceAccount.ServiceAccount, error) {
 	return nil, domainShared.ErrNotFound
 }
-func (*bootstrapAccountRepo) FindByUserID(context.Context, uint) (*domainMCP.ServiceAccount, error) {
+func (*bootstrapAccountRepo) FindByUserID(context.Context, uint) (*domainServiceAccount.ServiceAccount, error) {
 	return nil, domainShared.ErrNotFound
 }
 
@@ -173,8 +177,8 @@ func (*bootstrapHasher) Hash(string) (string, error) { return "hash", nil }
 func (*bootstrapHasher) Verify(string, string) bool  { return false }
 
 var (
-	_ domainMCP.ServiceAccountRepository = (*bootstrapAccountRepo)(nil)
-	_ domainIdentity.Repository          = (*bootstrapUserRepo)(nil)
-	_ domainAuthorization.Repository     = (*bootstrapAuthorizationRepo)(nil)
-	_ domainShared.TxManager             = (*bootstrapTx)(nil)
+	_ domainServiceAccount.Repository = (*bootstrapAccountRepo)(nil)
+	_ domainIdentity.Repository       = (*bootstrapUserRepo)(nil)
+	_ domainAuthorization.Repository  = (*bootstrapAuthorizationRepo)(nil)
+	_ domainShared.TxManager          = (*bootstrapTx)(nil)
 )

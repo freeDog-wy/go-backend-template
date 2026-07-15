@@ -1,4 +1,4 @@
-package mcp
+package serviceaccount
 
 import (
 	"context"
@@ -10,7 +10,7 @@ import (
 	domainAuth "github.com/freeDog-wy/go-backend-template/internal/domain/auth"
 	domainAuthorization "github.com/freeDog-wy/go-backend-template/internal/domain/authorization"
 	domainIdentity "github.com/freeDog-wy/go-backend-template/internal/domain/identity"
-	domainMCP "github.com/freeDog-wy/go-backend-template/internal/domain/mcp"
+	domainServiceAccount "github.com/freeDog-wy/go-backend-template/internal/domain/service_account"
 	domainShared "github.com/freeDog-wy/go-backend-template/internal/domain/shared"
 	"github.com/freeDog-wy/go-backend-template/pkg/logger"
 )
@@ -28,7 +28,7 @@ var servicePermissionCodes = []string{
 
 type BootstrapService struct {
 	tx         domainShared.TxManager
-	accounts   domainMCP.ServiceAccountRepository
+	accounts   domainServiceAccount.Repository
 	users      domainIdentity.Repository
 	authorizer domainAuthorization.Repository
 	hasher     domainShared.PasswordHasher
@@ -46,7 +46,7 @@ type BootstrapCmd struct {
 	ServiceAccountEnabled bool
 }
 
-func NewBootstrapService(tx domainShared.TxManager, accounts domainMCP.ServiceAccountRepository, users domainIdentity.Repository, authorizer domainAuthorization.Repository, hasher domainShared.PasswordHasher, sessions domainAuth.SessionStore, log logger.Logger) *BootstrapService {
+func NewBootstrapService(tx domainShared.TxManager, accounts domainServiceAccount.Repository, users domainIdentity.Repository, authorizer domainAuthorization.Repository, hasher domainShared.PasswordHasher, sessions domainAuth.SessionStore, log logger.Logger) *BootstrapService {
 	return &BootstrapService{tx: tx, accounts: accounts, users: users, authorizer: authorizer, hasher: hasher, sessions: sessions, logger: log}
 }
 
@@ -88,7 +88,7 @@ func (s *BootstrapService) Bootstrap(ctx context.Context, cmd BootstrapCmd) erro
 			if hashErr != nil {
 				return hashErr
 			}
-			account, err = domainMCP.NewServiceAccount(user.GetID(), cmd.ClientID, hash, time.Now())
+			account, err = domainServiceAccount.NewServiceAccount(user.GetID(), cmd.ClientID, hash, time.Now())
 			if err != nil {
 				return err
 			}
@@ -172,6 +172,6 @@ func (s *BootstrapService) Bootstrap(ctx context.Context, cmd BootstrapCmd) erro
 	return nil
 }
 
-func (s *BootstrapService) matchesConfiguredSecret(account *domainMCP.ServiceAccount, secret string) bool {
+func (s *BootstrapService) matchesConfiguredSecret(account *domainServiceAccount.ServiceAccount, secret string) bool {
 	return s.hasher.Verify(secret, account.GetClientSecretHash()) || (account.PreviousSecretActive(time.Now()) && s.hasher.Verify(secret, account.GetPreviousClientSecretHash()))
 }

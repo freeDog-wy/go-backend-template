@@ -1,9 +1,9 @@
-package mcp
+package serviceaccount
 
 import (
 	"time"
 
-	domainMCP "github.com/freeDog-wy/go-backend-template/internal/domain/mcp"
+	domainServiceAccount "github.com/freeDog-wy/go-backend-template/internal/domain/service_account"
 )
 
 type ServiceAccount struct {
@@ -23,10 +23,10 @@ func (ServiceAccount) TableName() string {
 	return "mcp_service_accounts"
 }
 
-func (a *ServiceAccount) ToEntity() *domainMCP.ServiceAccount {
-	return domainMCP.ReconstituteServiceAccount(a.ID, a.UserID, a.ClientID, a.ClientSecretHash, a.PreviousClientSecretHash, a.PreviousSecretExpiresAt, a.Enabled, a.DisabledAt, a.CreatedAt, a.UpdatedAt)
+func (a *ServiceAccount) ToEntity() *domainServiceAccount.ServiceAccount {
+	return domainServiceAccount.ReconstituteServiceAccount(a.ID, a.UserID, a.ClientID, a.ClientSecretHash, a.PreviousClientSecretHash, a.PreviousSecretExpiresAt, a.Enabled, a.DisabledAt, a.CreatedAt, a.UpdatedAt)
 }
 
-func FromEntity(a *domainMCP.ServiceAccount) *ServiceAccount {
+func FromEntity(a *domainServiceAccount.ServiceAccount) *ServiceAccount {
 	return &ServiceAccount{ID: a.GetID(), UserID: a.GetUserID(), ClientID: a.GetClientID(), ClientSecretHash: a.GetClientSecretHash(), PreviousClientSecretHash: a.GetPreviousClientSecretHash(), PreviousSecretExpiresAt: a.GetPreviousSecretExpiresAt(), Enabled: a.IsEnabled(), DisabledAt: a.GetDisabledAt()}
 }

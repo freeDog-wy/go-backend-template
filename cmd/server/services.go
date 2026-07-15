@@ -10,9 +10,9 @@ import (
 	repoAuthorization "github.com/freeDog-wy/go-backend-template/internal/repository/authorization"
 	repoCMS "github.com/freeDog-wy/go-backend-template/internal/repository/cms"
 	repoIdentity "github.com/freeDog-wy/go-backend-template/internal/repository/identity"
-	repoMCP "github.com/freeDog-wy/go-backend-template/internal/repository/mcp"
 	repoMedia "github.com/freeDog-wy/go-backend-template/internal/repository/media"
 	repoOutbox "github.com/freeDog-wy/go-backend-template/internal/repository/outbox"
+	repoServiceAccount "github.com/freeDog-wy/go-backend-template/internal/repository/service_account"
 	repoVerification "github.com/freeDog-wy/go-backend-template/internal/repository/verification"
 	svcAuth "github.com/freeDog-wy/go-backend-template/internal/usecase/auth"
 	svcAuthorization "github.com/freeDog-wy/go-backend-template/internal/usecase/authorization"
@@ -32,7 +32,7 @@ type serverRepositories struct {
 	verification      *repoVerification.Repository
 	cms               *repoCMS.Repository
 	media             *repoMedia.Repository
-	mcpServiceAccount *repoMCP.ServiceAccountRepository
+	mcpServiceAccount *repoServiceAccount.ServiceAccountRepository
 	idempotency       *idempotency.Store
 }
 
@@ -45,7 +45,7 @@ func newServerRepositories(db *gorm.DB) *serverRepositories {
 		verification:      repoVerification.New(db),
 		cms:               repoCMS.New(db),
 		media:             repoMedia.New(db),
-		mcpServiceAccount: repoMCP.NewServiceAccountRepository(db),
+		mcpServiceAccount: repoServiceAccount.NewServiceAccountRepository(db),
 		idempotency:       idempotency.New(db),
 	}
 }

@@ -5,13 +5,13 @@ import (
 	"testing"
 	"time"
 
-	domainMCP "github.com/freeDog-wy/go-backend-template/internal/domain/mcp"
+	domainServiceAccount "github.com/freeDog-wy/go-backend-template/internal/domain/service_account"
 	"github.com/freeDog-wy/go-backend-template/internal/domain/shared"
 )
 
 func TestServiceTokenIssuesServiceClaims(t *testing.T) {
 	now := time.Now()
-	account := domainMCP.ReconstituteServiceAccount(1, 42, "cms-mcp", "hash", "", nil, true, nil, now, now)
+	account := domainServiceAccount.ReconstituteServiceAccount(1, 42, "cms-mcp", "hash", "", nil, true, nil, now, now)
 	tokenManager := &stubAccessTokenManager{issueToken: "service-token"}
 	service := NewServiceTokenService(
 		&serviceAccountStub{account: account},
@@ -40,7 +40,7 @@ func TestServiceTokenIssuesServiceClaims(t *testing.T) {
 
 func TestServiceTokenRejectsDisabledAccount(t *testing.T) {
 	now := time.Now()
-	account := domainMCP.ReconstituteServiceAccount(1, 42, "cms-mcp", "hash", "", nil, false, &now, now, now)
+	account := domainServiceAccount.ReconstituteServiceAccount(1, 42, "cms-mcp", "hash", "", nil, false, &now, now, now)
 	service := NewServiceTokenService(
 		&serviceAccountStub{account: account},
 		&stubIdentityRepo{userByID: newTestUser(42, 1, true)},
@@ -59,18 +59,22 @@ func TestServiceTokenRejectsDisabledAccount(t *testing.T) {
 }
 
 type serviceAccountStub struct {
-	account *domainMCP.ServiceAccount
+	account *domainServiceAccount.ServiceAccount
 	err     error
 }
 
-func (s *serviceAccountStub) Create(context.Context, *domainMCP.ServiceAccount) error { return nil }
-func (s *serviceAccountStub) Update(context.Context, *domainMCP.ServiceAccount) error { return nil }
-func (s *serviceAccountStub) FindByClientID(context.Context, string) (*domainMCP.ServiceAccount, error) {
+func (s *serviceAccountStub) Create(context.Context, *domainServiceAccount.ServiceAccount) error {
+	return nil
+}
+func (s *serviceAccountStub) Update(context.Context, *domainServiceAccount.ServiceAccount) error {
+	return nil
+}
+func (s *serviceAccountStub) FindByClientID(context.Context, string) (*domainServiceAccount.ServiceAccount, error) {
 	if s.err != nil {
 		return nil, s.err
 	}
 	return s.account, nil
 }
-func (s *serviceAccountStub) FindByUserID(context.Context, uint) (*domainMCP.ServiceAccount, error) {
+func (s *serviceAccountStub) FindByUserID(context.Context, uint) (*domainServiceAccount.ServiceAccount, error) {
 	return nil, shared.ErrNotFound
 }

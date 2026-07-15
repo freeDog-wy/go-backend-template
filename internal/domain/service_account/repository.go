@@ -1,8 +1,8 @@
-package mcp
+package serviceaccount
 
 import "context"
 
-type ServiceAccountRepository interface {
+type Repository interface {
 	Create(ctx context.Context, account *ServiceAccount) error
 	Update(ctx context.Context, account *ServiceAccount) error
 	FindByClientID(ctx context.Context, clientID string) (*ServiceAccount, error)
