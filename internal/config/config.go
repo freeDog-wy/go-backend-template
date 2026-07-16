@@ -253,18 +253,9 @@ func Load(configPath string) (*Config, error) {
 		configPath = "config.yaml"
 	}
 
-	// If configPath contains a path separator, treat it as a direct file path.
-	// Otherwise, search for it in known config directories.
-	if strings.Contains(configPath, string(os.PathSeparator)) {
-		v.SetConfigFile(configPath)
-	} else {
-		name := strings.TrimSuffix(configPath, ".yaml")
-		v.SetConfigName(name)
-		v.SetConfigType("yaml")
-		v.AddConfigPath(".")
-		v.AddConfigPath("./internal/config")
-		v.AddConfigPath("../internal/config")
-	}
+	// Configuration is supplied explicitly or resolved from the process working
+	// directory. Internal source directories are never configuration locations.
+	v.SetConfigFile(configPath)
 
 	if err := v.ReadInConfig(); err != nil {
 		return nil, fmt.Errorf("read config file %s: %w", configPath, err)

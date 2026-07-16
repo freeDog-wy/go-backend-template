@@ -78,3 +78,27 @@ func TestLoadBindsS3Environment(t *testing.T) {
 		t.Fatalf("S3 config = %#v, want region and path-style binding", cfg.Storage.S3)
 	}
 }
+
+func TestLoadDoesNotSearchInternalSourceDirectories(t *testing.T) {
+	originalDir, err := os.Getwd()
+	if err != nil {
+		t.Fatal(err)
+	}
+	tempDir := t.TempDir()
+	if err := os.Chdir(tempDir); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.Chdir(originalDir) })
+
+	internalConfigDir := filepath.Join(tempDir, "internal", "config")
+	if err := os.MkdirAll(internalConfigDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(internalConfigDir, "config.yaml"), []byte("app:\n  mode: production\n"), 0600); err != nil {
+		t.Fatal(err)
+	}
+
+	if _, err := Load("config.yaml"); err == nil {
+		t.Fatal("Load() error = nil, want no implicit internal/config lookup")
+	}
+}

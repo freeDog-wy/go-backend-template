@@ -1,3 +1,5 @@
+# Non-sensitive application configuration example. Provide real production
+# configuration through an explicit -config path and environment variables.
 app:
   mode: "development"
 
