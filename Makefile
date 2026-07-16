@@ -1,4 +1,4 @@
-.PHONY: server worker cron mcp docker-build docker-server docker-worker docker-cron docker-migrate migrate-up migrate-down migrate-version release-prepare release-check release-tag release-push release project-branch test test-unit test-integration test-db-integration test-redis-integration test-kafka-integration test-s3-integration test-media-integration test-ci test-verbose test-auth test-mq test-support test-consumption-integration
+.PHONY: server worker cron mcp migrate docker-build docker-server docker-worker docker-cron migrate-up migrate-down migrate-version release-prepare release-check release-tag release-push release project-branch test test-unit test-integration test-db-integration test-redis-integration test-kafka-integration test-s3-integration test-media-integration test-ci test-verbose test-auth test-mq test-support test-consumption-integration
 
 GO ?= go
 DOCKER ?= docker
@@ -8,7 +8,7 @@ IMAGE_TAG ?= dev
 VERSION ?=
 PROJECT ?=
 
-all: test server worker cron mcp
+all: test server worker cron mcp migrate
 
 ################################################################################
 ################################################################# Build commands
@@ -25,7 +25,10 @@ cron:
 mcp:
 	$(GO) build -o build/mcp.exe ./cmd/mcp
 
-docker-build: docker-server docker-worker docker-cron docker-migrate
+migrate:
+	$(GO) build -o build/migrate.exe ./cmd/migrate
+
+docker-build: docker-server docker-worker docker-cron
 
 docker-server:
 	$(DOCKER) build --build-arg APP=server -t $(IMAGE_NAME)-server:$(IMAGE_TAG) .
@@ -35,9 +38,6 @@ docker-worker:
 
 docker-cron:
 	$(DOCKER) build --build-arg APP=cron -t $(IMAGE_NAME)-cron:$(IMAGE_TAG) .
-
-docker-migrate:
-	$(DOCKER) build --build-arg APP=migrate -t $(IMAGE_NAME)-migrate:$(IMAGE_TAG) .
 
 ##############################################################################
 ########################################################## git release commands
