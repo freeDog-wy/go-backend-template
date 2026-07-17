@@ -3,11 +3,9 @@ package audit
 import (
 	"encoding/json"
 	"time"
-
-	domainAudit "github.com/freeDog-wy/go-backend-template/internal/domain/audit"
 )
 
-type Log struct {
+type logModel struct {
 	ID          uint      `gorm:"primaryKey"`
 	ActorUserID *uint     `gorm:"index"`
 	TargetType  string    `gorm:"type:varchar(100);index;not null"`
@@ -21,8 +19,10 @@ type Log struct {
 	CreatedAt   time.Time `gorm:"not null"`
 }
 
-func (l *Log) ToEntity() *domainAudit.AuditLog {
-	return domainAudit.ReconstituteAuditLog(
+func (logModel) TableName() string { return "audit_logs" }
+
+func (l *logModel) toLog() *AuditLog {
+	return ReconstituteAuditLog(
 		l.ID,
 		l.ActorUserID,
 		l.TargetType,
@@ -37,19 +37,19 @@ func (l *Log) ToEntity() *domainAudit.AuditLog {
 	)
 }
 
-func FromEntity(e *domainAudit.AuditLog) *Log {
-	return &Log{
-		ID:          e.GetID(),
-		ActorUserID: e.GetActorUserID(),
-		TargetType:  e.GetTargetType(),
-		TargetID:    e.GetTargetID(),
-		Action:      e.GetAction(),
-		Result:      e.GetResult(),
-		IP:          e.GetIP(),
-		UserAgent:   e.GetUserAgent(),
-		TraceID:     e.GetTraceID(),
-		Metadata:    encodeMetadata(e.GetMetadata()),
-		CreatedAt:   e.GetCreatedAt(),
+func logModelFromLog(log *AuditLog) *logModel {
+	return &logModel{
+		ID:          log.GetID(),
+		ActorUserID: log.GetActorUserID(),
+		TargetType:  log.GetTargetType(),
+		TargetID:    log.GetTargetID(),
+		Action:      log.GetAction(),
+		Result:      log.GetResult(),
+		IP:          log.GetIP(),
+		UserAgent:   log.GetUserAgent(),
+		TraceID:     log.GetTraceID(),
+		Metadata:    encodeMetadata(log.GetMetadata()),
+		CreatedAt:   log.GetCreatedAt(),
 	}
 }
 

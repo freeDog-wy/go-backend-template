@@ -6,12 +6,12 @@ import (
 	"strconv"
 	"time"
 
-	domainAudit "github.com/freeDog-wy/go-backend-template/internal/domain/audit"
 	domainAuth "github.com/freeDog-wy/go-backend-template/internal/domain/auth"
 	domainAuthorization "github.com/freeDog-wy/go-backend-template/internal/domain/authorization"
 	domainIdentity "github.com/freeDog-wy/go-backend-template/internal/domain/identity"
 	"github.com/freeDog-wy/go-backend-template/internal/domain/shared"
 	domainVerification "github.com/freeDog-wy/go-backend-template/internal/domain/verification"
+	platformAudit "github.com/freeDog-wy/go-backend-template/internal/platform/audit"
 	"github.com/freeDog-wy/go-backend-template/pkg/captcha"
 	"github.com/freeDog-wy/go-backend-template/pkg/logger"
 	"go.opentelemetry.io/otel"
@@ -280,12 +280,12 @@ func (s *Service) UpdateStatus(ctx context.Context, cmd UpdateStatusCmd) (*UserR
 	if err := s.userRepo.Update(ctx, user); err != nil {
 		return nil, err
 	}
-	s.publishAudit(ctx, domainAudit.LogRequested{
+	s.publishAudit(ctx, platformAudit.LogRequested{
 		ActorUserID: uintPtr(cmd.ActorUserID),
 		TargetType:  "user",
 		TargetID:    uintString(user.GetID()),
-		Action:      domainAudit.ActionUserStatusChanged,
-		Result:      domainAudit.ResultSuccess,
+		Action:      auditActionUserStatusChanged,
+		Result:      platformAudit.ResultSuccess,
 		IP:          cmd.IP,
 		UserAgent:   cmd.UserAgent,
 		Metadata: map[string]any{
@@ -296,7 +296,7 @@ func (s *Service) UpdateStatus(ctx context.Context, cmd UpdateStatusCmd) (*UserR
 	return FromEntity(user), nil
 }
 
-func (s *Service) publishAudit(ctx context.Context, evt domainAudit.LogRequested) {
+func (s *Service) publishAudit(ctx context.Context, evt platformAudit.LogRequested) {
 	if s.eventBus == nil {
 		return
 	}

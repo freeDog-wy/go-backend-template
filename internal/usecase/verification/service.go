@@ -7,11 +7,11 @@ import (
 	"strings"
 	"time"
 
-	domainAudit "github.com/freeDog-wy/go-backend-template/internal/domain/audit"
 	domainAuth "github.com/freeDog-wy/go-backend-template/internal/domain/auth"
 	domainIdentity "github.com/freeDog-wy/go-backend-template/internal/domain/identity"
 	"github.com/freeDog-wy/go-backend-template/internal/domain/shared"
 	domainVerification "github.com/freeDog-wy/go-backend-template/internal/domain/verification"
+	platformAudit "github.com/freeDog-wy/go-backend-template/internal/platform/audit"
 	"github.com/freeDog-wy/go-backend-template/pkg/logger"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
@@ -145,12 +145,12 @@ func (s *Service) VerifyEmail(ctx context.Context, cmd VerifyEmailCmd) (err erro
 		if err := s.verifyRepo.Update(ctx, token); err != nil {
 			return err
 		}
-		s.publishAudit(ctx, domainAudit.LogRequested{
+		s.publishAudit(ctx, platformAudit.LogRequested{
 			ActorUserID: uintPtr(user.GetID()),
 			TargetType:  "user",
 			TargetID:    uintString(user.GetID()),
-			Action:      domainAudit.ActionVerifyEmail,
-			Result:      domainAudit.ResultSuccess,
+			Action:      auditActionVerifyEmail,
+			Result:      platformAudit.ResultSuccess,
 			IP:          cmd.IP,
 			UserAgent:   cmd.UserAgent,
 		})
@@ -220,12 +220,12 @@ func (s *Service) ResetPassword(ctx context.Context, cmd ResetPasswordCmd) (err 
 	}
 
 	s.invalidateUserSession(ctx, userID)
-	s.publishAudit(ctx, domainAudit.LogRequested{
+	s.publishAudit(ctx, platformAudit.LogRequested{
 		ActorUserID: uintPtr(userID),
 		TargetType:  "user",
 		TargetID:    uintString(userID),
-		Action:      domainAudit.ActionResetPassword,
-		Result:      domainAudit.ResultSuccess,
+		Action:      auditActionResetPassword,
+		Result:      platformAudit.ResultSuccess,
 		IP:          cmd.IP,
 		UserAgent:   cmd.UserAgent,
 	})
@@ -302,7 +302,7 @@ func normalizeEmail(email string) string {
 	return strings.ToLower(strings.TrimSpace(email))
 }
 
-func (s *Service) publishAudit(ctx context.Context, evt domainAudit.LogRequested) {
+func (s *Service) publishAudit(ctx context.Context, evt platformAudit.LogRequested) {
 	if s.eventBus == nil {
 		return
 	}

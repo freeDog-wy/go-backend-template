@@ -3,25 +3,24 @@ package audit
 import (
 	"context"
 
-	domainAudit "github.com/freeDog-wy/go-backend-template/internal/domain/audit"
 	"github.com/freeDog-wy/go-backend-template/pkg/logger"
 	"go.opentelemetry.io/otel/trace"
 )
 
 type Consumer struct {
-	repo   domainAudit.Repository
+	repo   Writer
 	logger logger.Logger
 }
 
-func NewConsumer(repo domainAudit.Repository, logger logger.Logger) *Consumer {
+func NewConsumer(repo Writer, logger logger.Logger) *Consumer {
 	return &Consumer{
 		repo:   repo,
 		logger: logger,
 	}
 }
 
-func (c *Consumer) OnLogRequested(ctx context.Context, evt domainAudit.LogRequested) error {
-	log, err := domainAudit.NewAuditLog(
+func (c *Consumer) OnLogRequested(ctx context.Context, evt LogRequested) error {
+	log, err := NewAuditLog(
 		evt.ActorUserID,
 		evt.TargetType,
 		evt.TargetID,

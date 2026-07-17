@@ -54,7 +54,7 @@ cmd -> handler / usecase / platform / repository / infra 的装配
 - `usecase` 负责业务流程编排、事务边界和调用领域能力。
 - `domain` 定义实体、领域规则、事件和依赖契约；不得依赖 Gin、GORM、Redis、Kafka 等具体实现。
 - `repository` 负责 auth、CMS、identity 等业务领域数据的 PostgreSQL、Redis 持久化实现；不得承载业务流程。
-- `platform` 负责 Outbox、HTTP 幂等、消息消费状态等无具体业务领域的平台能力；组件可拥有自己的表和存储实现，但不得读写业务领域数据或表达业务规则。
+- `platform` 负责 Outbox、审计、HTTP 幂等、消息消费状态等无具体业务领域的平台能力；组件可拥有自己的表和存储实现，但不得读写业务领域数据或表达业务规则。具体领域的审计动作码由对应 Usecase 定义。
 - `infra` 负责 PostgreSQL、Redis、Kafka、日志、追踪、加密、对象存储等技术适配；生产代码不得导入 `domain`、`repository`、`platform`、`usecase`、`handler` 或 `cmd`。
 - `pkg` 只放可脱离本项目业务语义复用的技术组件。
 

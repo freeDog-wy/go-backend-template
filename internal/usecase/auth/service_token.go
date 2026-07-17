@@ -10,11 +10,11 @@ import (
 	"strings"
 	"time"
 
-	domainAudit "github.com/freeDog-wy/go-backend-template/internal/domain/audit"
 	domainAuth "github.com/freeDog-wy/go-backend-template/internal/domain/auth"
 	domainIdentity "github.com/freeDog-wy/go-backend-template/internal/domain/identity"
 	domainServiceAccount "github.com/freeDog-wy/go-backend-template/internal/domain/service_account"
 	domainShared "github.com/freeDog-wy/go-backend-template/internal/domain/shared"
+	platformAudit "github.com/freeDog-wy/go-backend-template/internal/platform/audit"
 	"github.com/freeDog-wy/go-backend-template/pkg/logger"
 )
 
@@ -42,12 +42,12 @@ func (s *ServiceTokenService) IssueServiceToken(ctx context.Context, cmd IssueSe
 	}
 	account, err := s.accountRepo.FindByClientID(ctx, clientID)
 	if err != nil || !account.IsEnabled() || !s.matchesServiceSecret(account, cmd.ClientSecret, time.Now()) {
-		s.publishAudit(ctx, nil, clientID, "", domainAudit.ResultFailure, cmd.IP, cmd.UserAgent)
+		s.publishAudit(ctx, nil, clientID, "", platformAudit.ResultFailure, cmd.IP, cmd.UserAgent)
 		return nil, ErrInvalidServiceCredential
 	}
 	user, err := s.userRepo.FindByID(ctx, account.GetUserID())
 	if err != nil || validateUserForLogin(user) != nil {
-		s.publishAudit(ctx, uintPtr(account.GetUserID()), clientID, "", domainAudit.ResultFailure, cmd.IP, cmd.UserAgent)
+		s.publishAudit(ctx, uintPtr(account.GetUserID()), clientID, "", platformAudit.ResultFailure, cmd.IP, cmd.UserAgent)
 		return nil, ErrInvalidServiceCredential
 	}
 	if s.ttl <= 0 {
@@ -77,7 +77,7 @@ func (s *ServiceTokenService) IssueServiceToken(ctx context.Context, cmd IssueSe
 	if err != nil {
 		return nil, err
 	}
-	s.publishAudit(ctx, uintPtr(user.GetID()), clientID, sessionID, domainAudit.ResultSuccess, cmd.IP, cmd.UserAgent)
+	s.publishAudit(ctx, uintPtr(user.GetID()), clientID, sessionID, platformAudit.ResultSuccess, cmd.IP, cmd.UserAgent)
 	return &ServiceTokenResult{AccessToken: accessToken, ExpiresIn: int(s.ttl.Seconds())}, nil
 }
 
@@ -89,7 +89,7 @@ func (s *ServiceTokenService) publishAudit(ctx context.Context, actorUserID *uin
 	if s.eventBus == nil {
 		return
 	}
-	err := s.eventBus.Publish(ctx, domainAudit.LogRequested{ActorUserID: actorUserID, TargetType: "mcp_service_account", TargetID: clientID, Action: "mcp_service_token_issued", Result: result, IP: ip, UserAgent: userAgent, Metadata: map[string]any{"actor_type": "service", "actor_id": clientID, "jti": tokenID}})
+	err := s.eventBus.Publish(ctx, platformAudit.LogRequested{ActorUserID: actorUserID, TargetType: "mcp_service_account", TargetID: clientID, Action: "mcp_service_token_issued", Result: result, IP: ip, UserAgent: userAgent, Metadata: map[string]any{"actor_type": "service", "actor_id": clientID, "jti": tokenID}})
 	if err != nil && s.logger != nil {
 		s.logger.Error("publish mcp service token audit failed", "client_id", clientID, "error", err)
 	}

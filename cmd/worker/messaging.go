@@ -6,28 +6,22 @@ import (
 
 	"github.com/freeDog-wy/go-backend-template/internal/config"
 	"github.com/freeDog-wy/go-backend-template/internal/infra/mq"
+	platformAudit "github.com/freeDog-wy/go-backend-template/internal/platform/audit"
 	platformMessaging "github.com/freeDog-wy/go-backend-template/internal/platform/messaging"
-	repoAudit "github.com/freeDog-wy/go-backend-template/internal/repository/audit"
 	"github.com/freeDog-wy/go-backend-template/pkg/kafka"
 	"gorm.io/gorm"
 )
 
-type workerRepositories struct {
-	audit *repoAudit.Repository
-}
-
-func newWorkerRepositories(db *gorm.DB) *workerRepositories {
-	return &workerRepositories{
-		audit: repoAudit.New(db),
-	}
-}
-
 type workerPlatform struct {
 	consumption *platformMessaging.Repository
+	audit       *platformAudit.Store
 }
 
 func newWorkerPlatform(db *gorm.DB) *workerPlatform {
-	return &workerPlatform{consumption: platformMessaging.New(db)}
+	return &workerPlatform{
+		consumption: platformMessaging.New(db),
+		audit:       platformAudit.New(db),
+	}
 }
 
 func newWorkerConsumer(cfg *config.Config, infra *workerInfrastructure, platform *workerPlatform) (mq.Consumer, error) {

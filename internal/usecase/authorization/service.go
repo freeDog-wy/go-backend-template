@@ -6,10 +6,10 @@ import (
 	"slices"
 	"strconv"
 
-	domainAudit "github.com/freeDog-wy/go-backend-template/internal/domain/audit"
 	domainAuthorization "github.com/freeDog-wy/go-backend-template/internal/domain/authorization"
 	domainIdentity "github.com/freeDog-wy/go-backend-template/internal/domain/identity"
 	"github.com/freeDog-wy/go-backend-template/internal/domain/shared"
+	platformAudit "github.com/freeDog-wy/go-backend-template/internal/platform/audit"
 	"github.com/freeDog-wy/go-backend-template/pkg/logger"
 )
 
@@ -188,12 +188,12 @@ func (s *Service) ReplaceUserRoles(ctx context.Context, cmd ReplaceUserRolesCmd)
 	if err := s.repo.ReplaceUserRoles(ctx, cmd.UserID, roleIDs); err != nil {
 		return err
 	}
-	s.publishAudit(ctx, domainAudit.LogRequested{
+	s.publishAudit(ctx, platformAudit.LogRequested{
 		ActorUserID: uintPtr(cmd.ActorUserID),
 		TargetType:  "user",
 		TargetID:    uintString(cmd.UserID),
-		Action:      domainAudit.ActionUserRolesChanged,
-		Result:      domainAudit.ResultSuccess,
+		Action:      auditActionUserRolesChanged,
+		Result:      platformAudit.ResultSuccess,
 		IP:          cmd.IP,
 		UserAgent:   cmd.UserAgent,
 		Metadata: map[string]any{
@@ -231,7 +231,7 @@ func (s *Service) validateRoleIDs(ctx context.Context, roleIDs []uint) ([]uint, 
 	return s.roleBind.PrepareRoleIDs(roleIDs, roles)
 }
 
-func (s *Service) publishAudit(ctx context.Context, evt domainAudit.LogRequested) {
+func (s *Service) publishAudit(ctx context.Context, evt platformAudit.LogRequested) {
 	if s.eventBus == nil {
 		return
 	}

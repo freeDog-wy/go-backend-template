@@ -6,10 +6,10 @@ import (
 	"testing"
 	"time"
 
-	domainAudit "github.com/freeDog-wy/go-backend-template/internal/domain/audit"
 	domainAuth "github.com/freeDog-wy/go-backend-template/internal/domain/auth"
 	domainIdentity "github.com/freeDog-wy/go-backend-template/internal/domain/identity"
 	"github.com/freeDog-wy/go-backend-template/internal/domain/shared"
+	platformAudit "github.com/freeDog-wy/go-backend-template/internal/platform/audit"
 )
 
 func TestParseAccessToken(t *testing.T) {
@@ -393,12 +393,12 @@ func TestLogout(t *testing.T) {
 		if store.deletedID != "session-1" {
 			t.Fatalf("DeleteByID() called with %q, want %q", store.deletedID, "session-1")
 		}
-		assertSingleAuditEvent(t, eventBus, func(event domainAudit.LogRequested) {
-			if event.Action != domainAudit.ActionLogout {
-				t.Fatalf("audit action = %q, want %q", event.Action, domainAudit.ActionLogout)
+		assertSingleAuditEvent(t, eventBus, func(event platformAudit.LogRequested) {
+			if event.Action != auditActionLogout {
+				t.Fatalf("audit action = %q, want %q", event.Action, auditActionLogout)
 			}
-			if event.Result != domainAudit.ResultSuccess {
-				t.Fatalf("audit result = %q, want %q", event.Result, domainAudit.ResultSuccess)
+			if event.Result != platformAudit.ResultSuccess {
+				t.Fatalf("audit result = %q, want %q", event.Result, platformAudit.ResultSuccess)
 			}
 			if event.ActorUserID == nil || *event.ActorUserID != 42 {
 				t.Fatalf("audit actor = %v, want 42", event.ActorUserID)
@@ -445,12 +445,12 @@ func TestChangePassword(t *testing.T) {
 		if !errors.Is(err, ErrInvalidCurrentPassword) {
 			t.Fatalf("ChangePassword() error = %v, want %v", err, ErrInvalidCurrentPassword)
 		}
-		assertSingleAuditEvent(t, eventBus, func(event domainAudit.LogRequested) {
-			if event.Action != domainAudit.ActionChangePassword {
-				t.Fatalf("audit action = %q, want %q", event.Action, domainAudit.ActionChangePassword)
+		assertSingleAuditEvent(t, eventBus, func(event platformAudit.LogRequested) {
+			if event.Action != auditActionChangePassword {
+				t.Fatalf("audit action = %q, want %q", event.Action, auditActionChangePassword)
 			}
-			if event.Result != domainAudit.ResultFailure {
-				t.Fatalf("audit result = %q, want %q", event.Result, domainAudit.ResultFailure)
+			if event.Result != platformAudit.ResultFailure {
+				t.Fatalf("audit result = %q, want %q", event.Result, platformAudit.ResultFailure)
 			}
 			if event.Metadata["reason"] != "invalid_current_password" {
 				t.Fatalf("audit metadata reason = %v", event.Metadata["reason"])
@@ -532,12 +532,12 @@ func TestChangePassword(t *testing.T) {
 		if store.deletedUserID != 42 {
 			t.Fatalf("DeleteByUserID() called with %d, want %d", store.deletedUserID, 42)
 		}
-		assertSingleAuditEvent(t, eventBus, func(event domainAudit.LogRequested) {
-			if event.Action != domainAudit.ActionChangePassword {
-				t.Fatalf("audit action = %q, want %q", event.Action, domainAudit.ActionChangePassword)
+		assertSingleAuditEvent(t, eventBus, func(event platformAudit.LogRequested) {
+			if event.Action != auditActionChangePassword {
+				t.Fatalf("audit action = %q, want %q", event.Action, auditActionChangePassword)
 			}
-			if event.Result != domainAudit.ResultSuccess {
-				t.Fatalf("audit result = %q, want %q", event.Result, domainAudit.ResultSuccess)
+			if event.Result != platformAudit.ResultSuccess {
+				t.Fatalf("audit result = %q, want %q", event.Result, platformAudit.ResultSuccess)
 			}
 		})
 	})
@@ -699,16 +699,16 @@ func (b *stubEventBus) Publish(_ context.Context, events ...shared.Event) error 
 	return b.publishErr
 }
 
-func assertSingleAuditEvent(t *testing.T, bus *stubEventBus, assertFn func(domainAudit.LogRequested)) {
+func assertSingleAuditEvent(t *testing.T, bus *stubEventBus, assertFn func(platformAudit.LogRequested)) {
 	t.Helper()
 
 	if len(bus.published) != 1 {
 		t.Fatalf("published events = %d, want 1", len(bus.published))
 	}
 
-	event, ok := bus.published[0].(domainAudit.LogRequested)
+	event, ok := bus.published[0].(platformAudit.LogRequested)
 	if !ok {
-		t.Fatalf("published event type = %T, want domainAudit.LogRequested", bus.published[0])
+		t.Fatalf("published event type = %T, want platformAudit.LogRequested", bus.published[0])
 	}
 	assertFn(event)
 }

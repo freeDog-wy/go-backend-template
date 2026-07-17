@@ -11,10 +11,10 @@ import (
 	"strings"
 	"time"
 
-	domainAudit "github.com/freeDog-wy/go-backend-template/internal/domain/audit"
 	domainAuth "github.com/freeDog-wy/go-backend-template/internal/domain/auth"
 	domainIdentity "github.com/freeDog-wy/go-backend-template/internal/domain/identity"
 	"github.com/freeDog-wy/go-backend-template/internal/domain/shared"
+	platformAudit "github.com/freeDog-wy/go-backend-template/internal/platform/audit"
 	svcIdentity "github.com/freeDog-wy/go-backend-template/internal/usecase/identity"
 	"github.com/freeDog-wy/go-backend-template/pkg/logger"
 	"go.opentelemetry.io/otel"
@@ -85,11 +85,11 @@ func (s *Service) Login(ctx context.Context, cmd LoginCmd) (result *AuthResult, 
 	user, err := s.userRepo.FindByEmail(ctx, email)
 	if err != nil {
 		if errors.Is(err, shared.ErrNotFound) {
-			s.publishAudit(ctx, domainAudit.LogRequested{
+			s.publishAudit(ctx, platformAudit.LogRequested{
 				TargetType: "user_email",
 				TargetID:   email,
-				Action:     domainAudit.ActionLogin,
-				Result:     domainAudit.ResultFailure,
+				Action:     auditActionLogin,
+				Result:     platformAudit.ResultFailure,
 				IP:         cmd.IP,
 				UserAgent:  cmd.UserAgent,
 				Metadata: map[string]any{
@@ -102,11 +102,11 @@ func (s *Service) Login(ctx context.Context, cmd LoginCmd) (result *AuthResult, 
 	}
 
 	if err := validateUserForLogin(user); err != nil {
-		s.publishAudit(ctx, domainAudit.LogRequested{
+		s.publishAudit(ctx, platformAudit.LogRequested{
 			TargetType: "user",
 			TargetID:   uintString(user.GetID()),
-			Action:     domainAudit.ActionLogin,
-			Result:     domainAudit.ResultFailure,
+			Action:     auditActionLogin,
+			Result:     platformAudit.ResultFailure,
 			IP:         cmd.IP,
 			UserAgent:  cmd.UserAgent,
 			Metadata: map[string]any{
@@ -125,11 +125,11 @@ func (s *Service) Login(ctx context.Context, cmd LoginCmd) (result *AuthResult, 
 	}
 
 	if !s.passwordHasher.Verify(cmd.Password, credential.GetPasswordHash()) {
-		s.publishAudit(ctx, domainAudit.LogRequested{
+		s.publishAudit(ctx, platformAudit.LogRequested{
 			TargetType: "user",
 			TargetID:   uintString(user.GetID()),
-			Action:     domainAudit.ActionLogin,
-			Result:     domainAudit.ResultFailure,
+			Action:     auditActionLogin,
+			Result:     platformAudit.ResultFailure,
 			IP:         cmd.IP,
 			UserAgent:  cmd.UserAgent,
 			Metadata: map[string]any{
@@ -148,11 +148,11 @@ func (s *Service) Login(ctx context.Context, cmd LoginCmd) (result *AuthResult, 
 	if err != nil {
 		return nil, err
 	}
-	s.publishAudit(ctx, domainAudit.LogRequested{
+	s.publishAudit(ctx, platformAudit.LogRequested{
 		TargetType: "user",
 		TargetID:   uintString(user.GetID()),
-		Action:     domainAudit.ActionLogin,
-		Result:     domainAudit.ResultSuccess,
+		Action:     auditActionLogin,
+		Result:     platformAudit.ResultSuccess,
 		IP:         cmd.IP,
 		UserAgent:  cmd.UserAgent,
 	})
@@ -225,12 +225,12 @@ func (s *Service) Logout(ctx context.Context, cmd LogoutCmd) error {
 	if err := s.sessionStore.DeleteByID(ctx, sessionID); err != nil {
 		return err
 	}
-	s.publishAudit(ctx, domainAudit.LogRequested{
+	s.publishAudit(ctx, platformAudit.LogRequested{
 		ActorUserID: uintPtr(session.GetUserID()),
 		TargetType:  "user",
 		TargetID:    uintString(session.GetUserID()),
-		Action:      domainAudit.ActionLogout,
-		Result:      domainAudit.ResultSuccess,
+		Action:      auditActionLogout,
+		Result:      platformAudit.ResultSuccess,
 		IP:          cmd.IP,
 		UserAgent:   cmd.UserAgent,
 	})
@@ -247,12 +247,12 @@ func (s *Service) ChangePassword(ctx context.Context, cmd ChangePasswordCmd) err
 	}
 
 	if !s.passwordHasher.Verify(cmd.CurrentPassword, credential.GetPasswordHash()) {
-		s.publishAudit(ctx, domainAudit.LogRequested{
+		s.publishAudit(ctx, platformAudit.LogRequested{
 			ActorUserID: uintPtr(cmd.UserID),
 			TargetType:  "user",
 			TargetID:    uintString(cmd.UserID),
-			Action:      domainAudit.ActionChangePassword,
-			Result:      domainAudit.ResultFailure,
+			Action:      auditActionChangePassword,
+			Result:      platformAudit.ResultFailure,
 			IP:          cmd.IP,
 			UserAgent:   cmd.UserAgent,
 			Metadata: map[string]any{
@@ -276,12 +276,12 @@ func (s *Service) ChangePassword(ctx context.Context, cmd ChangePasswordCmd) err
 	if err := s.sessionStore.DeleteByUserID(ctx, cmd.UserID); err != nil && s.logger != nil {
 		s.logger.Error("invalidate user session failed after password change", "user_id", cmd.UserID, "error", err)
 	}
-	s.publishAudit(ctx, domainAudit.LogRequested{
+	s.publishAudit(ctx, platformAudit.LogRequested{
 		ActorUserID: uintPtr(cmd.UserID),
 		TargetType:  "user",
 		TargetID:    uintString(cmd.UserID),
-		Action:      domainAudit.ActionChangePassword,
-		Result:      domainAudit.ResultSuccess,
+		Action:      auditActionChangePassword,
+		Result:      platformAudit.ResultSuccess,
 		IP:          cmd.IP,
 		UserAgent:   cmd.UserAgent,
 	})
@@ -439,7 +439,7 @@ func randomEncodedToken(size int) (string, error) {
 	return base64.RawURLEncoding.EncodeToString(raw), nil
 }
 
-func (s *Service) publishAudit(ctx context.Context, evt domainAudit.LogRequested) {
+func (s *Service) publishAudit(ctx context.Context, evt platformAudit.LogRequested) {
 	if s.eventBus == nil {
 		return
 	}
