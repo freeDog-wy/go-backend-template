@@ -13,12 +13,11 @@ import (
 
 	domainCMS "github.com/freeDog-wy/go-backend-template/internal/domain/cms"
 	"github.com/freeDog-wy/go-backend-template/internal/domain/shared"
-	"github.com/freeDog-wy/go-backend-template/internal/infra/database"
-	infraOutbox "github.com/freeDog-wy/go-backend-template/internal/infra/outbox"
 	modelCMS "github.com/freeDog-wy/go-backend-template/internal/model/cms"
-	repoOutbox "github.com/freeDog-wy/go-backend-template/internal/repository/outbox"
+	baseRepository "github.com/freeDog-wy/go-backend-template/internal/repository"
 	"github.com/freeDog-wy/go-backend-template/internal/testsupport"
 	svcCMS "github.com/freeDog-wy/go-backend-template/internal/usecase/cms"
+	"github.com/freeDog-wy/go-backend-template/pkg/postgres"
 )
 
 func TestRepositoryIntegrationCMSConstraintsAndPublicVisibility(t *testing.T) {
@@ -28,7 +27,7 @@ func TestRepositoryIntegrationCMSConstraintsAndPublicVisibility(t *testing.T) {
 	if err != nil {
 		t.Fatalf("database handle: %v", err)
 	}
-	migrator, err := database.NewMigratorWithDB(sqlDB, migrationDir(t))
+	migrator, err := postgres.NewMigratorWithDB(sqlDB, migrationDir(t))
 	if err != nil {
 		t.Fatalf("open migrator: %v", err)
 	}
@@ -114,7 +113,7 @@ func TestRepositoryIntegrationCMSConstraintsAndPublicVisibility(t *testing.T) {
 	if entries, total, err := repo.ListPublicSitemapEntries(ctx, "zh-CN", shared.NewPageQuery(1, 20)); err != nil || total < 2 || len(entries) < 2 {
 		t.Fatalf("sitemap entries = %#v, total=%d, err=%v", entries, total, err)
 	}
-	redirectService := svcCMS.New(database.NewTxManager(db), repo)
+	redirectService := svcCMS.New(baseRepository.NewTxManager(db), repo)
 	oldArticleSlug := translation2.Slug
 	if _, err := redirectService.UpdateTranslation(ctx, svcCMS.UpdateTranslationCmd{ArticleID: article2.ID, Locale: "zh-CN", Title: translation2.Title, Slug: "published-renamed", Summary: translation2.Summary, Content: translation2.Content, ContentFormat: translation2.ContentFormat, SEOTitle: translation2.SEOTitle, SEODescription: translation2.SEODescription, CanonicalURL: translation2.CanonicalURL}); err != nil {
 		t.Fatalf("rename article slug: %v", err)
@@ -167,16 +166,16 @@ func TestRepositoryIntegrationCMSConstraintsAndPublicVisibility(t *testing.T) {
 		t.Fatal("expected locale slug uniqueness error")
 	}
 
-	service := svcCMS.New(database.NewTxManager(db), repo, infraOutbox.NewEventBus(repoOutbox.New(db)))
+	eventBus := &repositoryEventBus{}
+	service := svcCMS.New(baseRepository.NewTxManager(db), repo, eventBus)
 	if err := service.DeleteArticle(ctx, svcCMS.DeleteArticleCmd{ArticleID: article2.ID, ActorUserID: authorID}); err != nil {
 		t.Fatalf("delete article: %v", err)
 	}
 	if _, err := repo.FindPublicArticle(ctx, "zh-CN", translation2.Slug); !errors.Is(err, shared.ErrNotFound) {
 		t.Fatalf("deleted public lookup error = %v", err)
 	}
-	var auditOutboxCount int64
-	if err := db.Table("outbox_events").Where("event_name = ?", "audit.log.requested").Count(&auditOutboxCount).Error; err != nil || auditOutboxCount != 1 {
-		t.Fatalf("audit outbox count = %d, err=%v", auditOutboxCount, err)
+	if len(eventBus.events) != 1 || eventBus.events[0].EventName() != "audit.log.requested" {
+		t.Fatalf("audit events = %#v, want one audit.log.requested", eventBus.events)
 	}
 	if err := service.RestoreArticle(ctx, svcCMS.RestoreArticleCmd{ArticleID: article2.ID, ActorUserID: authorID}); err != nil {
 		t.Fatalf("restore article: %v", err)
@@ -184,6 +183,13 @@ func TestRepositoryIntegrationCMSConstraintsAndPublicVisibility(t *testing.T) {
 	if got, err := repo.FindPublicArticle(ctx, "zh-CN", translation2.Slug); err != nil || got.Article.ID != article2.ID {
 		t.Fatalf("restored public article = %#v, %v", got, err)
 	}
+}
+
+type repositoryEventBus struct{ events []shared.Event }
+
+func (b *repositoryEventBus) Publish(_ context.Context, events ...shared.Event) error {
+	b.events = append(b.events, events...)
+	return nil
 }
 
 func createCategory(ctx context.Context, repo *Repository, slug string) (*domainCMS.Category, error) {

@@ -6,8 +6,8 @@ import (
 
 	domainAuth "github.com/freeDog-wy/go-backend-template/internal/domain/auth"
 	"github.com/freeDog-wy/go-backend-template/internal/domain/shared"
-	"github.com/freeDog-wy/go-backend-template/internal/infra/database"
 	modelAuth "github.com/freeDog-wy/go-backend-template/internal/model/auth"
+	repositorytx "github.com/freeDog-wy/go-backend-template/internal/repository"
 
 	"gorm.io/gorm"
 )
@@ -23,7 +23,7 @@ func New(db *gorm.DB) *CredentialRepository {
 }
 
 func (r *CredentialRepository) g(ctx context.Context) gorm.Interface[modelAuth.UserCredential] {
-	return gorm.G[modelAuth.UserCredential](database.DB(ctx, r.db))
+	return gorm.G[modelAuth.UserCredential](repositorytx.DB(ctx, r.db))
 }
 
 func (r *CredentialRepository) Create(ctx context.Context, credential *domainAuth.UserCredential) error {
@@ -43,7 +43,7 @@ func (r *CredentialRepository) FindByUserID(ctx context.Context, userID uint) (*
 
 func (r *CredentialRepository) Update(ctx context.Context, credential *domainAuth.UserCredential) error {
 	m := modelAuth.FromEntity(credential)
-	return database.DB(ctx, r.db).
+	return repositorytx.DB(ctx, r.db).
 		Model(&modelAuth.UserCredential{}).
 		Where("user_id = ?", m.UserID).
 		Updates(map[string]any{

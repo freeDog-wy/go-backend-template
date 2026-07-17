@@ -67,7 +67,7 @@ cmd -> handler / usecase / infra 的装配
 ## 3. 数据与事务
 
 - 任何跨多张业务表的一致性写入必须由 Usecase 通过 `shared.TxManager` 包裹。
-- Repository 必须使用上下文中的事务连接，不能绕过 `database.DB(ctx, db)` 新建独立写入。
+- Repository 必须使用上下文中的事务连接，不能绕过 `repository.DB(ctx, db)` 新建独立写入。
 - 生产环境禁止使用 `AutoMigrate`。所有表结构变更必须提供版本化 migration、回滚策略和升级说明。
 - 所有业务表应明确主键、唯一约束、必要索引、外键策略和软删除策略。
 - 密码、刷新令牌、一次性验证令牌只保存不可逆 hash，绝不记录明文到数据库、日志或追踪属性。

@@ -108,7 +108,7 @@ test-integration: \
 	test-bootstrap-integration
 
 test-db-integration:
-	$(GO) test -tags=integration ./internal/infra/database ./internal/repository/...
+	$(GO) test -tags=integration ./pkg/postgres ./internal/repository/...
 
 test-redis-integration:
 	$(GO) test -tags=integration ./internal/infra/cache ./pkg/captcha ./pkg/ratelimit

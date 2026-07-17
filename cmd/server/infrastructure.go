@@ -12,15 +12,16 @@ import (
 	domainMedia "github.com/freeDog-wy/go-backend-template/internal/domain/media"
 	"github.com/freeDog-wy/go-backend-template/internal/infra/cache"
 	"github.com/freeDog-wy/go-backend-template/internal/infra/crypto"
-	"github.com/freeDog-wy/go-backend-template/internal/infra/database"
 	"github.com/freeDog-wy/go-backend-template/internal/infra/logging"
 	infraOutbox "github.com/freeDog-wy/go-backend-template/internal/infra/outbox"
 	"github.com/freeDog-wy/go-backend-template/internal/infra/storage"
 	infraToken "github.com/freeDog-wy/go-backend-template/internal/infra/token"
 	"github.com/freeDog-wy/go-backend-template/internal/infra/tracing"
+	baseRepository "github.com/freeDog-wy/go-backend-template/internal/repository"
 	repoOutbox "github.com/freeDog-wy/go-backend-template/internal/repository/outbox"
 	"github.com/freeDog-wy/go-backend-template/pkg/captcha"
 	"github.com/freeDog-wy/go-backend-template/pkg/logger"
+	"github.com/freeDog-wy/go-backend-template/pkg/postgres"
 	"github.com/freeDog-wy/go-backend-template/pkg/ratelimit"
 	"github.com/redis/go-redis/v9"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
@@ -33,7 +34,7 @@ type serverInfrastructure struct {
 	redis          *redis.Client
 	db             *gorm.DB
 	sqlDB          *sql.DB
-	txManager      *database.TxManager
+	txManager      *baseRepository.TxManager
 	captcha        captcha.Generator
 	passwordHasher *crypto.BcryptHasher
 	sessionStore   *cache.RefreshSessionStore
@@ -53,7 +54,7 @@ func newServerInfrastructure(cfg *config.Config) (*serverInfrastructure, error) 
 	if err != nil {
 		return nil, fmt.Errorf("initialize redis: %w", err)
 	}
-	db, err := database.NewPostgresDB(cfg.Database.DSN)
+	db, err := postgres.Open(cfg.Database.DSN)
 	if err != nil {
 		return nil, fmt.Errorf("initialize postgres: %w", err)
 	}
@@ -83,7 +84,7 @@ func newServerInfrastructure(cfg *config.Config) (*serverInfrastructure, error) 
 		redis:          rdb,
 		db:             db,
 		sqlDB:          sqlDB,
-		txManager:      database.NewTxManager(db),
+		txManager:      baseRepository.NewTxManager(db),
 		captcha: captcha.NewWithStore(captcha.Config{
 			Width:  cfg.Captcha.Width,
 			Height: cfg.Captcha.Height,

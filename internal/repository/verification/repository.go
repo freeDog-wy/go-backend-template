@@ -7,8 +7,8 @@ import (
 
 	"github.com/freeDog-wy/go-backend-template/internal/domain/shared"
 	domainVerification "github.com/freeDog-wy/go-backend-template/internal/domain/verification"
-	"github.com/freeDog-wy/go-backend-template/internal/infra/database"
 	modelVerification "github.com/freeDog-wy/go-backend-template/internal/model/verification"
+	repositorytx "github.com/freeDog-wy/go-backend-template/internal/repository"
 
 	"gorm.io/gorm"
 )
@@ -25,11 +25,11 @@ func New(db *gorm.DB) *Repository {
 }
 
 func (r *Repository) g(ctx context.Context) gorm.Interface[modelVerification.EmailVerificationToken] {
-	return gorm.G[modelVerification.EmailVerificationToken](database.DB(ctx, r.db))
+	return gorm.G[modelVerification.EmailVerificationToken](repositorytx.DB(ctx, r.db))
 }
 
 func (r *Repository) passwordResetG(ctx context.Context) gorm.Interface[modelVerification.PasswordResetToken] {
-	return gorm.G[modelVerification.PasswordResetToken](database.DB(ctx, r.db))
+	return gorm.G[modelVerification.PasswordResetToken](repositorytx.DB(ctx, r.db))
 }
 
 func (r *Repository) Create(ctx context.Context, token *domainVerification.EmailVerificationToken) error {
@@ -51,7 +51,7 @@ func (r *Repository) FindActiveByTokenHash(ctx context.Context, tokenHash string
 }
 
 func (r *Repository) InvalidateByUserID(ctx context.Context, userID uint, now time.Time) error {
-	return database.DB(ctx, r.db).
+	return repositorytx.DB(ctx, r.db).
 		Model(&modelVerification.EmailVerificationToken{}).
 		Where("user_id = ? AND consumed_at IS NULL", userID).
 		Update("consumed_at", now).Error
@@ -59,7 +59,7 @@ func (r *Repository) InvalidateByUserID(ctx context.Context, userID uint, now ti
 
 func (r *Repository) Update(ctx context.Context, token *domainVerification.EmailVerificationToken) error {
 	m := modelVerification.EmailVerificationTokenFromEntity(token)
-	return database.DB(ctx, r.db).
+	return repositorytx.DB(ctx, r.db).
 		Model(&modelVerification.EmailVerificationToken{}).
 		Where("id = ?", m.ID).
 		Updates(map[string]any{
@@ -68,7 +68,7 @@ func (r *Repository) Update(ctx context.Context, token *domainVerification.Email
 }
 
 func (r *Repository) DeleteExpiredEmailVerificationTokens(ctx context.Context, now time.Time) (int64, error) {
-	result := database.DB(ctx, r.db).
+	result := repositorytx.DB(ctx, r.db).
 		Where("expires_at <= ?", now).
 		Delete(&modelVerification.EmailVerificationToken{})
 	return result.RowsAffected, result.Error
@@ -93,7 +93,7 @@ func (r *Repository) FindActivePasswordResetByTokenHash(ctx context.Context, tok
 }
 
 func (r *Repository) InvalidatePasswordResetByUserID(ctx context.Context, userID uint, now time.Time) error {
-	return database.DB(ctx, r.db).
+	return repositorytx.DB(ctx, r.db).
 		Model(&modelVerification.PasswordResetToken{}).
 		Where("user_id = ? AND consumed_at IS NULL", userID).
 		Update("consumed_at", now).Error
@@ -101,7 +101,7 @@ func (r *Repository) InvalidatePasswordResetByUserID(ctx context.Context, userID
 
 func (r *Repository) UpdatePasswordReset(ctx context.Context, token *domainVerification.PasswordResetToken) error {
 	m := modelVerification.PasswordResetTokenFromEntity(token)
-	return database.DB(ctx, r.db).
+	return repositorytx.DB(ctx, r.db).
 		Model(&modelVerification.PasswordResetToken{}).
 		Where("id = ?", m.ID).
 		Updates(map[string]any{
@@ -110,7 +110,7 @@ func (r *Repository) UpdatePasswordReset(ctx context.Context, token *domainVerif
 }
 
 func (r *Repository) DeleteExpiredPasswordResetTokens(ctx context.Context, now time.Time) (int64, error) {
-	result := database.DB(ctx, r.db).
+	result := repositorytx.DB(ctx, r.db).
 		Where("expires_at <= ?", now).
 		Delete(&modelVerification.PasswordResetToken{})
 	return result.RowsAffected, result.Error

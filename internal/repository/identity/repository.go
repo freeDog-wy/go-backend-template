@@ -6,8 +6,8 @@ import (
 
 	domainIdentity "github.com/freeDog-wy/go-backend-template/internal/domain/identity"
 	"github.com/freeDog-wy/go-backend-template/internal/domain/shared"
-	"github.com/freeDog-wy/go-backend-template/internal/infra/database"
 	modelIdentity "github.com/freeDog-wy/go-backend-template/internal/model/identity"
+	repositorytx "github.com/freeDog-wy/go-backend-template/internal/repository"
 
 	"gorm.io/gorm"
 )
@@ -25,7 +25,7 @@ func New(db *gorm.DB) *Repository {
 
 // g 返回类型安全的泛型链，自动适配事务/非事务。
 func (r *Repository) g(ctx context.Context) gorm.Interface[modelIdentity.User] {
-	return gorm.G[modelIdentity.User](database.DB(ctx, r.db))
+	return gorm.G[modelIdentity.User](repositorytx.DB(ctx, r.db))
 }
 
 func (r *Repository) FindByID(ctx context.Context, id uint) (*domainIdentity.User, error) {
@@ -52,7 +52,7 @@ func (r *Repository) FindByEmail(ctx context.Context, email string) (*domainIden
 
 func (r *Repository) List(ctx context.Context, page shared.PageQuery) ([]*domainIdentity.User, int64, error) {
 	var total int64
-	if err := database.DB(ctx, r.db).Model(&modelIdentity.User{}).Count(&total).Error; err != nil {
+	if err := repositorytx.DB(ctx, r.db).Model(&modelIdentity.User{}).Count(&total).Error; err != nil {
 		return nil, 0, err
 	}
 

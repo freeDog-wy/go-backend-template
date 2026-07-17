@@ -8,7 +8,7 @@ import (
 	"os"
 
 	"github.com/freeDog-wy/go-backend-template/internal/config"
-	"github.com/freeDog-wy/go-backend-template/internal/infra/database"
+	"github.com/freeDog-wy/go-backend-template/pkg/postgres"
 	"github.com/golang-migrate/migrate/v4"
 )
 
@@ -34,7 +34,7 @@ func main() {
 	if err != nil {
 		log.Fatalf("load configuration: %v", err)
 	}
-	m, err := database.NewMigrator(cfg.Database.DSN, migrationDir)
+	m, err := postgres.NewMigrator(cfg.Database.DSN, migrationDir)
 	if err != nil {
 		log.Fatalf("open migrator: %v", err)
 	}

@@ -39,7 +39,7 @@ Handler 不直接访问 GORM、Redis 或 Kafka。Usecase 只依赖 domain 定义
 
 跨表一致性写入由 Usecase 调用 `shared.TxManager.Do` 包裹。事务回调获得的
 `context.Context` 携带当前数据库事务；Repository 必须通过
-`database.DB(ctx, db)` 取得连接，不能绕过该 context。
+`repository.DB(ctx, db)` 取得连接，不能绕过该 context。
 
 ```text
 usecase transaction
@@ -57,7 +57,7 @@ Outbox 提供至少一次投递。发布成功但回写 `published_at` 失败时
 关键入口：
 
 - 事务端口：`internal/domain/shared/tx.go`。
-- PostgreSQL 事务实现：`internal/infra/database/postgresql.go`。
+- PostgreSQL 连接与迁移：`pkg/postgres`；事务上下文实现：`internal/repository/tx.go`。
 - 事件落库：`internal/infra/outbox/event_bus.go`。
 - Outbox 扫描与发布：`internal/usecase/outbox/publisher.go`，仅由 `cmd/cron` 调用。
 
@@ -97,7 +97,7 @@ Kafka record
 
 关键入口：
 
-- 幂等中间件、存储契约、表模型和 PostgreSQL 实现：`internal/handler/middleware/idempotency.go`、`internal/infra/idempotency`、`internal/model/idempotency`、`internal/repository/idempotency`。
+- 幂等中间件、存储契约、表模型和 PostgreSQL 实现：`internal/handler/middleware/idempotency.go`、`internal/model/idempotency`、`internal/repository/idempotency`。
 - 认证与授权中间件：`internal/handler/middleware/auth.go`、`internal/handler/middleware/admin.go`。
 - 授权用例与领域：`internal/usecase/authorization`、`internal/domain/authorization`。
 

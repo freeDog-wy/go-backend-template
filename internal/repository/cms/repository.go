@@ -7,8 +7,8 @@ import (
 
 	domainCMS "github.com/freeDog-wy/go-backend-template/internal/domain/cms"
 	"github.com/freeDog-wy/go-backend-template/internal/domain/shared"
-	"github.com/freeDog-wy/go-backend-template/internal/infra/database"
 	modelCMS "github.com/freeDog-wy/go-backend-template/internal/model/cms"
+	repositorytx "github.com/freeDog-wy/go-backend-template/internal/repository"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 )
@@ -18,7 +18,7 @@ type Repository struct{ db *gorm.DB }
 var _ domainCMS.Repository = (*Repository)(nil)
 
 func New(db *gorm.DB) *Repository                       { return &Repository{db: db} }
-func (r *Repository) conn(ctx context.Context) *gorm.DB { return database.DB(ctx, r.db) }
+func (r *Repository) conn(ctx context.Context) *gorm.DB { return repositorytx.DB(ctx, r.db) }
 
 func (r *Repository) LocaleEnabled(ctx context.Context, code string) (bool, error) {
 	var count int64

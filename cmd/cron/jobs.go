@@ -6,8 +6,8 @@ import (
 	"time"
 
 	"github.com/freeDog-wy/go-backend-template/internal/config"
-	"github.com/freeDog-wy/go-backend-template/internal/infra/database"
 	"github.com/freeDog-wy/go-backend-template/internal/infra/mq"
+	baseRepository "github.com/freeDog-wy/go-backend-template/internal/repository"
 	repoMedia "github.com/freeDog-wy/go-backend-template/internal/repository/media"
 	repoOutbox "github.com/freeDog-wy/go-backend-template/internal/repository/outbox"
 	repoVerification "github.com/freeDog-wy/go-backend-template/internal/repository/verification"
@@ -98,7 +98,7 @@ func registerMediaCleanupJob(cfg *config.Config, infra *cronInfrastructure, runt
 	if cfg.Cron.MediaUploadCleanupBatchSize <= 0 {
 		return fmt.Errorf("cron.media_upload_cleanup_batch_size must be greater than zero")
 	}
-	service := svcMedia.New(database.NewTxManager(runtime.db), repoMedia.New(runtime.db), storage)
+	service := svcMedia.New(baseRepository.NewTxManager(runtime.db), repoMedia.New(runtime.db), storage)
 	if err := infra.runner.Register(scheduler.Job{
 		Name:     "media.cleanup_stale_uploads",
 		Interval: time.Duration(cfg.Cron.MediaUploadCleanupIntervalSeconds) * time.Second,

@@ -16,13 +16,14 @@ import (
 	"testing"
 	"time"
 
-	"github.com/freeDog-wy/go-backend-template/internal/infra/database"
 	infraStorage "github.com/freeDog-wy/go-backend-template/internal/infra/storage"
 	modelMedia "github.com/freeDog-wy/go-backend-template/internal/model/media"
+	baseRepository "github.com/freeDog-wy/go-backend-template/internal/repository"
 	repoCMS "github.com/freeDog-wy/go-backend-template/internal/repository/cms"
 	repoMedia "github.com/freeDog-wy/go-backend-template/internal/repository/media"
 	"github.com/freeDog-wy/go-backend-template/internal/testsupport"
 	svcMedia "github.com/freeDog-wy/go-backend-template/internal/usecase/media"
+	"github.com/freeDog-wy/go-backend-template/pkg/postgres"
 )
 
 func TestCoverMediaIntegrationUploadCompleteAndPublish(t *testing.T) {
@@ -32,7 +33,7 @@ func TestCoverMediaIntegrationUploadCompleteAndPublish(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	migrator, err := database.NewMigratorWithDB(sqlDB, migrationDir(t))
+	migrator, err := postgres.NewMigratorWithDB(sqlDB, migrationDir(t))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -61,7 +62,7 @@ func TestCoverMediaIntegrationUploadCompleteAndPublish(t *testing.T) {
 		t.Fatalf("create S3 storage: %v", err)
 	}
 
-	tx := database.NewTxManager(db)
+	tx := baseRepository.NewTxManager(db)
 	mediaRepo := repoMedia.New(db)
 	mediaSvc := svcMedia.New(tx, mediaRepo, storage)
 	cmsSvc := New(tx, repoCMS.New(db))

@@ -6,8 +6,8 @@ import (
 	"time"
 
 	domainConsumption "github.com/freeDog-wy/go-backend-template/internal/domain/consumption"
-	"github.com/freeDog-wy/go-backend-template/internal/infra/database"
 	modelConsumption "github.com/freeDog-wy/go-backend-template/internal/model/consumption"
+	repositorytx "github.com/freeDog-wy/go-backend-template/internal/repository"
 
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
@@ -32,7 +32,7 @@ func (r *Repository) Begin(ctx context.Context, command domainConsumption.BeginC
 	}
 
 	var result domainConsumption.BeginResult
-	err := database.DB(ctx, r.db).Transaction(func(tx *gorm.DB) error {
+	err := repositorytx.DB(ctx, r.db).Transaction(func(tx *gorm.DB) error {
 		model := &modelConsumption.Record{
 			ConsumerGroup: command.ConsumerGroup,
 			MessageKey:    command.MessageKey,
@@ -116,7 +116,7 @@ func (r *Repository) MarkDone(ctx context.Context, consumerGroup, messageKey str
 		return domainConsumption.ErrInvalidRecord
 	}
 
-	return database.DB(ctx, r.db).
+	return repositorytx.DB(ctx, r.db).
 		Model(&modelConsumption.Record{}).
 		Where("consumer_group = ? AND message_key = ?", consumerGroup, messageKey).
 		Updates(map[string]any{
@@ -134,7 +134,7 @@ func (r *Repository) MarkFailed(ctx context.Context, consumerGroup, messageKey, 
 		return domainConsumption.ErrInvalidRecord
 	}
 
-	return database.DB(ctx, r.db).
+	return repositorytx.DB(ctx, r.db).
 		Model(&modelConsumption.Record{}).
 		Where("consumer_group = ? AND message_key = ?", consumerGroup, messageKey).
 		Updates(map[string]any{
@@ -151,7 +151,7 @@ func (r *Repository) MarkDead(ctx context.Context, consumerGroup, messageKey, la
 		return domainConsumption.ErrInvalidRecord
 	}
 
-	return database.DB(ctx, r.db).
+	return repositorytx.DB(ctx, r.db).
 		Model(&modelConsumption.Record{}).
 		Where("consumer_group = ? AND message_key = ?", consumerGroup, messageKey).
 		Updates(map[string]any{

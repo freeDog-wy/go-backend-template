@@ -7,8 +7,8 @@ import (
 
 	domainAuthorization "github.com/freeDog-wy/go-backend-template/internal/domain/authorization"
 	"github.com/freeDog-wy/go-backend-template/internal/domain/shared"
-	"github.com/freeDog-wy/go-backend-template/internal/infra/database"
 	modelAuthorization "github.com/freeDog-wy/go-backend-template/internal/model/authorization"
+	repositorytx "github.com/freeDog-wy/go-backend-template/internal/repository"
 
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
@@ -30,7 +30,7 @@ func (r *Repository) EnsurePermissions(ctx context.Context, permissions []*domai
 			continue
 		}
 		model := modelAuthorization.PermissionFromEntity(permission)
-		if err := database.DB(ctx, r.db).
+		if err := repositorytx.DB(ctx, r.db).
 			Where("code = ?", model.Code).
 			Assign(map[string]any{
 				"name":        model.Name,
@@ -46,7 +46,7 @@ func (r *Repository) EnsurePermissions(ctx context.Context, permissions []*domai
 
 func (r *Repository) EnsureRole(ctx context.Context, role *domainAuthorization.Role) (*domainAuthorization.Role, error) {
 	model := modelAuthorization.RoleFromEntity(role)
-	if err := database.DB(ctx, r.db).
+	if err := repositorytx.DB(ctx, r.db).
 		Where("code = ?", model.Code).
 		Assign(map[string]any{
 			"name":        model.Name,
@@ -61,12 +61,12 @@ func (r *Repository) EnsureRole(ctx context.Context, role *domainAuthorization.R
 
 func (r *Repository) ListRoles(ctx context.Context, page shared.PageQuery) ([]*domainAuthorization.Role, int64, error) {
 	var total int64
-	if err := database.DB(ctx, r.db).Model(&modelAuthorization.Role{}).Count(&total).Error; err != nil {
+	if err := repositorytx.DB(ctx, r.db).Model(&modelAuthorization.Role{}).Count(&total).Error; err != nil {
 		return nil, 0, err
 	}
 
 	var models []modelAuthorization.Role
-	if err := database.DB(ctx, r.db).
+	if err := repositorytx.DB(ctx, r.db).
 		Order("id ASC").
 		Limit(page.PerPage).
 		Offset(page.Offset()).
@@ -82,7 +82,7 @@ func (r *Repository) ListRoles(ctx context.Context, page shared.PageQuery) ([]*d
 
 func (r *Repository) FindRoleByID(ctx context.Context, roleID uint) (*domainAuthorization.Role, error) {
 	var model modelAuthorization.Role
-	if err := database.DB(ctx, r.db).Where("id = ?", roleID).First(&model).Error; err != nil {
+	if err := repositorytx.DB(ctx, r.db).Where("id = ?", roleID).First(&model).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, shared.ErrNotFound
 		}
@@ -93,7 +93,7 @@ func (r *Repository) FindRoleByID(ctx context.Context, roleID uint) (*domainAuth
 
 func (r *Repository) FindRoleByCode(ctx context.Context, code string) (*domainAuthorization.Role, error) {
 	var model modelAuthorization.Role
-	if err := database.DB(ctx, r.db).Where("code = ?", code).First(&model).Error; err != nil {
+	if err := repositorytx.DB(ctx, r.db).Where("code = ?", code).First(&model).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, shared.ErrNotFound
 		}
@@ -108,7 +108,7 @@ func (r *Repository) FindRolesByIDs(ctx context.Context, roleIDs []uint) ([]*dom
 	}
 
 	var models []modelAuthorization.Role
-	if err := database.DB(ctx, r.db).Where("id IN ?", roleIDs).Find(&models).Error; err != nil {
+	if err := repositorytx.DB(ctx, r.db).Where("id IN ?", roleIDs).Find(&models).Error; err != nil {
 		return nil, err
 	}
 
@@ -121,7 +121,7 @@ func (r *Repository) FindRolesByIDs(ctx context.Context, roleIDs []uint) ([]*dom
 
 func (r *Repository) CreateRole(ctx context.Context, role *domainAuthorization.Role) error {
 	model := modelAuthorization.RoleFromEntity(role)
-	if err := database.DB(ctx, r.db).Create(model).Error; err != nil {
+	if err := repositorytx.DB(ctx, r.db).Create(model).Error; err != nil {
 		return err
 	}
 	role.AssignID(model.ID)
@@ -130,7 +130,7 @@ func (r *Repository) CreateRole(ctx context.Context, role *domainAuthorization.R
 
 func (r *Repository) UpdateRole(ctx context.Context, role *domainAuthorization.Role) error {
 	model := modelAuthorization.RoleFromEntity(role)
-	return database.DB(ctx, r.db).
+	return repositorytx.DB(ctx, r.db).
 		Model(&modelAuthorization.Role{}).
 		Where("id = ?", model.ID).
 		Updates(map[string]any{
@@ -141,12 +141,12 @@ func (r *Repository) UpdateRole(ctx context.Context, role *domainAuthorization.R
 
 func (r *Repository) ListPermissions(ctx context.Context, page shared.PageQuery) ([]*domainAuthorization.Permission, int64, error) {
 	var total int64
-	if err := database.DB(ctx, r.db).Model(&modelAuthorization.Permission{}).Count(&total).Error; err != nil {
+	if err := repositorytx.DB(ctx, r.db).Model(&modelAuthorization.Permission{}).Count(&total).Error; err != nil {
 		return nil, 0, err
 	}
 
 	var models []modelAuthorization.Permission
-	if err := database.DB(ctx, r.db).
+	if err := repositorytx.DB(ctx, r.db).
 		Order("code ASC").
 		Limit(page.PerPage).
 		Offset(page.Offset()).
@@ -165,7 +165,7 @@ func (r *Repository) FindPermissionsByCodes(ctx context.Context, codes []string)
 		return []*domainAuthorization.Permission{}, nil
 	}
 	var models []modelAuthorization.Permission
-	if err := database.DB(ctx, r.db).Where("code IN ?", codes).Find(&models).Error; err != nil {
+	if err := repositorytx.DB(ctx, r.db).Where("code IN ?", codes).Find(&models).Error; err != nil {
 		return nil, err
 	}
 	permissions := make([]*domainAuthorization.Permission, 0, len(models))
@@ -177,7 +177,7 @@ func (r *Repository) FindPermissionsByCodes(ctx context.Context, codes []string)
 
 func (r *Repository) ListRolePermissions(ctx context.Context, roleID uint) ([]*domainAuthorization.Permission, error) {
 	var models []modelAuthorization.Permission
-	if err := database.DB(ctx, r.db).
+	if err := repositorytx.DB(ctx, r.db).
 		Table("permissions").
 		Joins("JOIN role_permissions ON role_permissions.permission_id = permissions.id").
 		Where("role_permissions.role_id = ?", roleID).
@@ -207,7 +207,7 @@ func (r *Repository) EnsureRolePermissions(ctx context.Context, roleID uint, per
 		})
 	}
 
-	return database.DB(ctx, r.db).
+	return repositorytx.DB(ctx, r.db).
 		Clauses(clause.OnConflict{
 			Columns: []clause.Column{
 				{Name: "role_id"},
@@ -219,7 +219,7 @@ func (r *Repository) EnsureRolePermissions(ctx context.Context, roleID uint, per
 }
 
 func (r *Repository) ReplaceRolePermissions(ctx context.Context, roleID uint, permissionIDs []uint) error {
-	db := database.DB(ctx, r.db)
+	db := repositorytx.DB(ctx, r.db)
 	if err := db.Where("role_id = ?", roleID).Delete(&modelAuthorization.RolePermission{}).Error; err != nil {
 		return err
 	}
@@ -241,7 +241,7 @@ func (r *Repository) ReplaceRolePermissions(ctx context.Context, roleID uint, pe
 
 func (r *Repository) ListUserRoles(ctx context.Context, userID uint) ([]*domainAuthorization.Role, error) {
 	var models []modelAuthorization.Role
-	if err := database.DB(ctx, r.db).
+	if err := repositorytx.DB(ctx, r.db).
 		Table("roles").
 		Joins("JOIN user_roles ON user_roles.role_id = roles.id").
 		Where("user_roles.user_id = ?", userID).
@@ -258,7 +258,7 @@ func (r *Repository) ListUserRoles(ctx context.Context, userID uint) ([]*domainA
 
 func (r *Repository) ListUserPermissionCodes(ctx context.Context, userID uint) ([]string, error) {
 	var codes []string
-	err := database.DB(ctx, r.db).
+	err := repositorytx.DB(ctx, r.db).
 		Table("permissions").
 		Distinct("permissions.code").
 		Joins("JOIN role_permissions ON role_permissions.permission_id = permissions.id").
@@ -270,7 +270,7 @@ func (r *Repository) ListUserPermissionCodes(ctx context.Context, userID uint) (
 }
 
 func (r *Repository) ReplaceUserRoles(ctx context.Context, userID uint, roleIDs []uint) error {
-	db := database.DB(ctx, r.db)
+	db := repositorytx.DB(ctx, r.db)
 	if err := db.Where("user_id = ?", userID).Delete(&modelAuthorization.UserRole{}).Error; err != nil {
 		return err
 	}
@@ -292,7 +292,7 @@ func (r *Repository) ReplaceUserRoles(ctx context.Context, userID uint, roleIDs 
 
 func (r *Repository) CountUsersByRoleCode(ctx context.Context, roleCode string) (int64, error) {
 	var count int64
-	err := database.DB(ctx, r.db).
+	err := repositorytx.DB(ctx, r.db).
 		Table("user_roles").
 		Joins("JOIN roles ON roles.id = user_roles.role_id").
 		Where("roles.code = ?", roleCode).

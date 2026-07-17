@@ -6,8 +6,8 @@ import (
 
 	domainServiceAccount "github.com/freeDog-wy/go-backend-template/internal/domain/service_account"
 	"github.com/freeDog-wy/go-backend-template/internal/domain/shared"
-	"github.com/freeDog-wy/go-backend-template/internal/infra/database"
 	modelServiceAccount "github.com/freeDog-wy/go-backend-template/internal/model/service_account"
+	repositorytx "github.com/freeDog-wy/go-backend-template/internal/repository"
 	"gorm.io/gorm"
 )
 
@@ -21,7 +21,7 @@ func NewServiceAccountRepository(db *gorm.DB) *ServiceAccountRepository {
 
 func (r *ServiceAccountRepository) Create(ctx context.Context, account *domainServiceAccount.ServiceAccount) error {
 	model := modelServiceAccount.FromEntity(account)
-	if err := database.DB(ctx, r.db).Create(model).Error; err != nil {
+	if err := repositorytx.DB(ctx, r.db).Create(model).Error; err != nil {
 		return err
 	}
 	account.AssignID(model.ID)
@@ -29,7 +29,7 @@ func (r *ServiceAccountRepository) Create(ctx context.Context, account *domainSe
 }
 
 func (r *ServiceAccountRepository) Update(ctx context.Context, account *domainServiceAccount.ServiceAccount) error {
-	return database.DB(ctx, r.db).Save(modelServiceAccount.FromEntity(account)).Error
+	return repositorytx.DB(ctx, r.db).Save(modelServiceAccount.FromEntity(account)).Error
 }
 
 func (r *ServiceAccountRepository) FindByClientID(ctx context.Context, clientID string) (*domainServiceAccount.ServiceAccount, error) {
@@ -42,7 +42,7 @@ func (r *ServiceAccountRepository) FindByUserID(ctx context.Context, userID uint
 
 func (r *ServiceAccountRepository) find(ctx context.Context, query string, value any) (*domainServiceAccount.ServiceAccount, error) {
 	var model modelServiceAccount.ServiceAccount
-	if err := database.DB(ctx, r.db).Where(query, value).First(&model).Error; err != nil {
+	if err := repositorytx.DB(ctx, r.db).Where(query, value).First(&model).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, shared.ErrNotFound
 		}

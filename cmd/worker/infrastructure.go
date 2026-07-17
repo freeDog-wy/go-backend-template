@@ -6,11 +6,11 @@ import (
 	"strings"
 
 	"github.com/freeDog-wy/go-backend-template/internal/config"
-	"github.com/freeDog-wy/go-backend-template/internal/infra/database"
 	"github.com/freeDog-wy/go-backend-template/internal/infra/logging"
 	"github.com/freeDog-wy/go-backend-template/internal/infra/tracing"
 	"github.com/freeDog-wy/go-backend-template/pkg/email"
 	"github.com/freeDog-wy/go-backend-template/pkg/logger"
+	"github.com/freeDog-wy/go-backend-template/pkg/postgres"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	"gorm.io/gorm"
 )
@@ -29,7 +29,7 @@ func newWorkerInfrastructure(cfg *config.Config) (*workerInfrastructure, error) 
 		return nil, fmt.Errorf("initialize tracing: %w", err)
 	}
 	appLogger := logging.Init(cfg.App.Mode)
-	db, err := database.NewPostgresDB(cfg.Database.DSN)
+	db, err := postgres.Open(cfg.Database.DSN)
 	if err != nil {
 		return nil, fmt.Errorf("initialize postgres: %w", err)
 	}

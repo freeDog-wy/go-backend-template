@@ -10,10 +10,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/freeDog-wy/go-backend-template/internal/infra/database"
 	modelCMS "github.com/freeDog-wy/go-backend-template/internal/model/cms"
 	modelMedia "github.com/freeDog-wy/go-backend-template/internal/model/media"
 	"github.com/freeDog-wy/go-backend-template/internal/testsupport"
+	"github.com/freeDog-wy/go-backend-template/pkg/postgres"
 )
 
 func TestRepositoryIntegrationListReadyPublic(t *testing.T) {
@@ -23,7 +23,7 @@ func TestRepositoryIntegrationListReadyPublic(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	migrator, err := database.NewMigratorWithDB(sqlDB, migrationDir(t))
+	migrator, err := postgres.NewMigratorWithDB(sqlDB, migrationDir(t))
 	if err != nil {
 		t.Fatal(err)
 	}

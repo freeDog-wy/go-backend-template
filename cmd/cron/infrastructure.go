@@ -8,11 +8,11 @@ import (
 
 	"github.com/freeDog-wy/go-backend-template/internal/config"
 	domainMedia "github.com/freeDog-wy/go-backend-template/internal/domain/media"
-	"github.com/freeDog-wy/go-backend-template/internal/infra/database"
 	"github.com/freeDog-wy/go-backend-template/internal/infra/logging"
 	infraStorage "github.com/freeDog-wy/go-backend-template/internal/infra/storage"
 	"github.com/freeDog-wy/go-backend-template/internal/infra/tracing"
 	"github.com/freeDog-wy/go-backend-template/pkg/logger"
+	"github.com/freeDog-wy/go-backend-template/pkg/postgres"
 	"github.com/freeDog-wy/go-backend-template/pkg/scheduler"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	"gorm.io/gorm"
@@ -43,7 +43,7 @@ func newCronInfrastructure(cfg *config.Config) (*cronInfrastructure, error) {
 }
 
 func newCronRuntimeInfrastructure(cfg *config.Config) (*cronRuntimeInfrastructure, error) {
-	db, err := database.NewPostgresDB(cfg.Database.DSN)
+	db, err := postgres.Open(cfg.Database.DSN)
 	if err != nil {
 		return nil, fmt.Errorf("initialize postgres: %w", err)
 	}

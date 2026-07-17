@@ -7,8 +7,8 @@ import (
 	"testing"
 
 	domainAuthorization "github.com/freeDog-wy/go-backend-template/internal/domain/authorization"
-	"github.com/freeDog-wy/go-backend-template/internal/infra/database"
 	modelAuthorization "github.com/freeDog-wy/go-backend-template/internal/model/authorization"
+	baseRepository "github.com/freeDog-wy/go-backend-template/internal/repository"
 	repoAuthorization "github.com/freeDog-wy/go-backend-template/internal/repository/authorization"
 	"github.com/freeDog-wy/go-backend-template/internal/testsupport"
 	"gorm.io/gorm"
@@ -25,7 +25,7 @@ func TestInitializeAuthorizationIntegration(t *testing.T) {
 	}
 
 	repo := repoAuthorization.New(db)
-	service := New(database.NewTxManager(db), nil, repo, nil, nil, nil)
+	service := New(baseRepository.NewTxManager(db), nil, repo, nil, nil, nil)
 	ctx := context.Background()
 
 	if err := service.InitializeAuthorization(ctx); err != nil {

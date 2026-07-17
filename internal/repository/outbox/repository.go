@@ -5,8 +5,8 @@ import (
 	"time"
 
 	domainOutbox "github.com/freeDog-wy/go-backend-template/internal/domain/outbox"
-	"github.com/freeDog-wy/go-backend-template/internal/infra/database"
 	modelOutbox "github.com/freeDog-wy/go-backend-template/internal/model/outbox"
+	repositorytx "github.com/freeDog-wy/go-backend-template/internal/repository"
 
 	"gorm.io/gorm"
 )
@@ -33,7 +33,7 @@ func (r *Repository) Create(ctx context.Context, events ...*domainOutbox.Event) 
 		models = append(models, modelOutbox.FromEntity(event))
 	}
 
-	return database.DB(ctx, r.db).Create(&models).Error
+	return repositorytx.DB(ctx, r.db).Create(&models).Error
 }
 
 // ListUnpublished 按主键顺序抓取一批尚未投递的事件，供 cron publisher 扫描。
@@ -43,7 +43,7 @@ func (r *Repository) ListUnpublished(ctx context.Context, limit int) ([]*domainO
 	}
 
 	var models []*modelOutbox.Event
-	if err := database.DB(ctx, r.db).
+	if err := repositorytx.DB(ctx, r.db).
 		Where("published_at IS NULL").
 		Order("id ASC").
 		Limit(limit).
@@ -64,7 +64,7 @@ func (r *Repository) MarkPublished(ctx context.Context, ids []uint, publishedAt 
 		return nil
 	}
 
-	return database.DB(ctx, r.db).
+	return repositorytx.DB(ctx, r.db).
 		Model(&modelOutbox.Event{}).
 		Where("id IN ? AND published_at IS NULL", ids).
 		Update("published_at", publishedAt).Error

@@ -1,6 +1,6 @@
 //go:build integration
 
-package database
+package postgres
 
 import (
 	"database/sql"

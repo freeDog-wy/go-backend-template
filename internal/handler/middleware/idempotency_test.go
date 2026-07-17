@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	infraIdempotency "github.com/freeDog-wy/go-backend-template/internal/infra/idempotency"
+	repoIdempotency "github.com/freeDog-wy/go-backend-template/internal/repository/idempotency"
 	"github.com/gin-gonic/gin"
 )
 
@@ -48,15 +48,15 @@ func requestWithKey(r http.Handler, key, body string) *httptest.ResponseRecorder
 }
 
 type idempotencyStoreFake struct {
-	record    *infraIdempotency.Record
+	record    *repoIdempotency.Record
 	claims    int
 	completes int
 }
 
-func (s *idempotencyStoreFake) Claim(_ context.Context, _ uint, _ string, _ string, _ string, requestHash string) (*infraIdempotency.Record, bool, error) {
+func (s *idempotencyStoreFake) Claim(_ context.Context, _ uint, _ string, _ string, _ string, requestHash string) (*repoIdempotency.Record, bool, error) {
 	s.claims++
 	if s.record == nil {
-		s.record = &infraIdempotency.Record{ID: 1, RequestHash: requestHash}
+		s.record = &repoIdempotency.Record{ID: 1, RequestHash: requestHash}
 		return s.record, true, nil
 	}
 	return s.record, false, nil
