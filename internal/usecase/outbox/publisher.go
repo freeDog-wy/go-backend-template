@@ -1,4 +1,4 @@
-package support
+package outbox
 
 import (
 	"context"
@@ -12,7 +12,7 @@ import (
 	"go.opentelemetry.io/otel/codes"
 )
 
-var outboxPublisherTracer = otel.Tracer("github.com/freeDog-wy/go-backend-template/internal/usecase/support")
+var outboxPublisherTracer = otel.Tracer("github.com/freeDog-wy/go-backend-template/internal/usecase/outbox")
 
 // OutboxPublisher 负责扫描本地 Outbox 并把事件真正投递到外部消息系统。
 // 它实现至少一次投递：成功发送但未成功标记 published_at 的事件会在下次扫描时重发。

@@ -59,7 +59,7 @@ Outbox 提供至少一次投递。发布成功但回写 `published_at` 失败时
 - 事务端口：`internal/domain/shared/tx.go`。
 - PostgreSQL 事务实现：`internal/infra/database/postgresql.go`。
 - 事件落库：`internal/infra/outbox/event_bus.go`。
-- Outbox 扫描与发布：`internal/usecase/support/outbox_publisher.go`。
+- Outbox 扫描与发布：`internal/usecase/outbox/publisher.go`，仅由 `cmd/cron` 调用。
 
 ## 消息消费、重试与死信
 

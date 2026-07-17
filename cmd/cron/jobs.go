@@ -12,13 +12,13 @@ import (
 	repoOutbox "github.com/freeDog-wy/go-backend-template/internal/repository/outbox"
 	repoVerification "github.com/freeDog-wy/go-backend-template/internal/repository/verification"
 	svcMedia "github.com/freeDog-wy/go-backend-template/internal/usecase/media"
-	svcSupport "github.com/freeDog-wy/go-backend-template/internal/usecase/support"
+	svcOutbox "github.com/freeDog-wy/go-backend-template/internal/usecase/outbox"
 	svcVerification "github.com/freeDog-wy/go-backend-template/internal/usecase/verification"
 	"github.com/freeDog-wy/go-backend-template/pkg/scheduler"
 )
 
 type cronJobServices struct {
-	outboxPublisher  *svcSupport.OutboxPublisher
+	outboxPublisher  *svcOutbox.OutboxPublisher
 	verificationCron *svcVerification.Cron
 }
 
@@ -59,7 +59,7 @@ func newCronJobServices(cfg *config.Config, infra *cronInfrastructure, runtime *
 		return nil, fmt.Errorf("initialize kafka publisher: %w", err)
 	}
 	return &cronJobServices{
-		outboxPublisher: svcSupport.NewOutboxPublisher(
+		outboxPublisher: svcOutbox.NewOutboxPublisher(
 			repoOutbox.New(runtime.db),
 			mq.NewOutboxPublisherAdapter(publisher),
 			infra.logger,
