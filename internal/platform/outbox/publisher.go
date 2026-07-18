@@ -2,10 +2,12 @@ package outbox
 
 import (
 	"context"
+	"fmt"
 	"strconv"
 	"time"
 
 	"github.com/freeDog-wy/go-backend-template/pkg/logger"
+	"github.com/google/uuid"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
@@ -13,18 +15,16 @@ import (
 
 var outboxPublisherTracer = otel.Tracer("github.com/freeDog-wy/go-backend-template/internal/platform/outbox")
 
-// Publisher 将已提交的 Outbox 事件投递到外部消息系统。
 type Publisher interface {
 	Publish(ctx context.Context, messageKey, eventName string, payload []byte, traceID, traceContext string) error
 }
 
-// OutboxPublisher 负责扫描本地 Outbox 并把事件真正投递到外部消息系统。
-// 它实现至少一次投递：成功发送但未成功标记 published_at 的事件会在下次扫描时重发。
 type OutboxPublisher struct {
 	repo      *Repository
 	publisher Publisher
 	logger    logger.Logger
 	batchSize int
+	claimTTL  time.Duration
 }
 
 func NewOutboxPublisher(
@@ -32,9 +32,13 @@ func NewOutboxPublisher(
 	publisher Publisher,
 	logger logger.Logger,
 	batchSize int,
+	claimTTL time.Duration,
 ) *OutboxPublisher {
 	if batchSize <= 0 {
 		batchSize = 100
+	}
+	if claimTTL <= 0 {
+		claimTTL = time.Minute
 	}
 
 	return &OutboxPublisher{
@@ -42,11 +46,10 @@ func NewOutboxPublisher(
 		publisher: publisher,
 		logger:    logger,
 		batchSize: batchSize,
+		claimTTL:  claimTTL,
 	}
 }
 
-// PublishPending 每次抓取一批未发布事件，按顺序投递，成功后再回写 published 状态。
-// 发布失败会停止当前批次；已成功发送的前缀仍会被标记，未发送部分留待下次扫描。
 func (p *OutboxPublisher) PublishPending(ctx context.Context) (err error) {
 	ctx, span := outboxPublisherTracer.Start(ctx, "outbox.publish_pending")
 	defer func() {
@@ -61,7 +64,8 @@ func (p *OutboxPublisher) PublishPending(ctx context.Context) (err error) {
 
 	span.SetAttributes(attribute.Int("outbox.batch_size", p.batchSize))
 
-	events, err := p.repo.ListUnpublished(ctx, p.batchSize)
+	claimant := uuid.NewString()
+	events, err := p.repo.ClaimUnpublished(ctx, claimant, time.Now(), p.claimTTL, p.batchSize)
 	if err != nil {
 		return err
 	}
@@ -69,9 +73,8 @@ func (p *OutboxPublisher) PublishPending(ctx context.Context) (err error) {
 		return nil
 	}
 
-	publishedIDs := make([]uint, 0, len(events))
-	var publishErr error
-	for _, event := range events {
+	published := 0
+	for index, event := range events {
 		if err := p.publisher.Publish(
 			ctx,
 			uintString(event.GetID()),
@@ -80,28 +83,42 @@ func (p *OutboxPublisher) PublishPending(ctx context.Context) (err error) {
 			event.GetTraceID(),
 			event.GetTraceContext(),
 		); err != nil {
-			publishErr = err
+			if releaseErr := p.repo.ReleaseClaims(ctx, eventIDs(events[index:]), claimant); releaseErr != nil && p.logger != nil {
+				p.logger.Error("release outbox claims failed", "error", releaseErr)
+			}
 			if p.logger != nil {
 				p.logger.Error("outbox publish failed", "event", event.GetEventName(), "outbox_id", event.GetID(), "error", err)
 			}
-			break
+			return err
 		}
-		publishedIDs = append(publishedIDs, event.GetID())
+
+		marked, err := p.repo.MarkPublished(ctx, event.GetID(), claimant, time.Now())
+		if err != nil {
+			return err
+		}
+		if !marked {
+			return fmt.Errorf("outbox claim lost before marking event %d as published", event.GetID())
+		}
+		published++
 	}
+
 	span.SetAttributes(
 		attribute.Int("outbox.fetched", len(events)),
-		attribute.Int("outbox.published", len(publishedIDs)),
+		attribute.Int("outbox.published", published),
 	)
-
-	if err := p.repo.MarkPublished(ctx, publishedIDs, time.Now()); err != nil {
-		return err
+	if p.logger != nil && published > 0 {
+		p.logger.Info("outbox events published", "count", published)
 	}
 
-	if p.logger != nil && len(publishedIDs) > 0 {
-		p.logger.Info("outbox events published", "count", len(publishedIDs))
-	}
+	return nil
+}
 
-	return publishErr
+func eventIDs(events []*Event) []uint {
+	ids := make([]uint, 0, len(events))
+	for _, event := range events {
+		ids = append(ids, event.GetID())
+	}
+	return ids
 }
 
 func uintString(value uint) string {

@@ -10,6 +10,8 @@ type eventModel struct {
 	TraceID      string     `gorm:"size:64;index"`
 	TraceContext string     `gorm:"type:text"`
 	PublishedAt  *time.Time `gorm:"index"`
+	ClaimedBy    string     `gorm:"size:36;not null;default:'';index"`
+	ClaimUntil   *time.Time `gorm:"index"`
 	CreatedAt    time.Time  `gorm:"index;not null"`
 }
 

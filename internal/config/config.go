@@ -147,6 +147,7 @@ type CronConfig struct {
 	Enabled                            bool
 	OutboxPublishIntervalSeconds       int    `mapstructure:"outbox_publish_interval_seconds"`
 	OutboxBatchSize                    int    `mapstructure:"outbox_batch_size"`
+	OutboxClaimTTLSeconds              int    `mapstructure:"outbox_claim_ttl_seconds"`
 	VerificationCleanupIntervalSeconds int    `mapstructure:"verification_cleanup_interval_seconds"`
 	MediaUploadCleanupIntervalSeconds  int    `mapstructure:"media_upload_cleanup_interval_seconds"`
 	MediaUploadCleanupBatchSize        int    `mapstructure:"media_upload_cleanup_batch_size"`
@@ -223,6 +224,7 @@ func Load(configPath string) (*Config, error) {
 	v.SetDefault("cron.probe.port", 8082)
 	v.SetDefault("cron.outbox_publish_interval_seconds", 5)
 	v.SetDefault("cron.outbox_batch_size", 100)
+	v.SetDefault("cron.outbox_claim_ttl_seconds", 60)
 	v.SetDefault("cron.verification_cleanup_interval_seconds", 300)
 	v.SetDefault("cron.media_upload_cleanup_interval_seconds", 300)
 	v.SetDefault("cron.media_upload_cleanup_batch_size", 100)
@@ -301,7 +303,7 @@ var configEnvBindings = map[string]string{
 	"auth.jwtIssuer": "AUTH_JWT_ISSUER", "auth.jwtAudience": "AUTH_JWT_AUDIENCE", "auth.jwtSecret": "AUTH_JWT_SECRET", "auth.accessTokenTTLMinutes": "AUTH_ACCESS_TOKEN_TTL_MINUTES", "auth.refreshTokenTTLHours": "AUTH_REFRESH_TOKEN_TTL_HOURS", "auth.loginFailThreshold": "AUTH_LOGIN_FAIL_THRESHOLD",
 	"email.mode": "EMAIL_MODE", "email.smtpHost": "EMAIL_SMTP_HOST", "email.smtpPort": "EMAIL_SMTP_PORT", "email.smtpUser": "EMAIL_SMTP_USER", "email.smtpPassword": "EMAIL_SMTP_PASSWORD", "email.fromAddress": "EMAIL_FROM_ADDRESS", "email.siteBaseURL": "EMAIL_SITE_BASE_URL",
 	"captcha.width": "CAPTCHA_WIDTH", "captcha.height": "CAPTCHA_HEIGHT", "captcha.length": "CAPTCHA_LENGTH",
-	"cron.enabled": "CRON_ENABLED", "cron.probe.ip": "CRON_PROBE_IP", "cron.probe.port": "CRON_PROBE_PORT", "cron.outbox_publish_interval_seconds": "CRON_OUTBOX_PUBLISH_INTERVAL_SECONDS", "cron.outbox_batch_size": "CRON_OUTBOX_BATCH_SIZE", "cron.verification_cleanup_interval_seconds": "CRON_VERIFICATION_CLEANUP_INTERVAL_SECONDS", "cron.media_upload_cleanup_interval_seconds": "CRON_MEDIA_UPLOAD_CLEANUP_INTERVAL_SECONDS", "cron.media_upload_cleanup_batch_size": "CRON_MEDIA_UPLOAD_CLEANUP_BATCH_SIZE",
+	"cron.enabled": "CRON_ENABLED", "cron.probe.ip": "CRON_PROBE_IP", "cron.probe.port": "CRON_PROBE_PORT", "cron.outbox_publish_interval_seconds": "CRON_OUTBOX_PUBLISH_INTERVAL_SECONDS", "cron.outbox_batch_size": "CRON_OUTBOX_BATCH_SIZE", "cron.outbox_claim_ttl_seconds": "CRON_OUTBOX_CLAIM_TTL_SECONDS", "cron.verification_cleanup_interval_seconds": "CRON_VERIFICATION_CLEANUP_INTERVAL_SECONDS", "cron.media_upload_cleanup_interval_seconds": "CRON_MEDIA_UPLOAD_CLEANUP_INTERVAL_SECONDS", "cron.media_upload_cleanup_batch_size": "CRON_MEDIA_UPLOAD_CLEANUP_BATCH_SIZE",
 	"tracing.endpoint":        "TRACING_ENDPOINT",
 	"bootstrap_admin.enabled": "BOOTSTRAP_ADMIN_ENABLED", "bootstrap_admin.name": "BOOTSTRAP_ADMIN_NAME", "bootstrap_admin.email": "BOOTSTRAP_ADMIN_EMAIL", "bootstrap_admin.password": "BOOTSTRAP_ADMIN_PASSWORD",
 	"storage.s3.endpoint": "STORAGE_S3_ENDPOINT", "storage.s3.region": "STORAGE_S3_REGION", "storage.s3.access_key_id": "STORAGE_S3_ACCESS_KEY_ID", "storage.s3.secret_access_key": "STORAGE_S3_SECRET_ACCESS_KEY", "storage.s3.bucket": "STORAGE_S3_BUCKET", "storage.s3.public_base_url": "STORAGE_S3_PUBLIC_BASE_URL", "storage.s3.prefix": "STORAGE_S3_PREFIX", "storage.s3.use_path_style": "STORAGE_S3_USE_PATH_STYLE", "storage.s3.presign_ttl_minutes": "STORAGE_S3_PRESIGN_TTL_MINUTES",

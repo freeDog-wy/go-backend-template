@@ -84,6 +84,7 @@ cron:
   enabled: true
   outbox_publish_interval_seconds: 5
   outbox_batch_size: 100
+  outbox_claim_ttl_seconds: 60
   verification_cleanup_interval_seconds: 300
   media_upload_cleanup_interval_seconds: 300
   media_upload_cleanup_batch_size: 100

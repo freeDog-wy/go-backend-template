@@ -28,6 +28,9 @@ func validateCronConfig(cfg *config.Config) error {
 	if cfg.Cron.OutboxBatchSize <= 0 {
 		return fmt.Errorf("cron.outbox_batch_size must be greater than zero")
 	}
+	if cfg.Cron.OutboxClaimTTLSeconds <= 0 {
+		return fmt.Errorf("cron.outbox_claim_ttl_seconds must be greater than zero")
+	}
 	if cfg.Cron.VerificationCleanupIntervalSeconds <= 0 {
 		return fmt.Errorf("cron.verification_cleanup_interval_seconds must be greater than zero")
 	}
@@ -63,6 +66,7 @@ func newCronJobServices(cfg *config.Config, infra *cronInfrastructure, runtime *
 			mq.NewOutboxPublisherAdapter(publisher),
 			infra.logger,
 			cfg.Cron.OutboxBatchSize,
+			time.Duration(cfg.Cron.OutboxClaimTTLSeconds)*time.Second,
 		),
 		verificationCron: svcVerification.NewCron(repoVerification.New(runtime.db), infra.logger),
 	}, nil
