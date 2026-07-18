@@ -6,6 +6,7 @@ import (
 	domainCMS "github.com/freeDog-wy/go-backend-template/internal/domain/cms"
 	domainMedia "github.com/freeDog-wy/go-backend-template/internal/domain/media"
 	"github.com/freeDog-wy/go-backend-template/internal/domain/shared"
+	platformAudit "github.com/freeDog-wy/go-backend-template/internal/platform/audit"
 	"testing"
 	"time"
 )
@@ -14,10 +15,18 @@ type testTx struct{}
 
 func (testTx) Do(ctx context.Context, fn func(context.Context) error) error { return fn(ctx) }
 
-type recordingEventBus struct{ events []shared.Event }
+type recordingEventBus struct {
+	events  []shared.Event
+	records []platformAudit.RecordInput
+}
 
 func (b *recordingEventBus) Publish(_ context.Context, events ...shared.Event) error {
 	b.events = append(b.events, events...)
+	return nil
+}
+
+func (b *recordingEventBus) Record(_ context.Context, input platformAudit.RecordInput) error {
+	b.records = append(b.records, input)
 	return nil
 }
 
@@ -263,16 +272,12 @@ func TestPreviewPublishSeparatesBlockingChecksFromWarnings(t *testing.T) {
 func TestPublishTranslationRejectsFailedPublicationChecks(t *testing.T) {
 	translation := &domainCMS.ArticleTranslation{ArticleID: 1, Locale: "zh-CN", Title: "Article", Slug: "article", ContentFormat: "markdown", Status: domainCMS.TranslationDraft}
 	repo := &testRepo{tr: translation}
-	bus := &recordingEventBus{}
-	_, err := New(testTx{}, repo, bus).PublishTranslation(context.Background(), PublishTranslationCmd{ArticleID: 1, Locale: "zh-CN"})
+	_, err := New(testTx{}, repo).PublishTranslation(context.Background(), PublishTranslationCmd{ArticleID: 1, Locale: "zh-CN"})
 	if !errors.Is(err, domainCMS.ErrPublicationNotReady) {
 		t.Fatalf("error = %v, want publication not ready", err)
 	}
 	if translation.Status != domainCMS.TranslationDraft || translation.PublishedAt != nil {
 		t.Fatalf("translation mutated after rejected publication: %#v", translation)
-	}
-	if len(bus.events) != 0 {
-		t.Fatalf("events = %#v, want no audit event", bus.events)
 	}
 }
 func TestGetPublishedArticleHidesAbsentTranslation(t *testing.T) {
@@ -363,13 +368,14 @@ func TestUpdateLocaleRejectsDisablingLastEnabledLocale(t *testing.T) {
 func TestDeleteArticleWritesAuditEvent(t *testing.T) {
 	bus := &recordingEventBus{}
 	repo := &testRepo{article: &domainCMS.Article{ID: 7}}
-	svc := New(testTx{}, repo, bus)
+	svc := New(testTx{}, repo)
+	svc.SetAuditRecorder(bus)
 	svc.now = func() time.Time { return time.Date(2026, 1, 2, 3, 4, 5, 0, time.UTC) }
 	if err := svc.DeleteArticle(context.Background(), DeleteArticleCmd{ArticleID: 7, ActorUserID: 3, IP: "127.0.0.1"}); err != nil {
 		t.Fatal(err)
 	}
-	if len(bus.events) != 1 || bus.events[0].EventName() != "audit.log.requested" {
-		t.Fatalf("events = %#v", bus.events)
+	if len(bus.records) != 1 || bus.records[0].Action != auditActionArticleDeleted {
+		t.Fatalf("records = %#v", bus.records)
 	}
 }
 func TestRestoreArticleRequiresDeletedArticle(t *testing.T) {

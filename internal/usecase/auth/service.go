@@ -30,7 +30,8 @@ type Service struct {
 	sessionStore    domainAuth.SessionStore
 	passwordHasher  shared.PasswordHasher
 	tokenManager    domainAuth.AccessTokenManager
-	eventBus        shared.EventBus
+	tx              shared.TxManager
+	auditor         platformAudit.Recorder
 	logger          logger.Logger
 	issuer          string
 	audience        string
@@ -44,12 +45,13 @@ func New(
 	sessionStore domainAuth.SessionStore,
 	passwordHasher shared.PasswordHasher,
 	tokenManager domainAuth.AccessTokenManager,
-	eventBus shared.EventBus,
+	_ shared.EventBus,
 	logger logger.Logger,
 	issuer string,
 	audience string,
 	accessTokenTTL time.Duration,
 	refreshTokenTTL time.Duration,
+	auditRecorders ...platformAudit.Recorder,
 ) *Service {
 	return &Service{
 		userRepo:        userRepo,
@@ -57,7 +59,7 @@ func New(
 		sessionStore:    sessionStore,
 		passwordHasher:  passwordHasher,
 		tokenManager:    tokenManager,
-		eventBus:        eventBus,
+		auditor:         platformAudit.ResolveRecorder(auditRecorders...),
 		logger:          logger,
 		issuer:          issuer,
 		audience:        audience,
@@ -85,7 +87,7 @@ func (s *Service) Login(ctx context.Context, cmd LoginCmd) (result *AuthResult, 
 	user, err := s.userRepo.FindByEmail(ctx, email)
 	if err != nil {
 		if errors.Is(err, shared.ErrNotFound) {
-			s.publishAudit(ctx, platformAudit.LogRequested{
+			s.publishAudit(ctx, platformAudit.RecordInput{
 				TargetType: "user_email",
 				TargetID:   email,
 				Action:     auditActionLogin,
@@ -102,7 +104,7 @@ func (s *Service) Login(ctx context.Context, cmd LoginCmd) (result *AuthResult, 
 	}
 
 	if err := validateUserForLogin(user); err != nil {
-		s.publishAudit(ctx, platformAudit.LogRequested{
+		s.publishAudit(ctx, platformAudit.RecordInput{
 			TargetType: "user",
 			TargetID:   uintString(user.GetID()),
 			Action:     auditActionLogin,
@@ -125,7 +127,7 @@ func (s *Service) Login(ctx context.Context, cmd LoginCmd) (result *AuthResult, 
 	}
 
 	if !s.passwordHasher.Verify(cmd.Password, credential.GetPasswordHash()) {
-		s.publishAudit(ctx, platformAudit.LogRequested{
+		s.publishAudit(ctx, platformAudit.RecordInput{
 			TargetType: "user",
 			TargetID:   uintString(user.GetID()),
 			Action:     auditActionLogin,
@@ -141,21 +143,25 @@ func (s *Service) Login(ctx context.Context, cmd LoginCmd) (result *AuthResult, 
 
 	now := time.Now()
 	user.RecordLogin(now)
-	if err := s.userRepo.Update(ctx, user); err != nil {
+	if err := s.inTransaction(ctx, func(ctx context.Context) error {
+		if err := s.userRepo.Update(ctx, user); err != nil {
+			return err
+		}
+		return s.recordAudit(ctx, platformAudit.RecordInput{
+			TargetType: "user",
+			TargetID:   uintString(user.GetID()),
+			Action:     auditActionLogin,
+			Result:     platformAudit.ResultSuccess,
+			IP:         cmd.IP,
+			UserAgent:  cmd.UserAgent,
+		})
+	}); err != nil {
 		return nil, err
 	}
 	result, err = s.issueTokens(ctx, user, now)
 	if err != nil {
 		return nil, err
 	}
-	s.publishAudit(ctx, platformAudit.LogRequested{
-		TargetType: "user",
-		TargetID:   uintString(user.GetID()),
-		Action:     auditActionLogin,
-		Result:     platformAudit.ResultSuccess,
-		IP:         cmd.IP,
-		UserAgent:  cmd.UserAgent,
-	})
 	return result, nil
 }
 
@@ -225,7 +231,7 @@ func (s *Service) Logout(ctx context.Context, cmd LogoutCmd) error {
 	if err := s.sessionStore.DeleteByID(ctx, sessionID); err != nil {
 		return err
 	}
-	s.publishAudit(ctx, platformAudit.LogRequested{
+	s.publishAudit(ctx, platformAudit.RecordInput{
 		ActorUserID: uintPtr(session.GetUserID()),
 		TargetType:  "user",
 		TargetID:    uintString(session.GetUserID()),
@@ -247,7 +253,7 @@ func (s *Service) ChangePassword(ctx context.Context, cmd ChangePasswordCmd) err
 	}
 
 	if !s.passwordHasher.Verify(cmd.CurrentPassword, credential.GetPasswordHash()) {
-		s.publishAudit(ctx, platformAudit.LogRequested{
+		s.publishAudit(ctx, platformAudit.RecordInput{
 			ActorUserID: uintPtr(cmd.UserID),
 			TargetType:  "user",
 			TargetID:    uintString(cmd.UserID),
@@ -269,22 +275,26 @@ func (s *Service) ChangePassword(ctx context.Context, cmd ChangePasswordCmd) err
 	if err := credential.ChangePassword(hashed, time.Now()); err != nil {
 		return err
 	}
-	if err := s.credentialRepo.Update(ctx, credential); err != nil {
+	if err := s.inTransaction(ctx, func(ctx context.Context) error {
+		if err := s.credentialRepo.Update(ctx, credential); err != nil {
+			return err
+		}
+		return s.recordAudit(ctx, platformAudit.RecordInput{
+			ActorUserID: uintPtr(cmd.UserID),
+			TargetType:  "user",
+			TargetID:    uintString(cmd.UserID),
+			Action:      auditActionChangePassword,
+			Result:      platformAudit.ResultSuccess,
+			IP:          cmd.IP,
+			UserAgent:   cmd.UserAgent,
+		})
+	}); err != nil {
 		return err
 	}
 
 	if err := s.sessionStore.DeleteByUserID(ctx, cmd.UserID); err != nil && s.logger != nil {
 		s.logger.Error("invalidate user session failed after password change", "user_id", cmd.UserID, "error", err)
 	}
-	s.publishAudit(ctx, platformAudit.LogRequested{
-		ActorUserID: uintPtr(cmd.UserID),
-		TargetType:  "user",
-		TargetID:    uintString(cmd.UserID),
-		Action:      auditActionChangePassword,
-		Result:      platformAudit.ResultSuccess,
-		IP:          cmd.IP,
-		UserAgent:   cmd.UserAgent,
-	})
 	return nil
 }
 
@@ -439,13 +449,30 @@ func randomEncodedToken(size int) (string, error) {
 	return base64.RawURLEncoding.EncodeToString(raw), nil
 }
 
-func (s *Service) publishAudit(ctx context.Context, evt platformAudit.LogRequested) {
-	if s.eventBus == nil {
-		return
+func (s *Service) publishAudit(ctx context.Context, evt platformAudit.RecordInput) {
+	if err := s.recordAudit(ctx, evt); err != nil && s.logger != nil {
+		s.logger.Error("record audit log failed", "action", evt.Action, "error", err)
 	}
-	if err := s.eventBus.Publish(ctx, evt); err != nil && s.logger != nil {
-		s.logger.Error("publish audit event failed", "action", evt.Action, "error", err)
+}
+
+func (s *Service) recordAudit(ctx context.Context, evt platformAudit.RecordInput) error {
+	if s.auditor == nil {
+		return nil
 	}
+	return s.auditor.Record(ctx, evt)
+}
+
+// SetTxManager enables atomic database updates and successful audit records.
+// Redis session operations remain outside this PostgreSQL transaction.
+func (s *Service) SetTxManager(tx shared.TxManager) {
+	s.tx = tx
+}
+
+func (s *Service) inTransaction(ctx context.Context, fn func(context.Context) error) error {
+	if s.tx == nil {
+		return fn(ctx)
+	}
+	return s.tx.Do(ctx, fn)
 }
 
 func uintPtr(value uint) *uint {

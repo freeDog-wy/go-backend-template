@@ -20,7 +20,7 @@ type Service struct {
 	repo     domainAuthorization.Repository
 	userRepo domainIdentity.Repository
 	roleBind domainAuthorization.RoleBindingService
-	eventBus shared.EventBus
+	auditor  platformAudit.Recorder
 	logger   logger.Logger
 }
 
@@ -28,15 +28,16 @@ func New(
 	tx shared.TxManager,
 	repo domainAuthorization.Repository,
 	userRepo domainIdentity.Repository,
-	eventBus shared.EventBus,
+	_ shared.EventBus,
 	logger logger.Logger,
+	auditRecorders ...platformAudit.Recorder,
 ) *Service {
 	return &Service{
 		tx:       tx,
 		repo:     repo,
 		userRepo: userRepo,
 		roleBind: *domainAuthorization.NewRoleBindingService(),
-		eventBus: eventBus,
+		auditor:  platformAudit.ResolveRecorder(auditRecorders...),
 		logger:   logger,
 	}
 }
@@ -175,32 +176,33 @@ func (s *Service) ListPermissions(ctx context.Context, cmd ListPermissionsCmd) (
 }
 
 func (s *Service) ReplaceUserRoles(ctx context.Context, cmd ReplaceUserRolesCmd) error {
-	if _, err := s.userRepo.FindByID(ctx, cmd.UserID); err != nil {
-		if errors.Is(err, shared.ErrNotFound) {
-			return domainIdentity.ErrUserNotFound
+	return s.tx.Do(ctx, func(ctx context.Context) error {
+		if _, err := s.userRepo.FindByID(ctx, cmd.UserID); err != nil {
+			if errors.Is(err, shared.ErrNotFound) {
+				return domainIdentity.ErrUserNotFound
+			}
+			return err
 		}
-		return err
-	}
-	roleIDs, err := s.validateRoleIDs(ctx, cmd.RoleIDs)
-	if err != nil {
-		return err
-	}
-	if err := s.repo.ReplaceUserRoles(ctx, cmd.UserID, roleIDs); err != nil {
-		return err
-	}
-	s.publishAudit(ctx, platformAudit.LogRequested{
-		ActorUserID: uintPtr(cmd.ActorUserID),
-		TargetType:  "user",
-		TargetID:    uintString(cmd.UserID),
-		Action:      auditActionUserRolesChanged,
-		Result:      platformAudit.ResultSuccess,
-		IP:          cmd.IP,
-		UserAgent:   cmd.UserAgent,
-		Metadata: map[string]any{
-			"role_ids": roleIDs,
-		},
+		roleIDs, err := s.validateRoleIDs(ctx, cmd.RoleIDs)
+		if err != nil {
+			return err
+		}
+		if err := s.repo.ReplaceUserRoles(ctx, cmd.UserID, roleIDs); err != nil {
+			return err
+		}
+		return s.recordAudit(ctx, platformAudit.RecordInput{
+			ActorUserID: uintPtr(cmd.ActorUserID),
+			TargetType:  "user",
+			TargetID:    uintString(cmd.UserID),
+			Action:      auditActionUserRolesChanged,
+			Result:      platformAudit.ResultSuccess,
+			IP:          cmd.IP,
+			UserAgent:   cmd.UserAgent,
+			Metadata: map[string]any{
+				"role_ids": roleIDs,
+			},
+		})
 	})
-	return nil
 }
 
 func (s *Service) ListUserRoles(ctx context.Context, userID uint) ([]*RoleResult, error) {
@@ -231,13 +233,11 @@ func (s *Service) validateRoleIDs(ctx context.Context, roleIDs []uint) ([]uint, 
 	return s.roleBind.PrepareRoleIDs(roleIDs, roles)
 }
 
-func (s *Service) publishAudit(ctx context.Context, evt platformAudit.LogRequested) {
-	if s.eventBus == nil {
-		return
+func (s *Service) recordAudit(ctx context.Context, evt platformAudit.RecordInput) error {
+	if s.auditor == nil {
+		return nil
 	}
-	if err := s.eventBus.Publish(ctx, evt); err != nil && s.logger != nil {
-		s.logger.Error("publish audit event failed", "action", evt.Action, "error", err)
-	}
+	return s.auditor.Record(ctx, evt)
 }
 
 func uintPtr(value uint) *uint {

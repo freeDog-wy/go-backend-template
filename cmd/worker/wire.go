@@ -44,7 +44,7 @@ func initWorker(cfg *config.Config) (*Worker, error) {
 		return nil, err
 	}
 	platform := newWorkerPlatform(infra.db)
-	handlers := newWorkerEventConsumers(cfg, infra, platform)
+	handlers := newWorkerEventConsumers(cfg, infra)
 	consumer, err := newWorkerConsumer(cfg, infra, platform)
 	if err != nil {
 		return nil, err

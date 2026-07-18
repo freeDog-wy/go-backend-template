@@ -24,15 +24,15 @@ type ServiceTokenService struct {
 	sessionStore domainAuth.SessionStore
 	hasher       domainShared.PasswordHasher
 	tokenManager domainAuth.AccessTokenManager
-	eventBus     domainShared.EventBus
+	auditor      platformAudit.Recorder
 	logger       logger.Logger
 	issuer       string
 	audience     string
 	ttl          time.Duration
 }
 
-func NewServiceTokenService(accountRepo domainServiceAccount.Repository, userRepo domainIdentity.Repository, sessionStore domainAuth.SessionStore, hasher domainShared.PasswordHasher, tokenManager domainAuth.AccessTokenManager, eventBus domainShared.EventBus, log logger.Logger, issuer, audience string, ttl time.Duration) *ServiceTokenService {
-	return &ServiceTokenService{accountRepo: accountRepo, userRepo: userRepo, sessionStore: sessionStore, hasher: hasher, tokenManager: tokenManager, eventBus: eventBus, logger: log, issuer: issuer, audience: audience, ttl: ttl}
+func NewServiceTokenService(accountRepo domainServiceAccount.Repository, userRepo domainIdentity.Repository, sessionStore domainAuth.SessionStore, hasher domainShared.PasswordHasher, tokenManager domainAuth.AccessTokenManager, _ domainShared.EventBus, log logger.Logger, issuer, audience string, ttl time.Duration, auditRecorders ...platformAudit.Recorder) *ServiceTokenService {
+	return &ServiceTokenService{accountRepo: accountRepo, userRepo: userRepo, sessionStore: sessionStore, hasher: hasher, tokenManager: tokenManager, auditor: platformAudit.ResolveRecorder(auditRecorders...), logger: log, issuer: issuer, audience: audience, ttl: ttl}
 }
 
 func (s *ServiceTokenService) IssueServiceToken(ctx context.Context, cmd IssueServiceTokenCmd) (*ServiceTokenResult, error) {
@@ -86,12 +86,12 @@ func (s *ServiceTokenService) matchesServiceSecret(account *domainServiceAccount
 }
 
 func (s *ServiceTokenService) publishAudit(ctx context.Context, actorUserID *uint, clientID, tokenID, result, ip, userAgent string) {
-	if s.eventBus == nil {
+	if s.auditor == nil {
 		return
 	}
-	err := s.eventBus.Publish(ctx, platformAudit.LogRequested{ActorUserID: actorUserID, TargetType: "mcp_service_account", TargetID: clientID, Action: "mcp_service_token_issued", Result: result, IP: ip, UserAgent: userAgent, Metadata: map[string]any{"actor_type": "service", "actor_id": clientID, "jti": tokenID}})
+	err := s.auditor.Record(ctx, platformAudit.RecordInput{ActorUserID: actorUserID, TargetType: "mcp_service_account", TargetID: clientID, Action: "mcp_service_token_issued", Result: result, IP: ip, UserAgent: userAgent, Metadata: map[string]any{"actor_type": "service", "actor_id": clientID, "jti": tokenID}})
 	if err != nil && s.logger != nil {
-		s.logger.Error("publish mcp service token audit failed", "client_id", clientID, "error", err)
+		s.logger.Error("record mcp service token audit failed", "client_id", clientID, "error", err)
 	}
 }
 

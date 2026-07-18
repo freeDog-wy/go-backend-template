@@ -4,7 +4,7 @@ import (
 	"time"
 
 	"github.com/freeDog-wy/go-backend-template/internal/config"
-	"github.com/freeDog-wy/go-backend-template/internal/domain/shared"
+	platformAudit "github.com/freeDog-wy/go-backend-template/internal/platform/audit"
 	platformIdempotency "github.com/freeDog-wy/go-backend-template/internal/platform/idempotency"
 	platformOutbox "github.com/freeDog-wy/go-backend-template/internal/platform/outbox"
 	repoAuth "github.com/freeDog-wy/go-backend-template/internal/repository/auth"
@@ -49,17 +49,18 @@ func newServerRepositories(db *gorm.DB) *serverRepositories {
 type serverPlatform struct {
 	outbox      *platformOutbox.Repository
 	idempotency *platformIdempotency.Repository
+	audit       *platformAudit.Store
 }
 
 func newServerPlatform(db *gorm.DB) *serverPlatform {
 	return &serverPlatform{
 		outbox:      platformOutbox.New(db),
 		idempotency: platformIdempotency.New(db),
+		audit:       platformAudit.New(db),
 	}
 }
 
 type serverServices struct {
-	eventBus      shared.EventBus
 	verification  *svcVerification.Service
 	authorization *svcAuthorization.Service
 	bootstrap     *svcBootstrap.Service
@@ -71,10 +72,11 @@ type serverServices struct {
 
 func newServerServices(cfg *config.Config, infra *serverInfrastructure, repos *serverRepositories, platform *serverPlatform) (*serverServices, error) {
 	eventBus := newServerEventBus(platform.outbox)
-	verification := svcVerification.New(infra.txManager, repos.user, repos.verification, repos.credential, infra.passwordHasher, infra.sessionStore, eventBus, infra.logger)
-	authorization := svcAuthorization.New(infra.txManager, repos.authorization, repos.user, eventBus, infra.logger)
+	auditRecorder := platformAudit.NewRecorder(platform.audit)
+	verification := svcVerification.New(infra.txManager, repos.user, repos.verification, repos.credential, infra.passwordHasher, infra.sessionStore, eventBus, infra.logger, auditRecorder)
+	authorization := svcAuthorization.New(infra.txManager, repos.authorization, repos.user, eventBus, infra.logger, auditRecorder)
 	bootstrap := svcBootstrap.New(infra.txManager, repos.user, repos.authorization, repos.credential, infra.passwordHasher, infra.logger)
-	identity := svcIdentity.New(infra.txManager, repos.user, repos.authorization, repos.credential, infra.passwordHasher, infra.captcha, verification, infra.logger, eventBus)
+	identity := svcIdentity.New(infra.txManager, repos.user, repos.authorization, repos.credential, infra.passwordHasher, infra.captcha, verification, infra.logger, eventBus, auditRecorder)
 	auth := svcAuth.New(
 		repos.user,
 		repos.credential,
@@ -87,14 +89,16 @@ func newServerServices(cfg *config.Config, infra *serverInfrastructure, repos *s
 		cfg.Auth.JWTAudience,
 		time.Duration(cfg.Auth.AccessTokenTTLMinutes)*time.Minute,
 		time.Duration(cfg.Auth.RefreshTokenTTLHours)*time.Hour,
+		auditRecorder,
 	)
-	cms := svcCMS.New(infra.txManager, repos.cms, eventBus)
+	auth.SetTxManager(infra.txManager)
+	cms := svcCMS.New(infra.txManager, repos.cms)
+	cms.SetAuditRecorder(auditRecorder)
 	media := svcMedia.New(infra.txManager, repos.media, infra.mediaStorage)
 	cms.SetMediaFinder(media)
 	cms.SetPublicMediaFinder(media)
 
 	return &serverServices{
-		eventBus:      eventBus,
 		verification:  verification,
 		authorization: authorization,
 		bootstrap:     bootstrap,

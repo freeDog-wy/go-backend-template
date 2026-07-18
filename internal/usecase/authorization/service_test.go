@@ -9,6 +9,7 @@ import (
 	domainAuthorization "github.com/freeDog-wy/go-backend-template/internal/domain/authorization"
 	domainIdentity "github.com/freeDog-wy/go-backend-template/internal/domain/identity"
 	"github.com/freeDog-wy/go-backend-template/internal/domain/shared"
+	platformAudit "github.com/freeDog-wy/go-backend-template/internal/platform/audit"
 )
 
 func TestEnsureAdminAccess(t *testing.T) {
@@ -46,7 +47,7 @@ func TestReplaceUserRoles(t *testing.T) {
 	repo.rolesByID[2] = role
 	users := &authorizationUserRepo{user: user}
 	bus := &authorizationBus{}
-	service := New(&authorizationTx{}, repo, users, bus, nil)
+	service := New(&authorizationTx{}, repo, users, bus, nil, bus)
 
 	err := service.ReplaceUserRoles(context.Background(), ReplaceUserRolesCmd{UserID: 9, RoleIDs: []uint{2, 2}, ActorUserID: 1})
 	if err != nil {
@@ -55,8 +56,8 @@ func TestReplaceUserRoles(t *testing.T) {
 	if len(repo.replacedRoleIDs) != 1 || repo.replacedRoleIDs[0] != 2 {
 		t.Fatalf("role IDs = %v, want [2]", repo.replacedRoleIDs)
 	}
-	if len(bus.events) != 1 || bus.events[0].EventName() != "audit.log.requested" {
-		t.Fatalf("audit events = %#v", bus.events)
+	if len(bus.records) != 1 || bus.records[0].Action != auditActionUserRolesChanged {
+		t.Fatalf("audit records = %#v", bus.records)
 	}
 }
 
@@ -160,9 +161,17 @@ func (*authorizationUserRepo) Create(context.Context, *domainIdentity.User) erro
 func (*authorizationUserRepo) Update(context.Context, *domainIdentity.User) error { return nil }
 func (*authorizationUserRepo) Delete(context.Context, uint) error                 { return nil }
 
-type authorizationBus struct{ events []shared.Event }
+type authorizationBus struct {
+	events  []shared.Event
+	records []platformAudit.RecordInput
+}
 
 func (b *authorizationBus) Publish(_ context.Context, events ...shared.Event) error {
 	b.events = append(b.events, events...)
+	return nil
+}
+
+func (b *authorizationBus) Record(_ context.Context, input platformAudit.RecordInput) error {
+	b.records = append(b.records, input)
 	return nil
 }

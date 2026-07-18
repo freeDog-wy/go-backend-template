@@ -6,7 +6,6 @@ import (
 
 	"github.com/freeDog-wy/go-backend-template/internal/config"
 	"github.com/freeDog-wy/go-backend-template/internal/infra/mq"
-	platformAudit "github.com/freeDog-wy/go-backend-template/internal/platform/audit"
 	platformMessaging "github.com/freeDog-wy/go-backend-template/internal/platform/messaging"
 	"github.com/freeDog-wy/go-backend-template/pkg/kafka"
 	"gorm.io/gorm"
@@ -14,13 +13,11 @@ import (
 
 type workerPlatform struct {
 	consumption *platformMessaging.Repository
-	audit       *platformAudit.Store
 }
 
 func newWorkerPlatform(db *gorm.DB) *workerPlatform {
 	return &workerPlatform{
 		consumption: platformMessaging.New(db),
-		audit:       platformAudit.New(db),
 	}
 }
 

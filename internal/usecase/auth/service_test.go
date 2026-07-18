@@ -380,7 +380,7 @@ func TestLogout(t *testing.T) {
 			session: domainAuth.ReconstituteRefreshSession("session-1", 42, "hash", time.Now().Add(time.Hour)),
 		}
 		eventBus := &stubEventBus{}
-		service := New(nil, nil, store, nil, nil, eventBus, nil, "", "", 15*time.Minute, 24*time.Hour)
+		service := New(nil, nil, store, nil, nil, eventBus, nil, "", "", 15*time.Minute, 24*time.Hour, eventBus)
 
 		err := service.Logout(context.Background(), LogoutCmd{
 			RefreshToken: "session-1.secret",
@@ -393,7 +393,7 @@ func TestLogout(t *testing.T) {
 		if store.deletedID != "session-1" {
 			t.Fatalf("DeleteByID() called with %q, want %q", store.deletedID, "session-1")
 		}
-		assertSingleAuditEvent(t, eventBus, func(event platformAudit.LogRequested) {
+		assertSingleAuditEvent(t, eventBus, func(event platformAudit.RecordInput) {
 			if event.Action != auditActionLogout {
 				t.Fatalf("audit action = %q, want %q", event.Action, auditActionLogout)
 			}
@@ -435,7 +435,7 @@ func TestChangePassword(t *testing.T) {
 		credentialRepo := &stubCredentialRepo{credential: credential}
 		passwordHasher := &stubPasswordHasher{verifyResult: false}
 		eventBus := &stubEventBus{}
-		service := New(nil, credentialRepo, &stubSessionStore{}, passwordHasher, nil, eventBus, nil, "", "", 15*time.Minute, 24*time.Hour)
+		service := New(nil, credentialRepo, &stubSessionStore{}, passwordHasher, nil, eventBus, nil, "", "", 15*time.Minute, 24*time.Hour, eventBus)
 
 		err := service.ChangePassword(context.Background(), ChangePasswordCmd{
 			UserID:          42,
@@ -445,7 +445,7 @@ func TestChangePassword(t *testing.T) {
 		if !errors.Is(err, ErrInvalidCurrentPassword) {
 			t.Fatalf("ChangePassword() error = %v, want %v", err, ErrInvalidCurrentPassword)
 		}
-		assertSingleAuditEvent(t, eventBus, func(event platformAudit.LogRequested) {
+		assertSingleAuditEvent(t, eventBus, func(event platformAudit.RecordInput) {
 			if event.Action != auditActionChangePassword {
 				t.Fatalf("audit action = %q, want %q", event.Action, auditActionChangePassword)
 			}
@@ -511,7 +511,7 @@ func TestChangePassword(t *testing.T) {
 			hashValue:    "new-hash",
 		}
 		eventBus := &stubEventBus{}
-		service := New(nil, credentialRepo, store, passwordHasher, nil, eventBus, nil, "", "", 15*time.Minute, 24*time.Hour)
+		service := New(nil, credentialRepo, store, passwordHasher, nil, eventBus, nil, "", "", 15*time.Minute, 24*time.Hour, eventBus)
 
 		err := service.ChangePassword(context.Background(), ChangePasswordCmd{
 			UserID:          42,
@@ -532,7 +532,7 @@ func TestChangePassword(t *testing.T) {
 		if store.deletedUserID != 42 {
 			t.Fatalf("DeleteByUserID() called with %d, want %d", store.deletedUserID, 42)
 		}
-		assertSingleAuditEvent(t, eventBus, func(event platformAudit.LogRequested) {
+		assertSingleAuditEvent(t, eventBus, func(event platformAudit.RecordInput) {
 			if event.Action != auditActionChangePassword {
 				t.Fatalf("audit action = %q, want %q", event.Action, auditActionChangePassword)
 			}
@@ -692,6 +692,7 @@ func (h *stubPasswordHasher) Verify(string, string) bool {
 type stubEventBus struct {
 	published  []shared.Event
 	publishErr error
+	recorded   []platformAudit.RecordInput
 }
 
 func (b *stubEventBus) Publish(_ context.Context, events ...shared.Event) error {
@@ -699,18 +700,18 @@ func (b *stubEventBus) Publish(_ context.Context, events ...shared.Event) error 
 	return b.publishErr
 }
 
-func assertSingleAuditEvent(t *testing.T, bus *stubEventBus, assertFn func(platformAudit.LogRequested)) {
+func (b *stubEventBus) Record(_ context.Context, input platformAudit.RecordInput) error {
+	b.recorded = append(b.recorded, input)
+	return b.publishErr
+}
+
+func assertSingleAuditEvent(t *testing.T, bus *stubEventBus, assertFn func(platformAudit.RecordInput)) {
 	t.Helper()
 
-	if len(bus.published) != 1 {
-		t.Fatalf("published events = %d, want 1", len(bus.published))
+	if len(bus.recorded) != 1 {
+		t.Fatalf("recorded audit logs = %d, want 1", len(bus.recorded))
 	}
-
-	event, ok := bus.published[0].(platformAudit.LogRequested)
-	if !ok {
-		t.Fatalf("published event type = %T, want platformAudit.LogRequested", bus.published[0])
-	}
-	assertFn(event)
+	assertFn(bus.recorded[0])
 }
 
 func newTestUser(id uint, status domainIdentity.Status, emailVerified bool) *domainIdentity.User {

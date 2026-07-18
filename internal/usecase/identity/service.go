@@ -37,6 +37,7 @@ type Service struct {
 	verificationIssuer EmailVerificationIssuer
 	logger             logger.Logger
 	eventBus           shared.EventBus
+	auditor            platformAudit.Recorder
 }
 
 func New(
@@ -49,6 +50,7 @@ func New(
 	verificationIssuer EmailVerificationIssuer,
 	logger logger.Logger,
 	eventBus shared.EventBus,
+	auditRecorders ...platformAudit.Recorder,
 ) *Service {
 	return &Service{
 		tx:                 tx,
@@ -61,6 +63,7 @@ func New(
 		verificationIssuer: verificationIssuer,
 		logger:             logger,
 		eventBus:           eventBus,
+		auditor:            platformAudit.ResolveRecorder(auditRecorders...),
 	}
 }
 
@@ -253,56 +256,61 @@ func (s *Service) UpdateProfile(ctx context.Context, cmd UpdateProfileCmd) (*Use
 }
 
 func (s *Service) UpdateStatus(ctx context.Context, cmd UpdateStatusCmd) (*UserResult, error) {
-	user, err := s.userRepo.FindByID(ctx, cmd.UserID)
-	if err != nil {
-		if errors.Is(err, shared.ErrNotFound) {
-			return nil, ErrUserNotFound
+	var result *UserResult
+	err := s.tx.Do(ctx, func(ctx context.Context) error {
+		user, err := s.userRepo.FindByID(ctx, cmd.UserID)
+		if err != nil {
+			if errors.Is(err, shared.ErrNotFound) {
+				return ErrUserNotFound
+			}
+			return err
 		}
-		return nil, err
-	}
-	oldStatus := statusName(user.GetStatus())
+		oldStatus := statusName(user.GetStatus())
 
-	switch cmd.Status {
-	case "active":
-		if err := user.Activate(); err != nil {
-			return nil, err
+		switch cmd.Status {
+		case "active":
+			if err := user.Activate(); err != nil {
+				return err
+			}
+		case "locked":
+			if err := user.Lock(); err != nil {
+				return err
+			}
+		case "banned":
+			user.Ban()
+		default:
+			return domainIdentity.ErrInvalidUserData
 		}
-	case "locked":
-		if err := user.Lock(); err != nil {
-			return nil, err
-		}
-	case "banned":
-		user.Ban()
-	default:
-		return nil, domainIdentity.ErrInvalidUserData
-	}
 
-	if err := s.userRepo.Update(ctx, user); err != nil {
-		return nil, err
-	}
-	s.publishAudit(ctx, platformAudit.LogRequested{
-		ActorUserID: uintPtr(cmd.ActorUserID),
-		TargetType:  "user",
-		TargetID:    uintString(user.GetID()),
-		Action:      auditActionUserStatusChanged,
-		Result:      platformAudit.ResultSuccess,
-		IP:          cmd.IP,
-		UserAgent:   cmd.UserAgent,
-		Metadata: map[string]any{
-			"old_status": oldStatus,
-			"new_status": cmd.Status,
-		},
+		if err := s.userRepo.Update(ctx, user); err != nil {
+			return err
+		}
+		if err := s.recordAudit(ctx, platformAudit.RecordInput{
+			ActorUserID: uintPtr(cmd.ActorUserID),
+			TargetType:  "user",
+			TargetID:    uintString(user.GetID()),
+			Action:      auditActionUserStatusChanged,
+			Result:      platformAudit.ResultSuccess,
+			IP:          cmd.IP,
+			UserAgent:   cmd.UserAgent,
+			Metadata: map[string]any{
+				"old_status": oldStatus,
+				"new_status": cmd.Status,
+			},
+		}); err != nil {
+			return err
+		}
+		result = FromEntity(user)
+		return nil
 	})
-	return FromEntity(user), nil
+	return result, err
 }
 
-func (s *Service) publishAudit(ctx context.Context, evt platformAudit.LogRequested) {
-	if s.eventBus == nil {
-		return
+func (s *Service) recordAudit(ctx context.Context, evt platformAudit.RecordInput) error {
+	if s.auditor == nil {
+		return nil
 	}
-	if err := s.eventBus.Publish(ctx, evt); err != nil && s.logger != nil {
-		s.logger.Error("publish audit event failed", "action", evt.Action, "error", err)
-	}
+	return s.auditor.Record(ctx, evt)
 }
 
 func uintPtr(value uint) *uint {

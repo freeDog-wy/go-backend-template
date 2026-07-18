@@ -15,6 +15,7 @@ import (
 	"github.com/freeDog-wy/go-backend-template/internal/domain/shared"
 	"github.com/freeDog-wy/go-backend-template/internal/infra/postgres"
 	modelCMS "github.com/freeDog-wy/go-backend-template/internal/model/cms"
+	platformAudit "github.com/freeDog-wy/go-backend-template/internal/platform/audit"
 	baseRepository "github.com/freeDog-wy/go-backend-template/internal/repository"
 	"github.com/freeDog-wy/go-backend-template/internal/testsupport"
 	svcCMS "github.com/freeDog-wy/go-backend-template/internal/usecase/cms"
@@ -166,16 +167,17 @@ func TestRepositoryIntegrationCMSConstraintsAndPublicVisibility(t *testing.T) {
 		t.Fatal("expected locale slug uniqueness error")
 	}
 
-	eventBus := &repositoryEventBus{}
-	service := svcCMS.New(baseRepository.NewTxManager(db), repo, eventBus)
+	recorder := &repositoryAuditRecorder{}
+	service := svcCMS.New(baseRepository.NewTxManager(db), repo)
+	service.SetAuditRecorder(recorder)
 	if err := service.DeleteArticle(ctx, svcCMS.DeleteArticleCmd{ArticleID: article2.ID, ActorUserID: authorID}); err != nil {
 		t.Fatalf("delete article: %v", err)
 	}
 	if _, err := repo.FindPublicArticle(ctx, "zh-CN", translation2.Slug); !errors.Is(err, shared.ErrNotFound) {
 		t.Fatalf("deleted public lookup error = %v", err)
 	}
-	if len(eventBus.events) != 1 || eventBus.events[0].EventName() != "audit.log.requested" {
-		t.Fatalf("audit events = %#v, want one audit.log.requested", eventBus.events)
+	if len(recorder.records) != 1 || recorder.records[0].Action != "cms_article_deleted" {
+		t.Fatalf("audit records = %#v, want one article delete record", recorder.records)
 	}
 	if err := service.RestoreArticle(ctx, svcCMS.RestoreArticleCmd{ArticleID: article2.ID, ActorUserID: authorID}); err != nil {
 		t.Fatalf("restore article: %v", err)
@@ -185,10 +187,10 @@ func TestRepositoryIntegrationCMSConstraintsAndPublicVisibility(t *testing.T) {
 	}
 }
 
-type repositoryEventBus struct{ events []shared.Event }
+type repositoryAuditRecorder struct{ records []platformAudit.RecordInput }
 
-func (b *repositoryEventBus) Publish(_ context.Context, events ...shared.Event) error {
-	b.events = append(b.events, events...)
+func (r *repositoryAuditRecorder) Record(_ context.Context, input platformAudit.RecordInput) error {
+	r.records = append(r.records, input)
 	return nil
 }
 

@@ -22,7 +22,7 @@ type Service struct {
 	tx                shared.TxManager
 	repo              domainCMS.Repository
 	now               func() time.Time
-	eventBus          shared.EventBus
+	auditor           platformAudit.Recorder
 	mediaFinder       ReadyMediaFinder
 	publicMediaFinder PublicMediaFinder
 }
@@ -33,15 +33,16 @@ type PublicMediaFinder interface {
 	ListPublic(context.Context, string, []uint) ([]domainMedia.PublicAsset, error)
 }
 
-func New(tx shared.TxManager, repo domainCMS.Repository, eventBuses ...shared.EventBus) *Service {
-	service := &Service{tx: tx, repo: repo, now: time.Now}
-	if len(eventBuses) > 0 {
-		service.eventBus = eventBuses[0]
-	}
-	return service
+func New(tx shared.TxManager, repo domainCMS.Repository) *Service {
+	return &Service{tx: tx, repo: repo, now: time.Now}
 }
 func (s *Service) SetMediaFinder(f ReadyMediaFinder)        { s.mediaFinder = f }
 func (s *Service) SetPublicMediaFinder(f PublicMediaFinder) { s.publicMediaFinder = f }
+func (s *Service) SetAuditRecorder(recorder platformAudit.Recorder) {
+	if recorder != nil {
+		s.auditor = recorder
+	}
+}
 
 func (s *Service) ListLocales(ctx context.Context) ([]*LocaleResult, error) {
 	locales, err := s.repo.ListLocales(ctx)
@@ -989,14 +990,14 @@ func (s *Service) publishAudit(ctx context.Context, actorUserID uint, targetType
 	return s.publishAuditText(ctx, actorUserID, targetType, strconv.FormatUint(uint64(targetID), 10), action, ip, userAgent, metadata)
 }
 func (s *Service) publishAuditText(ctx context.Context, actorUserID uint, targetType, targetID, action, ip, userAgent string, metadata map[string]any) error {
-	if s.eventBus == nil {
+	if s.auditor == nil {
 		return nil
 	}
 	var actor *uint
 	if actorUserID != 0 {
 		actor = &actorUserID
 	}
-	return s.eventBus.Publish(ctx, platformAudit.LogRequested{ActorUserID: actor, TargetType: targetType, TargetID: targetID, Action: action, Result: platformAudit.ResultSuccess, IP: ip, UserAgent: userAgent, Metadata: metadata})
+	return s.auditor.Record(ctx, platformAudit.RecordInput{ActorUserID: actor, TargetType: targetType, TargetID: targetID, Action: action, Result: platformAudit.ResultSuccess, IP: ip, UserAgent: userAgent, Metadata: metadata})
 }
 func auditMetadata(metadata map[string]any, correlationID string) map[string]any {
 	if strings.TrimSpace(correlationID) != "" {

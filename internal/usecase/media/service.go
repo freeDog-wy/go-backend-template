@@ -11,7 +11,6 @@ import (
 	domainMedia "github.com/freeDog-wy/go-backend-template/internal/domain/media"
 	"github.com/freeDog-wy/go-backend-template/internal/domain/shared"
 	model "github.com/freeDog-wy/go-backend-template/internal/model/media"
-	"github.com/freeDog-wy/go-backend-template/internal/repository/media"
 	"github.com/freeDog-wy/go-backend-template/pkg/imagevalidate"
 	"github.com/google/uuid"
 )
@@ -30,7 +29,7 @@ var imageConstraints = imagevalidate.Constraints{
 
 type Service struct {
 	tx      shared.TxManager
-	repo    *media.Repository
+	repo    AssetRepository
 	storage domainMedia.Storage
 }
 type ReadyMedia struct{ ID uint }
@@ -68,7 +67,7 @@ func (s *Service) ListPublic(ctx context.Context, locale string, ids []uint) ([]
 	return result, nil
 }
 
-func New(tx shared.TxManager, repo *media.Repository, storage domainMedia.Storage) *Service {
+func New(tx shared.TxManager, repo AssetRepository, storage domainMedia.Storage) *Service {
 	return &Service{tx: tx, repo: repo, storage: storage}
 }
 

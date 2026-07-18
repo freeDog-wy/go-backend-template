@@ -10,6 +10,7 @@ import (
 	domainIdentity "github.com/freeDog-wy/go-backend-template/internal/domain/identity"
 	"github.com/freeDog-wy/go-backend-template/internal/domain/shared"
 	domainVerification "github.com/freeDog-wy/go-backend-template/internal/domain/verification"
+	platformAudit "github.com/freeDog-wy/go-backend-template/internal/platform/audit"
 )
 
 func TestVerifyEmail(t *testing.T) {
@@ -23,7 +24,7 @@ func TestVerifyEmail(t *testing.T) {
 		users := &verificationUserRepo{user: user}
 		tokens := &verificationRepo{emailToken: token}
 		bus := &verificationBus{}
-		service := New(&verificationTx{}, users, tokens, nil, nil, nil, bus, nil)
+		service := New(&verificationTx{}, users, tokens, nil, nil, nil, bus, nil, bus)
 
 		err := service.VerifyEmail(context.Background(), VerifyEmailCmd{Token: "token", IP: "127.0.0.1"})
 		if err != nil {
@@ -32,8 +33,8 @@ func TestVerifyEmail(t *testing.T) {
 		if !user.IsActive() || !user.IsEmailVerified() || tokens.updatedEmail != token || token.GetConsumedAt() == nil {
 			t.Fatal("email verification state was not persisted")
 		}
-		if len(bus.events) != 1 || bus.events[0].EventName() != "audit.log.requested" {
-			t.Fatalf("audit events = %#v", bus.events)
+		if len(bus.records) != 1 || bus.records[0].Action != auditActionVerifyEmail {
+			t.Fatalf("audit records = %#v", bus.records)
 		}
 	})
 
@@ -55,7 +56,7 @@ func TestResetPassword(t *testing.T) {
 	tokens := &verificationRepo{resetToken: token}
 	sessions := &verificationSessionStore{}
 	bus := &verificationBus{}
-	service := New(&verificationTx{}, &verificationUserRepo{}, tokens, creds, &verificationHasher{}, sessions, bus, nil)
+	service := New(&verificationTx{}, &verificationUserRepo{}, tokens, creds, &verificationHasher{}, sessions, bus, nil, bus)
 
 	err := service.ResetPassword(context.Background(), ResetPasswordCmd{Token: "reset", Password: "new-password"})
 	if err != nil {
@@ -64,8 +65,8 @@ func TestResetPassword(t *testing.T) {
 	if credential.GetPasswordHash() != "hashed:new-password" || creds.updated != credential || tokens.updatedReset != token || token.GetConsumedAt() == nil {
 		t.Fatal("password reset changes were not persisted")
 	}
-	if sessions.deletedUserID != 7 || len(bus.events) != 1 || bus.events[0].EventName() != "audit.log.requested" {
-		t.Fatalf("session/audit state: deleted=%d events=%d", sessions.deletedUserID, len(bus.events))
+	if sessions.deletedUserID != 7 || len(bus.records) != 1 || bus.records[0].Action != auditActionResetPassword {
+		t.Fatalf("session/audit state: deleted=%d records=%d", sessions.deletedUserID, len(bus.records))
 	}
 }
 
@@ -175,9 +176,17 @@ func (s *verificationSessionStore) DeleteByUserID(_ context.Context, id uint) er
 	return nil
 }
 
-type verificationBus struct{ events []shared.Event }
+type verificationBus struct {
+	events  []shared.Event
+	records []platformAudit.RecordInput
+}
 
 func (b *verificationBus) Publish(_ context.Context, events ...shared.Event) error {
 	b.events = append(b.events, events...)
+	return nil
+}
+
+func (b *verificationBus) Record(_ context.Context, input platformAudit.RecordInput) error {
+	b.records = append(b.records, input)
 	return nil
 }

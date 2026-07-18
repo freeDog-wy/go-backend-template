@@ -36,7 +36,7 @@ HTTP request
 - 平台能力：`internal/platform/<能力>`，例如 Outbox、审计、幂等与消息消费状态。
 - Redis 客户端与追踪：`internal/infra/redis`；认证刷新令牌会话：`internal/repository/auth`。
 
-Handler 不直接访问 GORM、Redis 或 Kafka。Usecase 只依赖 domain 定义的端口，具体技术实现由 `cmd` 注入。
+Handler 不直接访问 GORM、Redis 或 Kafka。Usecase 依赖领域端口、流程端口和 Platform 暴露的通用能力接口，具体技术实现由 `cmd` 注入。Platform 复用调用方事务上下文，领域层不得反向依赖 Platform 或技术适配器。
 
 ## 事务与 Outbox
 
@@ -47,8 +47,8 @@ Handler 不直接访问 GORM、Redis 或 Kafka。Usecase 只依赖 domain 定义
 ```text
 usecase transaction
   -> 更新业务表
-  -> 写入审计事件或领域事件
-  -> EventBus 写入 outbox_events
+  -> audit.Recorder 写入 audit_logs
+  -> EventBus 写入需要异步交付的领域事件到 outbox_events
 commit
   -> cron 扫描未发布 Outbox
   -> 发布到 Kafka
@@ -62,7 +62,7 @@ Outbox 提供至少一次投递。发布成功但回写 `published_at` 失败时
 - 事务端口：`internal/domain/shared/tx.go`。
 - PostgreSQL 连接与迁移：`internal/infra/postgres`；事务上下文实现：`internal/repository/tx.go`。
 - 事件落库与扫描发布：`internal/platform/outbox`；发布任务仅由 `cmd/cron` 调用。
-- 审计事件协议、异步持久化与存储模型：`internal/platform/audit`；各业务用例定义自身动作码。
+- 审计记录器与存储模型：`internal/platform/audit`；Usecase 通过 `audit.Recorder` 在当前事务中直接写入 `audit_logs`，各业务用例定义自身动作码。
 
 ## 消息消费、重试与死信
 

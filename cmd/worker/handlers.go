@@ -8,19 +8,16 @@ import (
 	domainIdentity "github.com/freeDog-wy/go-backend-template/internal/domain/identity"
 	domainVerification "github.com/freeDog-wy/go-backend-template/internal/domain/verification"
 	"github.com/freeDog-wy/go-backend-template/internal/infra/mq"
-	platformAudit "github.com/freeDog-wy/go-backend-template/internal/platform/audit"
 	svcVerification "github.com/freeDog-wy/go-backend-template/internal/usecase/verification"
 )
 
 type workerEventConsumers struct {
 	verification *svcVerification.EmailVerificationConsumer
-	audit        *platformAudit.Consumer
 }
 
-func newWorkerEventConsumers(cfg *config.Config, infra *workerInfrastructure, platform *workerPlatform) *workerEventConsumers {
+func newWorkerEventConsumers(cfg *config.Config, infra *workerInfrastructure) *workerEventConsumers {
 	return &workerEventConsumers{
 		verification: svcVerification.NewConsumer(infra.emailSender, cfg.Email.SiteBaseURL, infra.logger),
-		audit:        platformAudit.NewConsumer(platform.audit, infra.logger),
 	}
 }
 
@@ -39,13 +36,6 @@ func registerWorkerHandlers(consumer mq.Consumer, handlers *workerEventConsumers
 			return err
 		}
 		return handlers.verification.OnPasswordResetRequested(ctx, event)
-	})
-	consumer.Handle("audit.log.requested", func(ctx context.Context, message mq.Message) error {
-		var event platformAudit.LogRequested
-		if err := json.Unmarshal(message.Payload, &event); err != nil {
-			return err
-		}
-		return handlers.audit.OnLogRequested(ctx, event)
 	})
 }
 

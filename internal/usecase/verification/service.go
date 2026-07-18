@@ -28,6 +28,7 @@ type Service struct {
 	pwdHasher      shared.PasswordHasher
 	sessionStore   domainAuth.SessionStore
 	eventBus       shared.EventBus
+	auditor        platformAudit.Recorder
 	logger         logger.Logger
 }
 
@@ -40,6 +41,7 @@ func New(
 	sessionStore domainAuth.SessionStore,
 	eventBus shared.EventBus,
 	logger logger.Logger,
+	auditRecorders ...platformAudit.Recorder,
 ) *Service {
 	return &Service{
 		tx:             tx,
@@ -49,6 +51,7 @@ func New(
 		pwdHasher:      pwdHasher,
 		sessionStore:   sessionStore,
 		eventBus:       eventBus,
+		auditor:        platformAudit.ResolveRecorder(auditRecorders...),
 		logger:         logger,
 	}
 }
@@ -145,7 +148,7 @@ func (s *Service) VerifyEmail(ctx context.Context, cmd VerifyEmailCmd) (err erro
 		if err := s.verifyRepo.Update(ctx, token); err != nil {
 			return err
 		}
-		s.publishAudit(ctx, platformAudit.LogRequested{
+		return s.recordAudit(ctx, platformAudit.RecordInput{
 			ActorUserID: uintPtr(user.GetID()),
 			TargetType:  "user",
 			TargetID:    uintString(user.GetID()),
@@ -154,7 +157,6 @@ func (s *Service) VerifyEmail(ctx context.Context, cmd VerifyEmailCmd) (err erro
 			IP:          cmd.IP,
 			UserAgent:   cmd.UserAgent,
 		})
-		return nil
 	})
 	return err
 }
@@ -213,22 +215,21 @@ func (s *Service) ResetPassword(ctx context.Context, cmd ResetPasswordCmd) (err 
 		}
 
 		userID = token.GetUserID()
-		return nil
+		return s.recordAudit(ctx, platformAudit.RecordInput{
+			ActorUserID: uintPtr(userID),
+			TargetType:  "user",
+			TargetID:    uintString(userID),
+			Action:      auditActionResetPassword,
+			Result:      platformAudit.ResultSuccess,
+			IP:          cmd.IP,
+			UserAgent:   cmd.UserAgent,
+		})
 	})
 	if err != nil {
 		return err
 	}
 
 	s.invalidateUserSession(ctx, userID)
-	s.publishAudit(ctx, platformAudit.LogRequested{
-		ActorUserID: uintPtr(userID),
-		TargetType:  "user",
-		TargetID:    uintString(userID),
-		Action:      auditActionResetPassword,
-		Result:      platformAudit.ResultSuccess,
-		IP:          cmd.IP,
-		UserAgent:   cmd.UserAgent,
-	})
 	return nil
 }
 
@@ -302,13 +303,11 @@ func normalizeEmail(email string) string {
 	return strings.ToLower(strings.TrimSpace(email))
 }
 
-func (s *Service) publishAudit(ctx context.Context, evt platformAudit.LogRequested) {
-	if s.eventBus == nil {
-		return
+func (s *Service) recordAudit(ctx context.Context, evt platformAudit.RecordInput) error {
+	if s.auditor == nil {
+		return nil
 	}
-	if err := s.eventBus.Publish(ctx, evt); err != nil && s.logger != nil {
-		s.logger.Error("publish audit event failed", "action", evt.Action, "error", err)
-	}
+	return s.auditor.Record(ctx, evt)
 }
 
 func uintPtr(value uint) *uint {

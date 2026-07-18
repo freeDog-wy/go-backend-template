@@ -6,6 +6,7 @@ import (
 
 	"github.com/freeDog-wy/go-backend-template/internal/config"
 	"github.com/freeDog-wy/go-backend-template/internal/infra/tracing"
+	platformAudit "github.com/freeDog-wy/go-backend-template/internal/platform/audit"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 )
 
@@ -43,7 +44,7 @@ func initApp(cfg *config.Config) (*App, error) {
 		return nil, err
 	}
 
-	serviceTokenHandler, err := newMCPServiceTokenHandler(context.Background(), cfg, infra, repos, services.eventBus)
+	serviceTokenHandler, err := newMCPServiceTokenHandler(context.Background(), cfg, infra, repos, platformAudit.NewRecorder(platform.audit))
 	if err != nil {
 		return nil, err
 	}

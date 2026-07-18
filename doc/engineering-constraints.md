@@ -40,10 +40,10 @@ template/v0.1.0
 项目遵循以下依赖方向：
 
 ```text
-handler -> usecase -> domain
+handler -> usecase -> domain / platform
 platform -> domain / repository / infra
-repository -> domain
-infra -> 第三方库
+repository -> domain / usecase 端口
+infra -> domain / usecase 端口 / 第三方库
 cmd -> handler / usecase / platform / repository / infra 的装配
 ```
 
@@ -51,14 +51,14 @@ cmd -> handler / usecase / platform / repository / infra 的装配
 - `cmd/worker` 仅负责消费异步消息和依赖装配。
 - `cmd/cron` 仅负责调度定时任务和依赖装配。
 - `handler` 仅负责协议转换、输入校验、认证授权和 HTTP 响应。
-- `usecase` 负责业务流程编排、事务边界和调用领域能力。
+- `usecase` 负责业务流程编排、事务边界，并调用领域能力和平台提供的通用能力。
 - `domain` 定义实体、领域规则、事件和依赖契约；不得依赖 Gin、GORM、Redis、Kafka 等具体实现。
 - `repository` 负责 auth、CMS、identity 等业务领域数据的 PostgreSQL、Redis 持久化实现；不得承载业务流程。
-- `platform` 负责 Outbox、审计、HTTP 幂等、消息消费状态等无具体业务领域的平台能力；组件可拥有自己的表和存储实现，但不得读写业务领域数据或表达业务规则。具体领域的审计动作码由对应 Usecase 定义。
-- `infra` 负责 PostgreSQL、Redis、Kafka、日志、追踪、加密、对象存储等技术适配；生产代码不得导入 `domain`、`repository`、`platform`、`usecase`、`handler` 或 `cmd`。
+- `platform` 负责 Outbox、审计、HTTP 幂等、消息消费状态等无具体业务领域的平台能力，并向 Usecase 暴露窄接口；组件可拥有自己的表和存储实现，但不得读写业务领域数据、表达业务规则或自行创建业务事务。Usecase 决定何时调用平台能力以及具体领域的审计动作码，Platform 复用调用方 context 执行交付和持久化。
+- `infra` 负责 PostgreSQL、Redis、Kafka、日志、追踪、加密、对象存储等技术适配；可依赖 `domain` 或 `usecase` 定义的窄端口以提供实现，但不得依赖具体 `repository`、`platform`、`handler` 或 `cmd`。`domain` 不得反向依赖任何技术适配实现。
 - `pkg` 只放可脱离本项目业务语义复用的技术组件。
 
-禁止在 Handler 中直接操作 GORM、Redis 或 Kafka；禁止在 Usecase 中直接依赖具体 Kafka、Redis 或 GORM 类型。Platform 对外应暴露窄接口并复用调用方 context，不得自行创建业务事务。
+禁止在 Handler 中直接操作 GORM、Redis 或 Kafka；禁止在 Usecase 中直接依赖具体 Kafka、Redis、GORM 或 Repository 类型。领域语义端口置于 `domain`，流程编排端口置于对应 `usecase/<领域>/port.go`，通用应用能力契约置于 `platform/<能力>` 并由 Usecase 直接依赖。Platform 对外应暴露窄接口并复用调用方 context，不得自行创建业务事务。
 
 Repository 类型以领域语义命名，不以当前存储介质命名；实现细节由所在包、依赖和装配体现。组合 PostgreSQL 与 Redis 旁路缓存且行为发生变化时，使用 `Cached...Repository`，并由该装饰器实现领域端口。平台组件的存储实现与模型应保留在各自的 `platform/<capability>` 目录，不放入全局 `repository` 或 `model`。
 
@@ -83,6 +83,7 @@ Repository 类型以领域语义命名，不以当前存储介质命名；实现
 
 - 所有会触发外部副作用的领域事件，必须在同一数据库事务中写入 `outbox_events`。
 - 不得在事务提交前直接向 Kafka、邮件服务或其他外部系统发送业务事件。
+- 本地审计记录必须由 Usecase 通过 `platform/audit.Recorder` 使用当前事务上下文直接写入 `audit_logs`，不得经 Outbox、Kafka 或 Worker 回写同一数据库。
 - Outbox 发布采用至少一次投递语义；生产者可能重复投递，消费者必须幂等。
 - 消息 key 必须稳定、可追踪，并在消费者侧作为幂等处理的依据。
 - Outbox 发布成功但回写 `published_at` 失败时允许重发，不得将其误认为消息丢失。
