@@ -12,10 +12,10 @@ import (
 
 // EventBus 将领域事件持久化到本地 Outbox 表，而不在事务内直接发送到外部消息系统。
 type EventBus struct {
-	repo Store
+	repo *Repository
 }
 
-func NewEventBus(repo Store) *EventBus {
+func NewEventBus(repo *Repository) *EventBus {
 	return &EventBus{repo: repo}
 }
 

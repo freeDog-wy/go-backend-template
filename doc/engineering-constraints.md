@@ -60,6 +60,8 @@ cmd -> handler / usecase / platform / repository / infra 的装配
 
 禁止在 Handler 中直接操作 GORM、Redis 或 Kafka；禁止在 Usecase 中直接依赖具体 Kafka、Redis、GORM 或 Repository 类型。领域语义端口置于 `domain`，流程编排端口置于对应 `usecase/<领域>/port.go`，通用应用能力契约置于 `platform/<能力>` 并由 Usecase 直接依赖。Platform 对外应暴露窄接口并复用调用方 context，不得自行创建业务事务。
 
+Platform 内部协作默认依赖具体类型；仅在 Usecase 调用 Platform、对接外部系统或存在真实多实现需求时定义接口。不得仅为 mock 或单一实现的内部协作创建层层接口，数据库事务和持久化语义应使用集成测试验证。
+
 Repository 类型以领域语义命名，不以当前存储介质命名；实现细节由所在包、依赖和装配体现。组合 PostgreSQL 与 Redis 旁路缓存且行为发生变化时，使用 `Cached...Repository`，并由该装饰器实现领域端口。平台组件的存储实现与模型应保留在各自的 `platform/<capability>` 目录，不放入全局 `repository` 或 `model`。
 
 ### 2.1 HTTP 响应约定

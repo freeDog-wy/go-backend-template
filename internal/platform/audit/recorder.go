@@ -6,14 +6,14 @@ import (
 	"go.opentelemetry.io/otel/trace"
 )
 
-// dbRecorder turns a use-case request into a durable audit log. Writer uses
+// dbRecorder turns a use-case request into a durable audit log. Repository uses
 // the transaction stored in ctx when the caller is inside TxManager.Do.
-type dbRecorder struct{ writer Writer }
+type dbRecorder struct{ repository *Repository }
 
 var _ Recorder = (*dbRecorder)(nil)
 
-func NewRecorder(writer Writer) Recorder {
-	return &dbRecorder{writer: writer}
+func NewRecorder(repository *Repository) Recorder {
+	return &dbRecorder{repository: repository}
 }
 
 // ResolveRecorder keeps optional recorder injection convenient for tests and
@@ -28,7 +28,7 @@ func ResolveRecorder(recorders ...Recorder) Recorder {
 }
 
 func (r *dbRecorder) Record(ctx context.Context, input RecordInput) error {
-	if r == nil || r.writer == nil {
+	if r == nil || r.repository == nil {
 		return nil
 	}
 	log, err := NewAuditLog(
@@ -45,7 +45,7 @@ func (r *dbRecorder) Record(ctx context.Context, input RecordInput) error {
 	if err != nil {
 		return err
 	}
-	return r.writer.Create(ctx, log)
+	return r.repository.Create(ctx, log)
 }
 
 func traceIDFromContext(ctx context.Context) string {

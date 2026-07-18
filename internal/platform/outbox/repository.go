@@ -9,19 +9,10 @@ import (
 	"gorm.io/gorm"
 )
 
-// Store 定义 Outbox 事件的组件内存储契约。
-type Store interface {
-	Create(ctx context.Context, events ...*Event) error
-	ListUnpublished(ctx context.Context, limit int) ([]*Event, error)
-	MarkPublished(ctx context.Context, ids []uint, publishedAt time.Time) error
-}
-
 // Repository 基于 GORM 实现 Outbox 本地消息表读写。
 type Repository struct {
 	db *gorm.DB
 }
-
-var _ Store = (*Repository)(nil)
 
 func New(db *gorm.DB) *Repository {
 	return &Repository{db: db}

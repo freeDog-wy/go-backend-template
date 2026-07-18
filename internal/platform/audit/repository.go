@@ -8,17 +8,10 @@ import (
 	"gorm.io/gorm"
 )
 
-// Writer persists audit records.
-type Writer interface {
-	Create(ctx context.Context, log *AuditLog) error
-}
-
 // Repository persists audit records with GORM.
 type Repository struct {
 	db *gorm.DB
 }
-
-var _ Writer = (*Repository)(nil)
 
 func New(db *gorm.DB) *Repository {
 	return &Repository{db: db}

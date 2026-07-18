@@ -21,14 +21,14 @@ type Publisher interface {
 // OutboxPublisher 负责扫描本地 Outbox 并把事件真正投递到外部消息系统。
 // 它实现至少一次投递：成功发送但未成功标记 published_at 的事件会在下次扫描时重发。
 type OutboxPublisher struct {
-	repo      Store
+	repo      *Repository
 	publisher Publisher
 	logger    logger.Logger
 	batchSize int
 }
 
 func NewOutboxPublisher(
-	repo Store,
+	repo *Repository,
 	publisher Publisher,
 	logger logger.Logger,
 	batchSize int,
