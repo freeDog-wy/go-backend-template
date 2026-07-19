@@ -70,6 +70,14 @@ type TokenProvider interface {
 	Token(context.Context) (string, error)
 }
 
+type writeOperationKey struct{}
+
+// WithWriteOperation binds one MCP write intent to a stable idempotency key.
+// Callers must reuse the same value only when retrying an uncertain outcome.
+func WithWriteOperation(ctx context.Context, operationID string) context.Context {
+	return context.WithValue(ctx, writeOperationKey{}, strings.TrimSpace(operationID))
+}
+
 type Client struct {
 	baseURL string
 	http    *http.Client
@@ -241,9 +249,12 @@ func (c *Client) write(ctx context.Context, method, path string, payload any) (j
 		return nil, err
 	}
 	req.Header.Set("Content-Type", "application/json")
-	requestID := correlationID()
-	req.Header.Set("X-Correlation-ID", requestID)
-	req.Header.Set("Idempotency-Key", requestID)
+	operationID, _ := ctx.Value(writeOperationKey{}).(string)
+	if operationID == "" {
+		operationID = correlationID()
+	}
+	req.Header.Set("X-Correlation-ID", operationID)
+	req.Header.Set("Idempotency-Key", operationID)
 	return c.do(req, true)
 }
 

@@ -33,10 +33,10 @@ func TestFilterArticleStatus(t *testing.T) {
 }
 
 func TestOperationalInputValidation(t *testing.T) {
-	if err := validateArticleReference(articleReferenceInput{ArticleID: 7, Locale: "zh-CN"}); err != nil {
+	if err := validateArticleReference(articleReferenceInput{ArticleID: 7, Locale: "zh-CN", OperationID: "operation-1"}, true); err != nil {
 		t.Fatalf("validateArticleReference() error = %v", err)
 	}
-	if err := validateArticleReference(articleReferenceInput{ArticleID: 7}); err == nil {
+	if err := validateArticleReference(articleReferenceInput{ArticleID: 7}, true); err == nil {
 		t.Fatal("validateArticleReference() accepted missing locale")
 	}
 	if err := validateNamedTranslation("zh-CN", "Engineering", "engineering"); err != nil {

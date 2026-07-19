@@ -21,6 +21,7 @@ import (
 	svcIdentity "github.com/freeDog-wy/go-backend-template/internal/usecase/identity"
 	svcMedia "github.com/freeDog-wy/go-backend-template/internal/usecase/media"
 	svcVerification "github.com/freeDog-wy/go-backend-template/internal/usecase/verification"
+	"github.com/redis/go-redis/v9"
 	"gorm.io/gorm"
 )
 
@@ -48,14 +49,14 @@ func newServerRepositories(db *gorm.DB) *serverRepositories {
 
 type serverPlatform struct {
 	outbox      *platformOutbox.Repository
-	idempotency *platformIdempotency.Repository
+	idempotency *platformIdempotency.Store
 	audit       *platformAudit.Repository
 }
 
-func newServerPlatform(db *gorm.DB) *serverPlatform {
+func newServerPlatform(db *gorm.DB, redis *redis.Client) *serverPlatform {
 	return &serverPlatform{
 		outbox:      platformOutbox.New(db),
-		idempotency: platformIdempotency.New(db),
+		idempotency: platformIdempotency.New(redis),
 		audit:       platformAudit.New(db),
 	}
 }

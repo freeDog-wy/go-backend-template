@@ -35,7 +35,7 @@ func initApp(cfg *config.Config) (*App, error) {
 		return nil, err
 	}
 	repos := newServerRepositories(infra.db)
-	platform := newServerPlatform(infra.db)
+	platform := newServerPlatform(infra.db, infra.redis)
 	services, err := newServerServices(cfg, infra, repos, platform)
 	if err != nil {
 		return nil, err

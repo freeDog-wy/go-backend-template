@@ -6,7 +6,6 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
-	"time"
 
 	platformIdempotency "github.com/freeDog-wy/go-backend-template/internal/platform/idempotency"
 	"github.com/gin-gonic/gin"
@@ -15,9 +14,7 @@ import (
 func TestIdempotencyReplaysCompletedResponse(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	store := &idempotencyStoreFake{}
-	r := gin.New()
-	r.Use(func(c *gin.Context) { c.Set(CurrentUserIDKey, uint(7)); c.Next() })
-	r.POST("/writes", Idempotency(store), func(c *gin.Context) { c.JSON(http.StatusOK, gin.H{"success": true}) })
+	r := newIdempotencyRouter(store)
 
 	first := requestWithKey(r, "same-key", `{"title":"one"}`)
 	second := requestWithKey(r, "same-key", `{"title":"one"}`)
@@ -29,14 +26,30 @@ func TestIdempotencyReplaysCompletedResponse(t *testing.T) {
 func TestIdempotencyRejectsKeyReusedWithDifferentBody(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	store := &idempotencyStoreFake{}
-	r := gin.New()
-	r.Use(func(c *gin.Context) { c.Set(CurrentUserIDKey, uint(7)); c.Next() })
-	r.POST("/writes", Idempotency(store), func(c *gin.Context) { c.JSON(http.StatusOK, gin.H{"success": true}) })
+	r := newIdempotencyRouter(store)
 	_ = requestWithKey(r, "same-key", `{"title":"one"}`)
 	response := requestWithKey(r, "same-key", `{"title":"two"}`)
 	if !strings.Contains(response.Body.String(), `"IDEMPOTENCY_KEY_REUSED"`) || store.completes != 1 {
 		t.Fatalf("response=%s completes=%d", response.Body.String(), store.completes)
 	}
+}
+
+func TestIdempotencyRejectsDuplicateWhileProcessing(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	store := &idempotencyStoreFake{stateAfterClaim: platformIdempotency.StateProcessing}
+	r := newIdempotencyRouter(store)
+	_ = requestWithKey(r, "same-key", `{"title":"one"}`)
+	response := requestWithKey(r, "same-key", `{"title":"one"}`)
+	if !strings.Contains(response.Body.String(), `"IDEMPOTENCY_IN_PROGRESS"`) {
+		t.Fatalf("response=%s", response.Body.String())
+	}
+}
+
+func newIdempotencyRouter(store idempotencyStore) *gin.Engine {
+	r := gin.New()
+	r.Use(func(c *gin.Context) { c.Set(CurrentUserIDKey, uint(7)); c.Next() })
+	r.POST("/writes", Idempotency(store), func(c *gin.Context) { c.JSON(http.StatusOK, gin.H{"success": true}) })
+	return r
 }
 
 func requestWithKey(r http.Handler, key, body string) *httptest.ResponseRecorder {
@@ -48,22 +61,29 @@ func requestWithKey(r http.Handler, key, body string) *httptest.ResponseRecorder
 }
 
 type idempotencyStoreFake struct {
-	record    *platformIdempotency.Record
-	claims    int
-	completes int
+	claim           *platformIdempotency.Claim
+	claims          int
+	completes       int
+	stateAfterClaim platformIdempotency.State
 }
 
-func (s *idempotencyStoreFake) Claim(_ context.Context, _ uint, _ string, _ string, _ string, requestHash string) (*platformIdempotency.Record, bool, error) {
+func (s *idempotencyStoreFake) Claim(_ context.Context, _ uint, _ string, _ string, _ string, requestHash string) (*platformIdempotency.Claim, error) {
 	s.claims++
-	if s.record == nil {
-		s.record = &platformIdempotency.Record{ID: 1, RequestHash: requestHash}
-		return s.record, true, nil
+	if s.claim == nil {
+		s.claim = &platformIdempotency.Claim{State: platformIdempotency.StateClaimed, RequestHash: requestHash}
+		return s.claim, nil
 	}
-	return s.record, false, nil
+	if s.claim.RequestHash != requestHash {
+		return &platformIdempotency.Claim{State: platformIdempotency.StateMismatch, RequestHash: s.claim.RequestHash}, nil
+	}
+	if s.stateAfterClaim == platformIdempotency.StateProcessing {
+		return &platformIdempotency.Claim{State: platformIdempotency.StateProcessing, RequestHash: requestHash}, nil
+	}
+	return &platformIdempotency.Claim{State: platformIdempotency.StateCompleted, RequestHash: requestHash, StatusCode: s.claim.StatusCode, ResponseBody: s.claim.ResponseBody}, nil
 }
-func (s *idempotencyStoreFake) Complete(_ context.Context, _ uint, body []byte, status int) error {
+
+func (s *idempotencyStoreFake) Complete(_ context.Context, claim *platformIdempotency.Claim, body []byte, status int) error {
 	s.completes++
-	now := time.Now()
-	s.record.ResponseBody, s.record.StatusCode, s.record.CompletedAt = body, status, &now
+	claim.State, claim.ResponseBody, claim.StatusCode = platformIdempotency.StateCompleted, body, status
 	return nil
 }

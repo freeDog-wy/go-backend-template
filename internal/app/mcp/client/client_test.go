@@ -67,6 +67,25 @@ func TestCreateArticleDraftSendsAuthenticatedJSON(t *testing.T) {
 	}
 }
 
+func TestWriteOperationReusesStableRequestHeaders(t *testing.T) {
+	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Header.Get("Idempotency-Key") != "operation-42" || r.Header.Get("X-Correlation-ID") != "operation-42" {
+			t.Fatalf("headers = %#v", r.Header)
+		}
+		_, _ = w.Write([]byte(`{"success":true,"data":{"id":7}}`))
+	}))
+	defer server.Close()
+
+	client, err := New(server.URL, server.Client(), tokenProviderStub{}, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx := WithWriteOperation(context.Background(), "operation-42")
+	if _, err := client.CreateArticleDraft(ctx, ArticleInput{Locale: "zh-CN", Title: "Draft", Slug: "draft"}); err != nil {
+		t.Fatal(err)
+	}
+}
+
 func TestOperationalWritesUseExpectedCMSRoutes(t *testing.T) {
 	mediaID := uint(9)
 	cases := []struct {

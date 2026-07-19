@@ -2,6 +2,7 @@ package middleware
 
 import (
 	"bytes"
+	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"io"
@@ -16,11 +17,14 @@ import (
 // IdempotencyKeyHeader 是客户端声明写请求幂等性的 HTTP 请求头。
 const IdempotencyKeyHeader = "Idempotency-Key"
 
-// Idempotency 为携带 Idempotency-Key 的写请求提供重放保护。
-//
-// 无 key 的请求保持原有行为。已领取但未完成的记录不会执行第二次；首次业务响应已经
-// 写出后，若 Complete 失败也不能用基础设施错误替换该响应，以避免客户端误判业务失败。
-func Idempotency(store platformIdempotency.Store) gin.HandlerFunc {
+// Idempotency provides short-lived Redis-backed duplicate protection for HTTP writes.
+// Requests without a key retain their original behavior.
+type idempotencyStore interface {
+	Claim(context.Context, uint, string, string, string, string) (*platformIdempotency.Claim, error)
+	Complete(context.Context, *platformIdempotency.Claim, []byte, int) error
+}
+
+func Idempotency(store idempotencyStore) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		key := strings.TrimSpace(c.GetHeader(IdempotencyKeyHeader))
 		if key == "" {
@@ -40,20 +44,28 @@ func Idempotency(store platformIdempotency.Store) gin.HandlerFunc {
 		}
 		c.Request.Body = io.NopCloser(bytes.NewReader(body))
 		hash := sha256.Sum256(body)
-		record, claimed, err := store.Claim(c.Request.Context(), CurrentUserID(c), c.Request.Method, c.FullPath(), key, hex.EncodeToString(hash[:]))
+		record, err := store.Claim(c.Request.Context(), CurrentUserID(c), c.Request.Method, c.FullPath(), key, hex.EncodeToString(hash[:]))
 		if err != nil {
 			handler.Fail(c, "IDEMPOTENCY_UNAVAILABLE", "idempotency check failed")
 			c.Abort()
 			return
 		}
-		if !claimed {
-			if record.RequestHash != hex.EncodeToString(hash[:]) {
-				handler.Fail(c, "IDEMPOTENCY_KEY_REUSED", "idempotency key was used with a different request")
-			} else if record.CompletedAt == nil {
-				handler.Fail(c, "IDEMPOTENCY_IN_PROGRESS", "an identical request is still being processed")
-			} else {
-				c.Data(record.StatusCode, "application/json; charset=utf-8", record.ResponseBody)
-			}
+		switch record.State {
+		case platformIdempotency.StateMismatch:
+			handler.Fail(c, "IDEMPOTENCY_KEY_REUSED", "idempotency key was used with a different request")
+			c.Abort()
+			return
+		case platformIdempotency.StateProcessing:
+			handler.Fail(c, "IDEMPOTENCY_IN_PROGRESS", "an identical request is still being processed")
+			c.Abort()
+			return
+		case platformIdempotency.StateCompleted:
+			c.Data(record.StatusCode, "application/json; charset=utf-8", record.ResponseBody)
+			c.Abort()
+			return
+		case platformIdempotency.StateClaimed:
+		default:
+			handler.Fail(c, "IDEMPOTENCY_UNAVAILABLE", "idempotency state is invalid")
 			c.Abort()
 			return
 		}
@@ -61,7 +73,7 @@ func Idempotency(store platformIdempotency.Store) gin.HandlerFunc {
 		writer := &idempotencyWriter{ResponseWriter: c.Writer}
 		c.Writer = writer
 		c.Next()
-		if err := store.Complete(c.Request.Context(), record.ID, writer.body.Bytes(), c.Writer.Status()); err != nil {
+		if err := store.Complete(c.Request.Context(), record, writer.body.Bytes(), c.Writer.Status()); err != nil {
 			// The operation succeeded; do not replace its response with an infrastructure error.
 			return
 		}

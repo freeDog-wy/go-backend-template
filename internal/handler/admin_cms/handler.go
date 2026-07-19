@@ -2,6 +2,8 @@ package admin_cms
 
 import (
 	"errors"
+	"strconv"
+
 	domainCMS "github.com/freeDog-wy/go-backend-template/internal/domain/cms"
 	"github.com/freeDog-wy/go-backend-template/internal/handler"
 	handlerMiddleware "github.com/freeDog-wy/go-backend-template/internal/handler/middleware"
@@ -9,7 +11,6 @@ import (
 	svcAuthorization "github.com/freeDog-wy/go-backend-template/internal/usecase/authorization"
 	svcCMS "github.com/freeDog-wy/go-backend-template/internal/usecase/cms"
 	"github.com/gin-gonic/gin"
-	"strconv"
 )
 
 type Handler struct {
@@ -33,29 +34,29 @@ func (h *Handler) writeHandlers(permission string, endpoint gin.HandlerFunc) []g
 func (h *Handler) RegisterRoutes(r *gin.Engine) {
 	g := r.Group("/api/v1/admin/cms")
 	g.GET("/locales", handlerMiddleware.RequirePermission(h.auth, h.authorizer, "cms.locale.manage"), h.ListLocales)
-	g.POST("/locales", handlerMiddleware.RequirePermission(h.auth, h.authorizer, "cms.locale.manage"), h.CreateLocale)
+	g.POST("/locales", h.writeHandlers("cms.locale.manage", h.CreateLocale)...)
 	g.GET("/tags", handlerMiddleware.RequirePermission(h.auth, h.authorizer, "cms.tag.manage"), h.ListTags)
-	g.POST("/tags", handlerMiddleware.RequirePermission(h.auth, h.authorizer, "cms.tag.manage"), h.CreateTag)
-	g.PUT("/tags/:id/translations/:locale", handlerMiddleware.RequirePermission(h.auth, h.authorizer, "cms.tag.manage"), h.UpsertTagTranslation)
-	g.PATCH("/locales/:code", handlerMiddleware.RequirePermission(h.auth, h.authorizer, "cms.locale.manage"), h.UpdateLocale)
-	g.POST("/categories", handlerMiddleware.RequirePermission(h.auth, h.authorizer, "cms.category.manage"), h.CreateCategory)
+	g.POST("/tags", h.writeHandlers("cms.tag.manage", h.CreateTag)...)
+	g.PUT("/tags/:id/translations/:locale", h.writeHandlers("cms.tag.manage", h.UpsertTagTranslation)...)
+	g.PATCH("/locales/:code", h.writeHandlers("cms.locale.manage", h.UpdateLocale)...)
+	g.POST("/categories", h.writeHandlers("cms.category.manage", h.CreateCategory)...)
 	g.GET("/categories", handlerMiddleware.RequirePermission(h.auth, h.authorizer, "cms.category.manage"), h.ListCategories)
-	g.PATCH("/categories/:id/move", handlerMiddleware.RequirePermission(h.auth, h.authorizer, "cms.category.manage"), h.MoveCategory)
-	g.PATCH("/categories/:id", handlerMiddleware.RequirePermission(h.auth, h.authorizer, "cms.category.manage"), h.UpdateCategory)
-	g.PUT("/categories/:id/translations/:locale", handlerMiddleware.RequirePermission(h.auth, h.authorizer, "cms.category.manage"), h.UpsertCategoryTranslation)
+	g.PATCH("/categories/:id/move", h.writeHandlers("cms.category.manage", h.MoveCategory)...)
+	g.PATCH("/categories/:id", h.writeHandlers("cms.category.manage", h.UpdateCategory)...)
+	g.PUT("/categories/:id/translations/:locale", h.writeHandlers("cms.category.manage", h.UpsertCategoryTranslation)...)
 	g.POST("/articles", h.writeHandlers("cms.article.create", h.CreateArticle)...)
 	g.GET("/articles", handlerMiddleware.RequirePermission(h.auth, h.authorizer, "cms.article.update"), h.ListArticles)
-	g.DELETE("/articles/:id", handlerMiddleware.RequirePermission(h.auth, h.authorizer, "cms.article.archive"), h.DeleteArticle)
-	g.POST("/articles/:id/restore", handlerMiddleware.RequirePermission(h.auth, h.authorizer, "cms.article.archive"), h.RestoreArticle)
+	g.DELETE("/articles/:id", h.writeHandlers("cms.article.archive", h.DeleteArticle)...)
+	g.POST("/articles/:id/restore", h.writeHandlers("cms.article.archive", h.RestoreArticle)...)
 	g.GET("/articles/:id/translations/:locale", handlerMiddleware.RequirePermission(h.auth, h.authorizer, "cms.article.update"), h.GetArticleTranslation)
 	g.PUT("/articles/:id/categories", h.writeHandlers("cms.article.update", h.ReplaceArticleCategories)...)
 	g.PUT("/articles/:id/tags", h.writeHandlers("cms.article.update", h.ReplaceArticleTags)...)
-	g.PUT("/articles/:id/cover", handlerMiddleware.RequirePermission(h.auth, h.authorizer, "cms.article.update"), h.SetArticleCover)
-	g.POST("/articles/:id/translations", handlerMiddleware.RequirePermission(h.auth, h.authorizer, "cms.article.update"), h.CreateTranslation)
+	g.PUT("/articles/:id/cover", h.writeHandlers("cms.article.update", h.SetArticleCover)...)
+	g.POST("/articles/:id/translations", h.writeHandlers("cms.article.update", h.CreateTranslation)...)
 	g.PUT("/articles/:id/translations/:locale", h.writeHandlers("cms.article.update", h.UpdateTranslation)...)
 	g.GET("/articles/:id/translations/:locale/publish-preview", handlerMiddleware.RequirePermission(h.auth, h.authorizer, "cms.article.publish"), h.PreviewPublish)
 	g.POST("/articles/:id/translations/:locale/publish", h.writeHandlers("cms.article.publish", h.PublishTranslation)...)
-	g.POST("/articles/:id/translations/:locale/archive", handlerMiddleware.RequirePermission(h.auth, h.authorizer, "cms.article.archive"), h.ArchiveTranslation)
+	g.POST("/articles/:id/translations/:locale/archive", h.writeHandlers("cms.article.archive", h.ArchiveTranslation)...)
 }
 
 type categoryReq struct {
