@@ -93,7 +93,15 @@ func newServerServices(cfg *config.Config, infra *serverInfrastructure, repos *s
 		auditRecorder,
 	)
 	auth.SetTxManager(infra.txManager)
-	cms := svcCMS.New(infra.txManager, repos.cms)
+	cms := svcCMS.NewWithRepositories(infra.txManager, svcCMS.Repositories{
+		LocaleRepository:          repos.cms,
+		TagRepository:             repos.cms,
+		CategoryRepository:        repos.cms,
+		ArticleRepository:         repos.cms,
+		ArticleRelationRepository: repos.cms,
+		RedirectRepository:        repos.cms,
+		PublicContentRepository:   repos.cms,
+	})
 	cms.SetAuditRecorder(auditRecorder)
 	media := svcMedia.New(infra.txManager, repos.media, infra.mediaStorage)
 	cms.SetMediaFinder(media)

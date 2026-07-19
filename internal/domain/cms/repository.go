@@ -69,3 +69,76 @@ type Repository interface {
 	ListPublicTags(ctx context.Context, locale string, page shared.PageQuery) ([]*TagListItem, int64, error)
 	ListPublicTagArticles(ctx context.Context, locale, tagSlug string, page shared.PageQuery) ([]*PublicArticleListItem, int64, error)
 }
+
+// The following focused ports allow use cases to depend only on the CMS data
+// capabilities they actually consume. Repository remains temporarily for
+// compatibility while callers migrate to Repositories.
+type LocaleRepository interface {
+	LocaleEnabled(context.Context, string) (bool, error)
+	ListLocales(context.Context) ([]*Locale, error)
+	FindLocale(context.Context, string) (*Locale, error)
+	CreateLocale(context.Context, *Locale) error
+	UpdateLocale(context.Context, *Locale) error
+	SetDefaultLocale(context.Context, string) error
+	CountEnabledLocales(context.Context) (int64, error)
+}
+
+type TagRepository interface {
+	CreateTag(context.Context, *Tag, *TagTranslation) error
+	FindTag(context.Context, uint) (*Tag, error)
+	FindTagTranslation(context.Context, uint, string) (*TagTranslation, error)
+	UpsertTagTranslation(context.Context, *TagTranslation) error
+	ListTags(context.Context, string, shared.PageQuery) ([]*TagListItem, int64, error)
+}
+
+type CategoryRepository interface {
+	CreateCategory(context.Context, *Category, *CategoryTranslation) error
+	UpsertCategoryTranslation(context.Context, *CategoryTranslation) error
+	FindCategoryTranslation(context.Context, uint, string) (*CategoryTranslation, error)
+	FindCategory(context.Context, uint) (*Category, error)
+	IsCategoryDescendant(context.Context, uint, uint) (bool, error)
+	MoveCategory(context.Context, uint, *uint, int) error
+	UpdateCategory(context.Context, uint, bool, int) error
+	ListCategories(context.Context) ([]*Category, error)
+	ListCategoryTreeItems(context.Context, string) ([]*CategoryTreeItem, error)
+	ListPublicCategoryTreeItems(context.Context, string) ([]*CategoryTreeItem, error)
+}
+
+type ArticleRepository interface {
+	CreateArticle(context.Context, *Article, *ArticleTranslation) error
+	FindArticle(context.Context, uint) (*Article, error)
+	SetArticleCover(context.Context, uint, *uint) error
+	FindArticleIncludingDeleted(context.Context, uint) (*Article, error)
+	SoftDeleteArticle(context.Context, uint, time.Time) error
+	RestoreArticle(context.Context, uint) error
+	CreateArticleTranslation(context.Context, *ArticleTranslation) error
+	FindArticleTranslation(context.Context, uint, string) (*ArticleTranslation, error)
+	SaveArticleTranslation(context.Context, *ArticleTranslation) error
+	ListArticleTranslations(context.Context, string, bool, shared.PageQuery) ([]*ArticleListItem, int64, error)
+}
+
+type ArticleRelationRepository interface {
+	ListArticleCategories(context.Context, uint) ([]ArticleCategory, error)
+	ListArticleTags(context.Context, uint, string) ([]*TagListItem, error)
+	ReplaceArticleTags(context.Context, uint, []uint) error
+	ReplaceArticleCategories(context.Context, uint, []uint, *uint) error
+}
+
+type RedirectRepository interface {
+	RedirectSourceExists(context.Context, string, string) (bool, error)
+	SaveURLRedirect(context.Context, *URLRedirect) error
+	FindURLRedirect(context.Context, string, string) (*URLRedirect, error)
+	ListURLRedirects(context.Context, string, shared.PageQuery) ([]URLRedirect, int64, error)
+}
+
+type PublicContentRepository interface {
+	FindPublicArticle(context.Context, string, string) (*PublicArticle, error)
+	ListPublishedArticleLocales(context.Context, uint) ([]PublishedLocale, error)
+	ListPublicArticleBreadcrumbs(context.Context, uint, string) ([]CategoryTreeItem, error)
+	ListPublicSitemapEntries(context.Context, string, shared.PageQuery) ([]SitemapEntry, int64, error)
+	PublicCategoryExists(context.Context, string, string) (bool, error)
+	ListPublicArticles(context.Context, string, *string, shared.PageQuery) ([]*PublicArticleListItem, int64, error)
+	PublicTagExists(context.Context, string, string) (bool, error)
+	ListPublicTags(context.Context, string, shared.PageQuery) ([]*TagListItem, int64, error)
+	ListPublicTagArticles(context.Context, string, string, shared.PageQuery) ([]*PublicArticleListItem, int64, error)
+}

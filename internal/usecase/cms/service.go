@@ -16,7 +16,7 @@ import (
 // their content updates. Read operations must not have external side effects.
 type Service struct {
 	tx                shared.TxManager
-	repo              domainCMS.Repository
+	repo              Repositories
 	now               func() time.Time
 	auditor           platformAudit.Recorder
 	mediaFinder       ReadyMediaFinder
@@ -32,7 +32,15 @@ type PublicMediaFinder interface {
 }
 
 func New(tx shared.TxManager, repo domainCMS.Repository) *Service {
-	return &Service{tx: tx, repo: repo, now: time.Now}
+	return NewWithRepositories(tx, Repositories{
+		LocaleRepository:          repo,
+		TagRepository:             repo,
+		CategoryRepository:        repo,
+		ArticleRepository:         repo,
+		ArticleRelationRepository: repo,
+		RedirectRepository:        repo,
+		PublicContentRepository:   repo,
+	})
 }
 
 func (s *Service) SetMediaFinder(f ReadyMediaFinder)        { s.mediaFinder = f }
