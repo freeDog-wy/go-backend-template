@@ -22,7 +22,7 @@ RUN apk add --no-cache ca-certificates tzdata \
 WORKDIR /app
 
 COPY --from=builder /out/app ./app
-COPY --from=builder /src/configs/app.example.yaml ./config.yaml
+COPY --from=builder /src/configs/config.yaml ./config.yaml
 
 USER app
 
