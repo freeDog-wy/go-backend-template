@@ -14,6 +14,9 @@ type Dependencies struct {
 	Articles   contract.ArticleService
 	Categories contract.CategoryService
 	Tags       contract.TagService
+	// ContentRoot bounds article body files accepted by write tools. An empty
+	// value leaves inline content available and rejects content_file inputs.
+	ContentRoot string
 }
 
 type toolAnnotations struct {
@@ -29,7 +32,7 @@ func New(deps Dependencies) *mcp.Server {
 	annotations := newToolAnnotations()
 	addResources(server, deps)
 	addPrompts(server)
-	registerArticleTools(server, deps.Articles, annotations)
+	registerArticleTools(server, deps.Articles, newContentLoader(deps.ContentRoot), annotations)
 	registerCategoryTools(server, deps.Categories, annotations)
 	registerTagTools(server, deps.Tags, annotations)
 	registerLocaleTools(server, deps.Locales, annotations)

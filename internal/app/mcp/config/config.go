@@ -14,6 +14,7 @@ const (
 	envCMSAllowInsecureHTTP   = "CMS_ALLOW_INSECURE_HTTP"
 	envCMSMCPClientID         = "CMS_MCP_CLIENT_ID"
 	envCMSMCPClientSecret     = "CMS_MCP_CLIENT_SECRET"
+	envCMSContentRoot         = "CMS_CONTENT_ROOT"
 	defaultRequestTimeoutSecs = 10
 )
 
@@ -25,6 +26,7 @@ type Config struct {
 	AllowInsecureHTTP     bool   `mapstructure:"allow_insecure_http"`
 	ClientID              string `mapstructure:"-"`
 	ClientSecret          string `mapstructure:"-"`
+	ContentRoot           string `mapstructure:"content_root"`
 }
 
 // Load reads an optional MCP-only YAML file and MCP-specific environment
@@ -48,6 +50,7 @@ func Load(configPath string) (*Config, error) {
 	}
 	cfg.ClientID = strings.TrimSpace(os.Getenv(envCMSMCPClientID))
 	cfg.ClientSecret = os.Getenv(envCMSMCPClientSecret)
+	cfg.ContentRoot = strings.TrimSpace(cfg.ContentRoot)
 	return &cfg, nil
 }
 
@@ -69,6 +72,7 @@ func applyEnvOverrides(v *viper.Viper) {
 		"cms_base_url":            envCMSBaseURL,
 		"request_timeout_seconds": envCMSRequestTimeout,
 		"allow_insecure_http":     envCMSAllowInsecureHTTP,
+		"content_root":            envCMSContentRoot,
 	} {
 		if value, exists := os.LookupEnv(envKey); exists {
 			v.Set(key, value)

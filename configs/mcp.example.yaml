@@ -3,3 +3,6 @@
 cms_base_url: https://cms.example.internal
 request_timeout_seconds: 10
 allow_insecure_http: false
+# Optional local staging directory used by article content_file inputs. It may
+# also be supplied by CMS_CONTENT_ROOT, which takes precedence.
+content_root: /absolute/path/to/cms-content

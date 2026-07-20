@@ -16,6 +16,7 @@ func TestLoadUsesMCPConfigAndEnvironment(t *testing.T) {
 	t.Setenv(envCMSAllowInsecureHTTP, "true")
 	t.Setenv(envCMSMCPClientID, "mcp-client")
 	t.Setenv(envCMSMCPClientSecret, "mcp-secret")
+	t.Setenv(envCMSContentRoot, "/private/content")
 
 	cfg, err := Load(configPath)
 	if err != nil {
@@ -26,6 +27,9 @@ func TestLoadUsesMCPConfigAndEnvironment(t *testing.T) {
 	}
 	if cfg.ClientID != "mcp-client" || cfg.ClientSecret != "mcp-secret" {
 		t.Fatalf("MCP credentials = %q, %q, want environment values", cfg.ClientID, cfg.ClientSecret)
+	}
+	if cfg.ContentRoot != "/private/content" {
+		t.Fatalf("ContentRoot = %q, want environment override", cfg.ContentRoot)
 	}
 	if err := cfg.Validate(); err != nil {
 		t.Fatalf("Validate() error = %v", err)
@@ -55,6 +59,7 @@ func TestLoadDoesNotReadDotEnvOrCredentialsFromYAML(t *testing.T) {
 	t.Setenv(envCMSAllowInsecureHTTP, "")
 	t.Setenv(envCMSMCPClientID, "")
 	t.Setenv(envCMSMCPClientSecret, "")
+	t.Setenv(envCMSContentRoot, "")
 
 	cfg, err := Load(configPath)
 	if err != nil {

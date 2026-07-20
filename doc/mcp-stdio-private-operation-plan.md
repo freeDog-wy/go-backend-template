@@ -117,7 +117,7 @@ Codex 只负责将已存在的环境变量白名单传入 MCP 进程：
 [mcp_servers.cms]
 command = "/absolute/path/to/cms-mcp"
 cwd = "/absolute/path/to/go-backend-template"
-env = { CMS_BASE_URL = "https://cms.example.internal", CMS_REQUEST_TIMEOUT_SECONDS = "10" }
+env = { CMS_BASE_URL = "https://cms.example.internal", CMS_REQUEST_TIMEOUT_SECONDS = "10", CMS_CONTENT_ROOT = "/absolute/path/to/cms-content" }
 env_vars = ["CMS_MCP_CLIENT_ID", "CMS_MCP_CLIENT_SECRET"]
 default_tools_approval_mode = "writes"
 ```
@@ -155,9 +155,12 @@ HTTP 200 + success=true  -> 成功
 cms_base_url: https://cms.example.internal
 request_timeout_seconds: 10
 allow_insecure_http: false
+content_root: /absolute/path/to/cms-content
 ```
 
-生产环境必须使用 HTTPS；`allow_insecure_http` 仅供明确配置的本地开发环境使用。`CMS_BASE_URL`、`CMS_REQUEST_TIMEOUT_SECONDS` 和 `CMS_ALLOW_INSECURE_HTTP` 可覆盖 YAML。`CMS_MCP_CLIENT_ID` 与 `CMS_MCP_CLIENT_SECRET` 只能由进程环境提供，不能写入 YAML、项目 `.env` 或示例配置。
+生产环境必须使用 HTTPS；`allow_insecure_http` 仅供明确配置的本地开发环境使用。`CMS_BASE_URL`、`CMS_REQUEST_TIMEOUT_SECONDS`、`CMS_ALLOW_INSECURE_HTTP` 和可选的 `CMS_CONTENT_ROOT` 可覆盖 YAML。`CMS_MCP_CLIENT_ID` 与 `CMS_MCP_CLIENT_SECRET` 只能由进程环境提供，不能写入 YAML、项目 `.env` 或示例配置。
+
+`content_root` 仅用于本机 stdio MCP 的文章正文暂存。文章创建、创建翻译和更新翻译工具可以传入相对该目录的 `content_file`，以避免把很长的正文再次放入 tool 参数；`content` 与 `content_file` 互斥。MCP 会拒绝绝对路径、目录、越界路径和指向根目录外的符号链接，并限制文件为不超过 10 MiB 的 UTF-8 常规文件。读取后的字节同时用于 CMS 请求正文和写操作幂等指纹的 SHA-256 摘要，因此同一文件内容改变会被视为一次新操作。
 
 CMS 服务端仍保留自己的 `mcp` 配置，用于服务账号 bootstrap、JWT audience 和 token TTL；MCP 客户端不读取该文件。服务端 bootstrap 的凭证轮换将在后续独立运维命令中脱离常驻 server 启动路径。
 

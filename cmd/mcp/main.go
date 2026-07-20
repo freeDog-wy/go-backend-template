@@ -42,7 +42,14 @@ func main() {
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
-	deps := mcpserver.Dependencies{Site: client, Locales: client, Articles: client, Categories: client, Tags: client}
+	deps := mcpserver.Dependencies{
+		Site:        client,
+		Locales:     client,
+		Articles:    client,
+		Categories:  client,
+		Tags:        client,
+		ContentRoot: cfg.ContentRoot,
+	}
 	if err := mcpserver.New(deps).Run(ctx, &mcp.StdioTransport{}); err != nil && ctx.Err() == nil {
 		log.Printf("MCP server stopped: %v", err)
 	}
