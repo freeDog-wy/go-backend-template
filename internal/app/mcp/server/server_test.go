@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	mcpclient "github.com/freeDog-wy/go-backend-template/internal/app/mcp/client"
+	"github.com/freeDog-wy/go-backend-template/internal/app/mcp/contract"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
@@ -19,6 +19,78 @@ func TestLocaleCodes(t *testing.T) {
 		t.Fatalf("localeCodes() = %v", codes)
 	}
 }
+
+func TestResourceURIParsing(t *testing.T) {
+	categoryReq := &mcp.ReadResourceRequest{Params: &mcp.ReadResourceParams{URI: "cms://taxonomy/categories/zh-CN"}}
+	if uri, locale, err := categoryResourceURI(categoryReq); err != nil || uri != categoryReq.Params.URI || locale != "zh-CN" {
+		t.Fatalf("category resource = (%q, %q, %v)", uri, locale, err)
+	}
+	if _, _, err := categoryResourceURI(&mcp.ReadResourceRequest{Params: &mcp.ReadResourceParams{URI: "cms://taxonomy/categories/zh-CN?page=2"}}); err == nil {
+		t.Fatal("category resource accepted query parameters")
+	}
+
+	articleReq := &mcp.ReadResourceRequest{Params: &mcp.ReadResourceParams{URI: "cms://articles/7/translations/zh-CN"}}
+	if uri, articleID, locale, err := articleTranslationResourceURI(articleReq); err != nil || uri != articleReq.Params.URI || articleID != 7 || locale != "zh-CN" {
+		t.Fatalf("article resource = (%q, %d, %q, %v)", uri, articleID, locale, err)
+	}
+	if _, _, _, err := articleTranslationResourceURI(&mcp.ReadResourceRequest{Params: &mcp.ReadResourceParams{URI: "cms://articles/0/translations/zh-CN"}}); err == nil {
+		t.Fatal("article resource accepted article ID zero")
+	}
+}
+
+func TestCategoryResourceReadsTemplateURI(t *testing.T) {
+	ctx := context.Background()
+	categories := &categoryResourceFake{}
+	server := New(Dependencies{Categories: categories})
+	client := mcp.NewClient(&mcp.Implementation{Name: "test-client", Version: "1.0.0"}, nil)
+	serverTransport, clientTransport := mcp.NewInMemoryTransports()
+	serverSession, err := server.Connect(ctx, serverTransport, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer serverSession.Close()
+	clientSession, err := client.Connect(ctx, clientTransport, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer clientSession.Close()
+
+	uri := "cms://taxonomy/categories/zh-CN"
+	result, err := clientSession.ReadResource(ctx, &mcp.ReadResourceParams{URI: uri})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if categories.locale != "zh-CN" || len(result.Contents) != 1 || result.Contents[0].URI != uri || result.Contents[0].Text != `{"data":[]}` {
+		t.Fatalf("locale = %q, result = %#v", categories.locale, result)
+	}
+}
+
+type categoryResourceFake struct {
+	locale string
+}
+
+func (f *categoryResourceFake) Categories(_ context.Context, locale string) (json.RawMessage, error) {
+	f.locale = locale
+	return json.RawMessage(`{"data":[]}`), nil
+}
+
+func (*categoryResourceFake) CreateCategory(context.Context, contract.CategoryInput) (json.RawMessage, error) {
+	return nil, nil
+}
+
+func (*categoryResourceFake) UpdateCategory(context.Context, uint, contract.CategoryStateInput) (json.RawMessage, error) {
+	return nil, nil
+}
+
+func (*categoryResourceFake) MoveCategory(context.Context, uint, contract.CategoryMoveInput) (json.RawMessage, error) {
+	return nil, nil
+}
+
+func (*categoryResourceFake) UpsertCategoryTranslation(context.Context, uint, string, contract.CategoryTranslationInput) (json.RawMessage, error) {
+	return nil, nil
+}
+
+var _ contract.CategoryService = (*categoryResourceFake)(nil)
 
 func TestOperationalInputValidation(t *testing.T) {
 	if err := validateArticleReference(articleReferenceInput{ArticleID: 7, Locale: "zh-CN"}); err != nil {
@@ -58,7 +130,7 @@ func TestOperationIDForUsesHostValueOrSessionFingerprint(t *testing.T) {
 
 func TestServerRegistersOperationalToolsAndPrompts(t *testing.T) {
 	ctx := context.Background()
-	server := New((*mcpclient.Client)(nil))
+	server := New(Dependencies{})
 	client := mcp.NewClient(&mcp.Implementation{Name: "test-client", Version: "1.0.0"}, nil)
 	serverTransport, clientTransport := mcp.NewInMemoryTransports()
 	serverSession, err := server.Connect(ctx, serverTransport, nil)
@@ -86,6 +158,10 @@ func TestServerRegistersOperationalToolsAndPrompts(t *testing.T) {
 		"cms.locale.create":               false,
 		"cms.locale.update":               false,
 	}
+	removedReadTools := map[string]bool{
+		"cms.article.get_translation": false,
+		"cms.category.list":           false,
+	}
 	for tool, err := range clientSession.Tools(ctx, nil) {
 		if err != nil {
 			t.Fatal(err)
@@ -93,10 +169,36 @@ func TestServerRegistersOperationalToolsAndPrompts(t *testing.T) {
 		if _, ok := wantTools[tool.Name]; ok {
 			wantTools[tool.Name] = true
 		}
+		if _, ok := removedReadTools[tool.Name]; ok {
+			removedReadTools[tool.Name] = true
+		}
 	}
 	for name, found := range wantTools {
 		if !found {
 			t.Errorf("tool %q was not registered", name)
+		}
+	}
+	for name, found := range removedReadTools {
+		if found {
+			t.Errorf("read tool %q should be registered as a resource template", name)
+		}
+	}
+
+	wantTemplates := map[string]bool{
+		"cms://taxonomy/categories/{locale}":                false,
+		"cms://articles/{article_id}/translations/{locale}": false,
+	}
+	for template, err := range clientSession.ResourceTemplates(ctx, nil) {
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, ok := wantTemplates[template.URITemplate]; ok {
+			wantTemplates[template.URITemplate] = true
+		}
+	}
+	for uriTemplate, found := range wantTemplates {
+		if !found {
+			t.Errorf("resource template %q was not registered", uriTemplate)
 		}
 	}
 

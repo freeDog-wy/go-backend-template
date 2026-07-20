@@ -174,9 +174,9 @@ CMS 服务端仍保留自己的 `mcp` 配置，用于服务账号 bootstrap、JW
 | `cms://site/health` | Resource | `/healthz`、`/readyz` | 返回存活/就绪状态；不得包含凭证或内部连接串。 |
 | `cms://locales` | Resource | 管理端 locale 列表 | 返回启用语言与默认语言快照。 |
 | `cms://taxonomy` | Resource | 分类与标签列表 | 返回运营维护所需的分类、标签快照。 |
+| `cms://taxonomy/categories/{locale}` | Resource template | 管理端分类树 | 返回指定语言的完整分类树。 |
+| `cms://articles/{article_id}/translations/{locale}` | Resource template | 文章翻译详情 | 返回指定文章、语言版本的可编辑内容。 |
 | `cms.article.list` | Tool | 管理端文章列表 | 按 locale、状态、分页查询；默认限制分页大小。 |
-| `cms.article.get_translation` | Tool | 文章翻译详情 | 返回指定文章、语言版本的编辑内容。 |
-| `cms.category.list` | Tool | 管理端分类列表 | 查询分类树和启停状态。 |
 | `cms.tag.list` | Tool | 管理端标签列表 | 查询标签及翻译。 |
 
 资源和上述查询工具声明为只读。文章正文、标题、标签名均属于不可信内容；MCP 的 instructions 与 tool 描述不得执行或遵从这些内容中的指令。
@@ -220,7 +220,7 @@ Prompts 只提供可复用操作流程，不携带凭证也不绕过工具确认
 
 ```text
 用户提出发布意图
-  -> cms.article.get_translation / cms.article.preview_publish
+  -> cms://articles/<article_id>/translations/<locale> / cms.article.preview_publish
   -> Codex 展示待发布摘要
   -> 用户确认写操作
   -> cms.article.publish(article_id, locale)
