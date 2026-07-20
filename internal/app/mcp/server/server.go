@@ -21,7 +21,7 @@ type CMSReader interface {
 	UpdateLocale(context.Context, string, mcpclient.LocaleUpdateInput) (json.RawMessage, error)
 	Categories(context.Context, string) (json.RawMessage, error)
 	Tags(context.Context, string, int, int) (json.RawMessage, error)
-	Articles(context.Context, string, int, int) (json.RawMessage, error)
+	Articles(context.Context, string, string, int, int) (json.RawMessage, error)
 	ArticleTranslation(context.Context, uint, string) (json.RawMessage, error)
 	CreateArticleDraft(context.Context, mcpclient.ArticleInput) (json.RawMessage, error)
 	CreateArticleTranslation(context.Context, uint, mcpclient.ArticleInput) (json.RawMessage, error)
@@ -180,16 +180,13 @@ func New(client CMSReader) *mcp.Server {
 		if strings.TrimSpace(input.Locale) == "" {
 			return toolError("INVALID_INPUT", "locale is required"), nil, nil
 		}
-		data, err := client.Articles(ctx, input.Locale, input.Page, input.PerPage)
+		data, err := client.Articles(ctx, input.Locale, input.Status, input.Page, input.PerPage)
 		if err != nil {
 			return toolFailure(err), nil, nil
 		}
 		output, err := rawObject(data)
 		if err != nil {
 			return toolFailure(err), nil, nil
-		}
-		if status := strings.TrimSpace(input.Status); status != "" {
-			filterArticleStatus(output, status)
 		}
 		return nil, output, nil
 	})
@@ -491,21 +488,6 @@ func toolFailure(err error) *mcp.CallToolResult {
 
 func toolError(code, message string) *mcp.CallToolResult {
 	return &mcp.CallToolResult{IsError: true, Content: []mcp.Content{&mcp.TextContent{Text: code + ": " + message}}}
-}
-
-func filterArticleStatus(output map[string]any, status string) {
-	items, ok := output["data"].([]any)
-	if !ok {
-		return
-	}
-	filtered := make([]any, 0, len(items))
-	for _, item := range items {
-		article, ok := item.(map[string]any)
-		if ok && article["status"] == status {
-			filtered = append(filtered, article)
-		}
-	}
-	output["data"] = filtered
 }
 
 func localeCodes(data json.RawMessage) ([]string, error) {

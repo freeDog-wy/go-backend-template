@@ -41,19 +41,21 @@ func (f *testPublicMediaFinder) ListPublic(_ context.Context, _ string, ids []ui
 }
 
 type testRepo struct {
-	descendant   bool
-	tr           *domainCMS.ArticleTranslation
-	public       *domainCMS.PublicArticle
-	tree         []*domainCMS.CategoryTreeItem
-	replaced     []uint
-	publicList   []*domainCMS.PublicArticleListItem
-	locale       *domainCMS.Locale
-	createdLocale *domainCMS.Locale
-	enabledCount int64
-	article      *domainCMS.Article
-	locales      []*domainCMS.Locale
-	publicTags   []*domainCMS.TagListItem
-	redirects    []domainCMS.URLRedirect
+	descendant        bool
+	tr                *domainCMS.ArticleTranslation
+	public            *domainCMS.PublicArticle
+	tree              []*domainCMS.CategoryTreeItem
+	replaced          []uint
+	publicList        []*domainCMS.PublicArticleListItem
+	locale            *domainCMS.Locale
+	createdLocale     *domainCMS.Locale
+	enabledCount      int64
+	article           *domainCMS.Article
+	locales           []*domainCMS.Locale
+	publicTags        []*domainCMS.TagListItem
+	redirects         []domainCMS.URLRedirect
+	articleListStatus domainCMS.TranslationStatus
+	articleListCalls  int
 }
 
 func (*testRepo) LocaleEnabled(context.Context, string) (bool, error) { return true, nil }
@@ -166,7 +168,9 @@ func (r *testRepo) ReplaceArticleCategories(_ context.Context, _ uint, ids []uin
 	r.replaced = ids
 	return nil
 }
-func (*testRepo) ListArticleTranslations(context.Context, string, bool, shared.PageQuery) ([]*domainCMS.ArticleListItem, int64, error) {
+func (r *testRepo) ListArticleTranslations(_ context.Context, _ string, status domainCMS.TranslationStatus, _ bool, _ shared.PageQuery) ([]*domainCMS.ArticleListItem, int64, error) {
+	r.articleListStatus = status
+	r.articleListCalls++
 	return nil, 0, nil
 }
 func (r *testRepo) FindPublicArticle(context.Context, string, string) (*domainCMS.PublicArticle, error) {
@@ -226,6 +230,33 @@ func TestListPublishedTagsAndRedirects(t *testing.T) {
 		t.Fatalf("redirects = %#v, page = %#v, err = %v", redirects, redirectPage, err)
 	}
 }
+
+func TestListArticlesPassesStatusToRepository(t *testing.T) {
+	repo := &testRepo{}
+	_, page, err := New(testTx{}, repo).ListArticles(context.Background(), ListArticlesCmd{
+		Locale: "zh-CN",
+		Status: domainCMS.TranslationPublished,
+		Page:   shared.NewPageQuery(2, 10),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if repo.articleListCalls != 1 || repo.articleListStatus != domainCMS.TranslationPublished || page.Page != 2 || page.PerPage != 10 {
+		t.Fatalf("status = %q, calls = %d, page = %#v", repo.articleListStatus, repo.articleListCalls, page)
+	}
+}
+
+func TestListArticlesRejectsUnknownStatusBeforeRepository(t *testing.T) {
+	repo := &testRepo{}
+	_, _, err := New(testTx{}, repo).ListArticles(context.Background(), ListArticlesCmd{Locale: "zh-CN", Status: "unknown"})
+	if !errors.Is(err, domainCMS.ErrInvalidInput) {
+		t.Fatalf("error = %v, want invalid input", err)
+	}
+	if repo.articleListCalls != 0 {
+		t.Fatalf("repository calls = %d, want 0", repo.articleListCalls)
+	}
+}
+
 func TestMoveCategoryRejectsDescendantAsParent(t *testing.T) {
 	repo := &testRepo{descendant: true}
 	svc := New(testTx{}, repo)

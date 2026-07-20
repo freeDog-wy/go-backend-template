@@ -20,18 +20,6 @@ func TestLocaleCodes(t *testing.T) {
 	}
 }
 
-func TestFilterArticleStatus(t *testing.T) {
-	output := map[string]any{"data": []any{
-		map[string]any{"id": float64(1), "status": "draft"},
-		map[string]any{"id": float64(2), "status": "published"},
-	}}
-	filterArticleStatus(output, "draft")
-	items := output["data"].([]any)
-	if len(items) != 1 || items[0].(map[string]any)["status"] != "draft" {
-		t.Fatalf("filtered data = %#v", output["data"])
-	}
-}
-
 func TestOperationalInputValidation(t *testing.T) {
 	if err := validateArticleReference(articleReferenceInput{ArticleID: 7, Locale: "zh-CN"}); err != nil {
 		t.Fatalf("validateArticleReference() error = %v", err)

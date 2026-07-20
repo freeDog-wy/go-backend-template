@@ -66,6 +66,20 @@ func TestPublishTranslationRejectsContentThatFailsPublicationChecks(t *testing.T
 	assertCMSResponse(t, w, false, "CONTENT_NOT_READY_FOR_PUBLICATION")
 }
 
+func TestListArticlesPassesStatusFilter(t *testing.T) {
+	service := &cmsServiceFake{}
+	w := serveCMSMethod(t, http.MethodGet, true, service, "/api/v1/admin/cms/articles?locale=zh-CN&status=published&page=2&per_page=10", "")
+	assertCMSResponse(t, w, true, "")
+	if service.listArticles.Status != domainCMS.TranslationPublished || service.listArticles.Locale != "zh-CN" || service.listArticles.Page.Page != 2 || service.listArticles.Page.PerPage != 10 {
+		t.Fatalf("list articles command = %#v", service.listArticles)
+	}
+}
+
+func TestListArticlesRejectsUnknownStatus(t *testing.T) {
+	w := serveCMSMethod(t, http.MethodGet, true, &cmsServiceFake{listArticlesErr: domainCMS.ErrInvalidInput}, "/api/v1/admin/cms/articles?locale=zh-CN&status=unknown", "")
+	assertCMSResponse(t, w, false, "INVALID_INPUT")
+}
+
 func serveCMS(t *testing.T, allowed bool, service *cmsServiceFake, path, body string) *httptest.ResponseRecorder {
 	return serveCMSMethod(t, http.MethodPut, allowed, service, path, body)
 }
@@ -115,9 +129,11 @@ func (f *cmsAuthorizerFake) HasPermission(context.Context, uint, string) (bool, 
 var _ svcAuthorization.AccessAuthorizer = (*cmsAuthorizerFake)(nil)
 
 type cmsServiceFake struct {
-	setCover     svcCMS.SetArticleCoverCmd
-	createLocale svcCMS.CreateLocaleCmd
-	publishErr   error
+	setCover        svcCMS.SetArticleCoverCmd
+	createLocale    svcCMS.CreateLocaleCmd
+	publishErr      error
+	listArticles    svcCMS.ListArticlesCmd
+	listArticlesErr error
 }
 
 func (*cmsServiceFake) CreateTag(context.Context, svcCMS.CreateTagCmd) (*svcCMS.TagResult, error) {
@@ -180,8 +196,9 @@ func (*cmsServiceFake) ReplaceArticleCategories(context.Context, svcCMS.ReplaceA
 func (*cmsServiceFake) ReplaceArticleTags(context.Context, svcCMS.ReplaceArticleTagsCmd) error {
 	return nil
 }
-func (*cmsServiceFake) ListArticles(context.Context, svcCMS.ListArticlesCmd) ([]*svcCMS.ArticleResult, shared.PageResult, error) {
-	return nil, shared.PageResult{}, nil
+func (f *cmsServiceFake) ListArticles(_ context.Context, cmd svcCMS.ListArticlesCmd) ([]*svcCMS.ArticleResult, shared.PageResult, error) {
+	f.listArticles = cmd
+	return nil, shared.PageResult{}, f.listArticlesErr
 }
 func (*cmsServiceFake) GetArticleTranslation(context.Context, svcCMS.GetArticleTranslationCmd) (*svcCMS.ArticleDetailResult, error) {
 	return nil, nil

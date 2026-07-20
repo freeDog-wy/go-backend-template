@@ -33,6 +33,10 @@ func TestArticleRepositoryIntegrationConstraintsAndLifecycle(t *testing.T) {
 	if err := fixture.repo.CreateArticleTranslation(fixture.ctx, duplicate); err == nil {
 		t.Fatal("expected locale slug uniqueness error")
 	}
+	publishedItems, publishedTotal, err := fixture.repo.ListArticleTranslations(fixture.ctx, "zh-CN", domainCMS.TranslationPublished, false, shared.NewPageQuery(1, 20))
+	if err != nil || publishedTotal != 1 || len(publishedItems) != 1 || publishedItems[0].Article.ID != publishedArticle.ID {
+		t.Fatalf("published articles = %#v, total = %d, err = %v", publishedItems, publishedTotal, err)
+	}
 
 	recorder := &repositoryAuditRecorder{}
 	service := fixture.service()

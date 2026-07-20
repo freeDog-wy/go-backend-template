@@ -1,6 +1,9 @@
 package cms
 
-import "github.com/freeDog-wy/go-backend-template/internal/domain/shared"
+import (
+	domainCMS "github.com/freeDog-wy/go-backend-template/internal/domain/cms"
+	"github.com/freeDog-wy/go-backend-template/internal/domain/shared"
+)
 
 type CreateCategoryCmd struct {
 	ParentID                                                  *uint
@@ -55,6 +58,7 @@ type ReplaceArticleCategoriesCmd struct {
 }
 type ListArticlesCmd struct {
 	Locale         string
+	Status         domainCMS.TranslationStatus
 	IncludeDeleted bool
 	Page           shared.PageQuery
 }

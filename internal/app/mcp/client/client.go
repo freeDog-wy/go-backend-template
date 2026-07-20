@@ -154,8 +154,12 @@ func (c *Client) Tags(ctx context.Context, locale string, page, perPage int) (js
 	return c.getAdmin(ctx, "/api/v1/admin/cms/tags", pageQuery(locale, page, perPage))
 }
 
-func (c *Client) Articles(ctx context.Context, locale string, page, perPage int) (json.RawMessage, error) {
-	return c.getAdmin(ctx, "/api/v1/admin/cms/articles", pageQuery(locale, page, perPage))
+func (c *Client) Articles(ctx context.Context, locale, status string, page, perPage int) (json.RawMessage, error) {
+	query := pageQuery(locale, page, perPage)
+	if status = strings.TrimSpace(status); status != "" {
+		query.Set("status", status)
+	}
+	return c.getAdmin(ctx, "/api/v1/admin/cms/articles", query)
 }
 
 func (c *Client) ArticleTranslation(ctx context.Context, articleID uint, locale string) (json.RawMessage, error) {

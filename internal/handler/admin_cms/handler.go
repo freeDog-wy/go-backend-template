@@ -3,6 +3,7 @@ package admin_cms
 import (
 	"errors"
 	"strconv"
+	"strings"
 
 	domainCMS "github.com/freeDog-wy/go-backend-template/internal/domain/cms"
 	"github.com/freeDog-wy/go-backend-template/internal/handler"
@@ -304,7 +305,7 @@ func (h *Handler) ListArticles(c *gin.Context) {
 		invalid(c)
 		return
 	}
-	results, page, err := h.cms.ListArticles(c, svcCMS.ListArticlesCmd{Locale: c.Query("locale"), IncludeDeleted: c.Query("include_deleted") == "true", Page: query.ToDomain()})
+	results, page, err := h.cms.ListArticles(c, svcCMS.ListArticlesCmd{Locale: c.Query("locale"), Status: domainCMS.TranslationStatus(strings.TrimSpace(c.Query("status"))), IncludeDeleted: c.Query("include_deleted") == "true", Page: query.ToDomain()})
 	if err != nil {
 		fail(c, err)
 		return

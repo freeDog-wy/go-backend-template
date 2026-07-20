@@ -22,10 +22,28 @@ func TestClientReturnsCMSBusinessError(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	_, err = client.Articles(context.Background(), "zh-CN", 1, 20)
+	_, err = client.Articles(context.Background(), "zh-CN", "", 1, 20)
 	apiErr, ok := err.(*APIError)
 	if !ok || apiErr.Code != "LOCALE_NOT_FOUND" {
 		t.Fatalf("Articles() error = %#v, want LOCALE_NOT_FOUND API error", err)
+	}
+}
+
+func TestArticlesPassesStatusFilterToCMS(t *testing.T) {
+	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if got := r.URL.Query().Get("status"); got != "draft" {
+			t.Fatalf("status query = %q, want draft", got)
+		}
+		_, _ = w.Write([]byte(`{"success":true,"data":[],"meta":{"page":1,"per_page":20,"total":0}}`))
+	}))
+	defer server.Close()
+
+	client, err := New(server.URL, server.Client(), tokenProviderStub{}, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := client.Articles(context.Background(), "zh-CN", "draft", 1, 20); err != nil {
+		t.Fatal(err)
 	}
 }
 

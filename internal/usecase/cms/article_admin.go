@@ -3,7 +3,7 @@ package cms
 import (
 	"context"
 	"fmt"
-	
+
 	domainCMS "github.com/freeDog-wy/go-backend-template/internal/domain/cms"
 	"github.com/freeDog-wy/go-backend-template/internal/domain/shared"
 )
@@ -223,8 +223,11 @@ func (s *Service) ListArticles(ctx context.Context, cmd ListArticlesCmd) ([]*Art
 	if err := s.requireLocale(ctx, cmd.Locale); err != nil {
 		return nil, shared.PageResult{}, err
 	}
+	if cmd.Status != "" && cmd.Status != domainCMS.TranslationDraft && cmd.Status != domainCMS.TranslationPublished && cmd.Status != domainCMS.TranslationArchived {
+		return nil, shared.PageResult{}, domainCMS.ErrInvalidInput
+	}
 	page := shared.NewPageQuery(cmd.Page.Page, cmd.Page.PerPage)
-	items, total, err := s.repo.ListArticleTranslations(ctx, cmd.Locale, cmd.IncludeDeleted, page)
+	items, total, err := s.repo.ListArticleTranslations(ctx, cmd.Locale, cmd.Status, cmd.IncludeDeleted, page)
 	if err != nil {
 		return nil, shared.PageResult{}, err
 	}
@@ -266,4 +269,3 @@ func (s *Service) GetArticleTranslation(ctx context.Context, cmd GetArticleTrans
 	}
 	return result, nil
 }
-

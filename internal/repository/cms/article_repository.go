@@ -101,8 +101,11 @@ func (r *Repository) SaveArticleTranslation(ctx context.Context, tr *domainCMS.A
 	return nil
 }
 
-func (r *Repository) ListArticleTranslations(ctx context.Context, locale string, includeDeleted bool, page shared.PageQuery) ([]*domainCMS.ArticleListItem, int64, error) {
+func (r *Repository) ListArticleTranslations(ctx context.Context, locale string, status domainCMS.TranslationStatus, includeDeleted bool, page shared.PageQuery) ([]*domainCMS.ArticleListItem, int64, error) {
 	db := r.conn(ctx).Table("article_translations").Joins("JOIN articles ON articles.id = article_translations.article_id").Where("article_translations.locale = ?", locale)
+	if status != "" {
+		db = db.Where("article_translations.status = ?", status)
+	}
 	if !includeDeleted {
 		db = db.Where("articles.deleted_at IS NULL")
 	}
