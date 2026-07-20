@@ -21,6 +21,7 @@ var servicePermissionCodes = []string{
 	"cms.article.create",
 	"cms.article.update",
 	"cms.article.publish",
+	"cms.article.archive",
 	"cms.category.manage",
 	"cms.locale.manage",
 	"cms.tag.manage",

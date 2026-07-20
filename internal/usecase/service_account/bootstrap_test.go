@@ -65,9 +65,21 @@ func TestBootstrapUsesEnsureRolePermissions(t *testing.T) {
 	if repo.replaceRolePermissionsCalls != 0 {
 		t.Fatalf("ReplaceRolePermissions() calls = %d, want 0", repo.replaceRolePermissionsCalls)
 	}
+	if !containsPermissionCode(repo.requestedPermissionCodes, "cms.article.archive") {
+		t.Fatalf("FindPermissionsByCodes() codes = %v, want cms.article.archive", repo.requestedPermissionCodes)
+	}
 	if len(repo.replacedUserRoleIDs) != 1 || repo.replacedUserRoleIDs[0] != 1 {
 		t.Fatalf("ReplaceUserRoles() role IDs = %v, want [1]", repo.replacedUserRoleIDs)
 	}
+}
+
+func containsPermissionCode(codes []string, want string) bool {
+	for _, code := range codes {
+		if code == want {
+			return true
+		}
+	}
+	return false
 }
 
 type bootstrapTx struct{}
@@ -111,6 +123,7 @@ func (*bootstrapUserRepo) Delete(context.Context, uint) error                 { 
 
 type bootstrapAuthorizationRepo struct {
 	permissions                 []*domainAuthorization.Permission
+	requestedPermissionCodes    []string
 	ensureRolePermissionsCalls  int
 	replaceRolePermissionsCalls int
 	replacedUserRoleIDs         []uint
@@ -143,7 +156,8 @@ func (*bootstrapAuthorizationRepo) UpdateRole(context.Context, *domainAuthorizat
 func (*bootstrapAuthorizationRepo) ListPermissions(context.Context, domainShared.PageQuery) ([]*domainAuthorization.Permission, int64, error) {
 	return nil, 0, nil
 }
-func (r *bootstrapAuthorizationRepo) FindPermissionsByCodes(context.Context, []string) ([]*domainAuthorization.Permission, error) {
+func (r *bootstrapAuthorizationRepo) FindPermissionsByCodes(_ context.Context, codes []string) ([]*domainAuthorization.Permission, error) {
+	r.requestedPermissionCodes = append([]string(nil), codes...)
 	return r.permissions, nil
 }
 func (*bootstrapAuthorizationRepo) ListRolePermissions(context.Context, uint) ([]*domainAuthorization.Permission, error) {
