@@ -210,7 +210,7 @@ jobs:
             'Host ssh.elseif.site' \
             '  User ubuntu' \
             '  IdentityFile ~/.ssh/deploy_key' \
-            "  ProxyCommand $RUNNER_TEMP/cloudflared access ssh --hostname %h" \
+            "  ProxyCommand $RUNNER_TEMP/cloudflared --loglevel debug access ssh --hostname %h" \
             '  StrictHostKeyChecking yes' \
             '  UserKnownHostsFile ~/.ssh/known_hosts' \
             '  BatchMode yes' > ~/.ssh/config
@@ -221,7 +221,7 @@ jobs:
           CF_ACCESS_CLIENT_ID: ${{ secrets.CF_ACCESS_CLIENT_ID }}
           CF_ACCESS_CLIENT_SECRET: ${{ secrets.CF_ACCESS_CLIENT_SECRET }}
         run: |
-          timeout 60s ssh ssh.elseif.site '
+          timeout 60s ssh -vvv ssh.elseif.site '
             set -eu
             test "$(whoami)" = ubuntu
             printf "Connected as %s on %s\\n" "$(whoami)" "$(hostname)"
