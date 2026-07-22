@@ -1,6 +1,6 @@
 .PHONY: \
 	server worker cron mcp migrate \
-	docker-build docker-server docker-worker docker-cron \
+	docker-build docker-server docker-worker docker-cron docker-migrate \
 	migrate-up migrate-down migrate-version \
 	release-prepare release-check release-tag release-push release project-branch \
 	test \
@@ -36,7 +36,7 @@ mcp:
 migrate:
 	$(GO) build -o build/migrate.exe ./cmd/migrate
 
-docker-build: docker-server docker-worker docker-cron
+docker-build: docker-server docker-worker docker-cron docker-migrate
 
 docker-server:
 	$(DOCKER) build --build-arg APP=server -t $(IMAGE_NAME)-server:$(IMAGE_TAG) .
@@ -46,6 +46,9 @@ docker-worker:
 
 docker-cron:
 	$(DOCKER) build --build-arg APP=cron -t $(IMAGE_NAME)-cron:$(IMAGE_TAG) .
+
+docker-migrate:
+	$(DOCKER) build --build-arg APP=migrate -t $(IMAGE_NAME)-migrate:$(IMAGE_TAG) .
 
 ##############################################################################
 ########################################################## git release commands

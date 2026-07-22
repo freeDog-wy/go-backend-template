@@ -139,7 +139,7 @@ jobs:
 
     strategy:
       matrix:
-        app: [server, worker, cron]
+        app: [server, worker, cron, migrate]
 
     steps:
       - name: Checkout
@@ -180,6 +180,199 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
+
+  deploy-production:
+    name: Deploy Production
+    needs: build-and-push
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/go-cms-v')
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment: go-cms
+    concurrency:
+      group: go-cms-production
+      cancel-in-progress: false
+
+    steps:
+      - name: Checkout deployment files
+        uses: actions/checkout@v4
+
+      - name: Install cloudflared
+        run: |
+          curl --fail --silent --show-error --location \
+            --output "$RUNNER_TEMP/cloudflared" \
+            https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64
+          chmod 755 "$RUNNER_TEMP/cloudflared"
+
+      - name: Configure SSH client
+        env:
+          DEPLOY_SSH_PRIVATE_KEY: ${{ secrets.DEPLOY_SSH_PRIVATE_KEY }}
+          SSH_KNOWN_HOSTS: ${{ secrets.SSH_KNOWN_HOSTS }}
+        run: |
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$DEPLOY_SSH_PRIVATE_KEY" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          printf '%s\n' "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          printf '%s\n' \
+            'Host ssh.elseif.site' \
+            '  User ubuntu' \
+            '  IdentityFile ~/.ssh/deploy_key' \
+            "  ProxyCommand $RUNNER_TEMP/cloudflared access ssh --hostname %h" \
+            '  StrictHostKeyChecking yes' \
+            '  UpdateHostKeys no' \
+            '  UserKnownHostsFile ~/.ssh/known_hosts' \
+            '  BatchMode yes' > ~/.ssh/config
+          chmod 600 ~/.ssh/config
+
+      - name: Generate production environment
+        env:
+          POSTGRES_USER: ${{ vars.POSTGRES_USER }}
+          POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
+          POSTGRES_DB: ${{ vars.POSTGRES_DB }}
+          DATABASE_DSN: ${{ secrets.DATABASE_DSN }}
+          REDIS_PASSWORD: ${{ secrets.REDIS_PASSWORD }}
+          KAFKA_CLUSTER_ID: ${{ vars.KAFKA_CLUSTER_ID }}
+          AUTH_JWT_SECRET: ${{ secrets.AUTH_JWT_SECRET }}
+          MCP_ENABLED: ${{ vars.MCP_ENABLED }}
+          MCP_SERVICE_ACCOUNT_NAME: ${{ vars.MCP_SERVICE_ACCOUNT_NAME }}
+          MCP_SERVICE_ACCOUNT_EMAIL: ${{ vars.MCP_SERVICE_ACCOUNT_EMAIL }}
+          MCP_CLIENT_ID: ${{ secrets.MCP_CLIENT_ID }}
+          MCP_CLIENT_SECRET: ${{ secrets.MCP_CLIENT_SECRET }}
+          MCP_SERVICE_ACCOUNT_ENABLED: ${{ vars.MCP_SERVICE_ACCOUNT_ENABLED }}
+          MCP_SECRET_ROTATION_GRACE_MINUTES: ${{ vars.MCP_SECRET_ROTATION_GRACE_MINUTES }}
+          MCP_TOKEN_AUDIENCE: ${{ vars.MCP_TOKEN_AUDIENCE }}
+          MCP_ACCESS_TOKEN_TTL_MINUTES: ${{ vars.MCP_ACCESS_TOKEN_TTL_MINUTES }}
+          EMAIL_MODE: ${{ vars.EMAIL_MODE }}
+          EMAIL_SMTP_HOST: ${{ vars.EMAIL_SMTP_HOST }}
+          EMAIL_SMTP_PORT: ${{ vars.EMAIL_SMTP_PORT }}
+          EMAIL_SMTP_USER: ${{ vars.EMAIL_SMTP_USER }}
+          EMAIL_SMTP_PASSWORD: ${{ secrets.EMAIL_SMTP_PASSWORD }}
+          EMAIL_FROM_ADDRESS: ${{ vars.EMAIL_FROM_ADDRESS }}
+          EMAIL_SITE_BASE_URL: ${{ vars.EMAIL_SITE_BASE_URL }}
+          TRACING_ENDPOINT: ${{ vars.TRACING_ENDPOINT }}
+          STORAGE_S3_ENDPOINT: ${{ vars.STORAGE_S3_ENDPOINT }}
+          STORAGE_S3_REGION: ${{ vars.STORAGE_S3_REGION }}
+          STORAGE_S3_ACCESS_KEY_ID: ${{ secrets.STORAGE_S3_ACCESS_KEY_ID }}
+          STORAGE_S3_SECRET_ACCESS_KEY: ${{ secrets.STORAGE_S3_SECRET_ACCESS_KEY }}
+          STORAGE_S3_BUCKET: ${{ vars.STORAGE_S3_BUCKET }}
+          STORAGE_S3_PUBLIC_BASE_URL: ${{ vars.STORAGE_S3_PUBLIC_BASE_URL }}
+          STORAGE_S3_PREFIX: ${{ vars.STORAGE_S3_PREFIX }}
+          STORAGE_S3_USE_PATH_STYLE: ${{ vars.STORAGE_S3_USE_PATH_STYLE }}
+          STORAGE_S3_PRESIGN_TTL_MINUTES: ${{ vars.STORAGE_S3_PRESIGN_TTL_MINUTES }}
+          CRON_MEDIA_UPLOAD_CLEANUP_INTERVAL_SECONDS: ${{ vars.CRON_MEDIA_UPLOAD_CLEANUP_INTERVAL_SECONDS }}
+          CRON_MEDIA_UPLOAD_CLEANUP_BATCH_SIZE: ${{ vars.CRON_MEDIA_UPLOAD_CLEANUP_BATCH_SIZE }}
+        run: |
+          set -eu
+          : "${POSTGRES_USER:?Missing go-cms variable POSTGRES_USER}"
+          : "${POSTGRES_PASSWORD:?Missing go-cms secret POSTGRES_PASSWORD}"
+          : "${POSTGRES_DB:?Missing go-cms variable POSTGRES_DB}"
+          : "${DATABASE_DSN:?Missing go-cms secret DATABASE_DSN}"
+          : "${REDIS_PASSWORD:?Missing go-cms secret REDIS_PASSWORD}"
+          : "${KAFKA_CLUSTER_ID:?Missing go-cms variable KAFKA_CLUSTER_ID}"
+          : "${AUTH_JWT_SECRET:?Missing go-cms secret AUTH_JWT_SECRET}"
+          umask 077
+          {
+            printf '%s\n' "REGISTRY=$REGISTRY"
+            printf '%s\n' "NAMESPACE=$NAMESPACE"
+            printf '%s\n' "IMAGE_NAME=$IMAGE_NAME"
+            printf '%s\n' "IMAGE_TAG=$GITHUB_REF_NAME"
+            printf '%s\n' "POSTGRES_USER=$POSTGRES_USER"
+            printf '%s\n' "POSTGRES_PASSWORD=$POSTGRES_PASSWORD"
+            printf '%s\n' "POSTGRES_DB=$POSTGRES_DB"
+            printf '%s\n' "DATABASE_DSN=$DATABASE_DSN"
+            printf '%s\n' "REDIS_ADDR=redis:6379"
+            printf '%s\n' "REDIS_PASSWORD=$REDIS_PASSWORD"
+            printf '%s\n' 'REDIS_DB=0'
+            printf '%s\n' "MQ_KAFKA_BROKERS=kafka:9092"
+            printf '%s\n' "KAFKA_CLUSTER_ID=$KAFKA_CLUSTER_ID"
+            printf '%s\n' "AUTH_JWT_SECRET=$AUTH_JWT_SECRET"
+            printf '%s\n' "MCP_ENABLED=${MCP_ENABLED:-false}"
+            printf '%s\n' "MCP_SERVICE_ACCOUNT_NAME=$MCP_SERVICE_ACCOUNT_NAME"
+            printf '%s\n' "MCP_SERVICE_ACCOUNT_EMAIL=$MCP_SERVICE_ACCOUNT_EMAIL"
+            printf '%s\n' "MCP_CLIENT_ID=$MCP_CLIENT_ID"
+            printf '%s\n' "MCP_CLIENT_SECRET=$MCP_CLIENT_SECRET"
+            printf '%s\n' "MCP_SERVICE_ACCOUNT_ENABLED=${MCP_SERVICE_ACCOUNT_ENABLED:-true}"
+            printf '%s\n' "MCP_SECRET_ROTATION_GRACE_MINUTES=${MCP_SECRET_ROTATION_GRACE_MINUTES:-60}"
+            printf '%s\n' "MCP_TOKEN_AUDIENCE=${MCP_TOKEN_AUDIENCE:-cms-api}"
+            printf '%s\n' "MCP_ACCESS_TOKEN_TTL_MINUTES=${MCP_ACCESS_TOKEN_TTL_MINUTES:-10}"
+            printf '%s\n' "EMAIL_MODE=${EMAIL_MODE:-log}"
+            printf '%s\n' "EMAIL_SMTP_HOST=$EMAIL_SMTP_HOST"
+            printf '%s\n' "EMAIL_SMTP_PORT=${EMAIL_SMTP_PORT:-465}"
+            printf '%s\n' "EMAIL_SMTP_USER=$EMAIL_SMTP_USER"
+            printf '%s\n' "EMAIL_SMTP_PASSWORD=$EMAIL_SMTP_PASSWORD"
+            printf '%s\n' "EMAIL_FROM_ADDRESS=$EMAIL_FROM_ADDRESS"
+            printf '%s\n' "EMAIL_SITE_BASE_URL=$EMAIL_SITE_BASE_URL"
+            printf '%s\n' "TRACING_ENDPOINT=$TRACING_ENDPOINT"
+            printf '%s\n' "STORAGE_S3_ENDPOINT=$STORAGE_S3_ENDPOINT"
+            printf '%s\n' "STORAGE_S3_REGION=${STORAGE_S3_REGION:-auto}"
+            printf '%s\n' "STORAGE_S3_ACCESS_KEY_ID=$STORAGE_S3_ACCESS_KEY_ID"
+            printf '%s\n' "STORAGE_S3_SECRET_ACCESS_KEY=$STORAGE_S3_SECRET_ACCESS_KEY"
+            printf '%s\n' "STORAGE_S3_BUCKET=$STORAGE_S3_BUCKET"
+            printf '%s\n' "STORAGE_S3_PUBLIC_BASE_URL=$STORAGE_S3_PUBLIC_BASE_URL"
+            printf '%s\n' "STORAGE_S3_PREFIX=${STORAGE_S3_PREFIX:-cms}"
+            printf '%s\n' "STORAGE_S3_USE_PATH_STYLE=${STORAGE_S3_USE_PATH_STYLE:-true}"
+            printf '%s\n' "STORAGE_S3_PRESIGN_TTL_MINUTES=${STORAGE_S3_PRESIGN_TTL_MINUTES:-15}"
+            printf '%s\n' "CRON_MEDIA_UPLOAD_CLEANUP_INTERVAL_SECONDS=${CRON_MEDIA_UPLOAD_CLEANUP_INTERVAL_SECONDS:-300}"
+            printf '%s\n' "CRON_MEDIA_UPLOAD_CLEANUP_BATCH_SIZE=${CRON_MEDIA_UPLOAD_CLEANUP_BATCH_SIZE:-100}"
+          } > "$RUNNER_TEMP/production.env"
+
+      - name: Upload deployment files
+        env:
+          TUNNEL_SERVICE_TOKEN_ID: ${{ secrets.CF_ACCESS_CLIENT_ID }}
+          TUNNEL_SERVICE_TOKEN_SECRET: ${{ secrets.CF_ACCESS_CLIENT_SECRET }}
+        run: |
+          timeout 60s ssh ssh.elseif.site 'install -d -m 700 /home/ubuntu/go-cms'
+          timeout 60s scp deploy/compose.production.yml ssh.elseif.site:/home/ubuntu/go-cms/compose.production.yml.next
+          timeout 60s scp "$RUNNER_TEMP/production.env" ssh.elseif.site:/home/ubuntu/go-cms/.env.next
+
+      - name: Log in server to Tencent CCR
+        env:
+          CCR_USERNAME: ${{ secrets.CCR_USERNAME }}
+          CCR_PASSWORD: ${{ secrets.CCR_PASSWORD }}
+          TUNNEL_SERVICE_TOKEN_ID: ${{ secrets.CF_ACCESS_CLIENT_ID }}
+          TUNNEL_SERVICE_TOKEN_SECRET: ${{ secrets.CF_ACCESS_CLIENT_SECRET }}
+        run: |
+          set -eu
+          : "${CCR_USERNAME:?Missing go-cms secret CCR_USERNAME}"
+          : "${CCR_PASSWORD:?Missing go-cms secret CCR_PASSWORD}"
+          printf '%s' "$CCR_PASSWORD" | timeout 60s ssh ssh.elseif.site "docker login '$REGISTRY' --username '$CCR_USERNAME' --password-stdin"
+
+      - name: Deploy release
+        env:
+          TUNNEL_SERVICE_TOKEN_ID: ${{ secrets.CF_ACCESS_CLIENT_ID }}
+          TUNNEL_SERVICE_TOKEN_SECRET: ${{ secrets.CF_ACCESS_CLIENT_SECRET }}
+        run: |
+          timeout 10m ssh ssh.elseif.site <<'REMOTE'
+          set -eu
+          deploy_dir=/home/ubuntu/go-cms
+          cd "$deploy_dir"
+          chmod 600 .env.next
+          mv .env.next .env
+          mv compose.production.yml.next compose.production.yml
+
+          docker compose --env-file .env -f compose.production.yml pull server worker cron migrate
+          docker logout ccr.ccs.tencentyun.com || true
+          docker compose --env-file .env -f compose.production.yml up -d postgres redis kafka
+          docker compose --env-file .env -f compose.production.yml up --wait --wait-timeout 180 postgres redis kafka
+          docker compose --env-file .env -f compose.production.yml run --rm --no-deps migrate
+          docker compose --env-file .env -f compose.production.yml up -d --remove-orphans server worker cron
+          docker compose --env-file .env -f compose.production.yml up --wait --wait-timeout 180 server worker cron
+          curl --fail --retry 10 --retry-delay 3 http://127.0.0.1:8080/readyz
+          docker compose --env-file .env -f compose.production.yml ps
+          REMOTE
+
+      - name: Collect deployment diagnostics
+        if: failure()
+        env:
+          TUNNEL_SERVICE_TOKEN_ID: ${{ secrets.CF_ACCESS_CLIENT_ID }}
+          TUNNEL_SERVICE_TOKEN_SECRET: ${{ secrets.CF_ACCESS_CLIENT_SECRET }}
+        run: |
+          ssh ssh.elseif.site '
+            if [ -f /home/ubuntu/go-cms/compose.production.yml ]; then
+              cd /home/ubuntu/go-cms
+              docker compose --env-file .env -f compose.production.yml ps
+              docker compose --env-file .env -f compose.production.yml logs --no-color --tail=200
+            fi
+          ' || true
 
   ssh-connectivity:
     name: Verify Cloudflare SSH Access

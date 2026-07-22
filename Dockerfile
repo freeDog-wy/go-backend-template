@@ -10,7 +10,7 @@ RUN go mod download
 COPY . ./
 
 ARG APP=server
-RUN case "$APP" in server|worker|cron) ;; *) echo "unsupported APP: $APP" >&2; exit 1 ;; esac \
+RUN case "$APP" in server|worker|cron|migrate) ;; *) echo "unsupported APP: $APP" >&2; exit 1 ;; esac \
     && CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags="-s -w" -o /out/app ./cmd/$APP
 
 FROM alpine:3.22
@@ -23,6 +23,7 @@ WORKDIR /app
 
 COPY --from=builder /out/app ./app
 COPY --from=builder /src/configs/config.yaml ./config.yaml
+COPY --from=builder /src/db/migrations ./db/migrations
 
 USER app
 
