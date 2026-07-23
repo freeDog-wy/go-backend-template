@@ -53,6 +53,10 @@ auth:
   access_token_ttl_minutes: 15
   refresh_token_ttl_hours: 168
   login_fail_threshold: 5
+  # Cookie-based administrator sessions are enabled only when this origin is set.
+  admin_origin: "http://localhost:5173"
+  admin_refresh_cookie_name: "admin_refresh_token"
+  admin_refresh_cookie_secure: false
 
 mcp:
   enabled: false

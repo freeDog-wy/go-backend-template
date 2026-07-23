@@ -4,6 +4,7 @@ import (
 	"context"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/freeDog-wy/go-backend-template/internal/config"
@@ -23,7 +24,7 @@ import (
 	"go.opentelemetry.io/contrib/instrumentation/github.com/gin-gonic/gin/otelgin"
 )
 
-func newServerRegistry(infra *serverInfrastructure, platform *serverPlatform, services *serverServices, serviceTokenHandler *hdlServiceToken.Handler) *handler.Registry {
+func newServerRegistry(cfg *config.Config, infra *serverInfrastructure, platform *serverPlatform, services *serverServices, serviceTokenHandler *hdlServiceToken.Handler) *handler.Registry {
 	registry := handler.NewRegistry()
 	registry.Add(hdlHealth.New(map[string]hdlHealth.Checker{
 		"database": hdlHealth.CheckFunc(infra.sqlDB.PingContext),
@@ -32,7 +33,12 @@ func newServerRegistry(infra *serverInfrastructure, platform *serverPlatform, se
 		}),
 	}, 2*time.Second))
 	registry.Add(hdlCaptcha.New(infra.captcha))
-	registry.Add(hdlAuth.New(services.auth, services.authorization, services.identity, services.verification))
+	registry.Add(hdlAuth.NewWithCookieOptions(services.auth, services.authorization, services.identity, services.verification, hdlAuth.CookieOptions{
+		AdminOrigin: configOrigin(cfg.Auth.AdminOrigin),
+		Name:        cfg.Auth.AdminRefreshCookieName,
+		Secure:      cfg.Auth.AdminRefreshCookieSecure,
+		TTL:         time.Duration(cfg.Auth.RefreshTokenTTLHours) * time.Hour,
+	}))
 	registry.Add(hdlAdminRole.New(services.auth, services.authorization, services.authorization))
 	registry.Add(hdlAdminUser.New(services.auth, services.authorization, services.authorization, services.identity))
 	registry.Add(hdlMe.New(services.auth, services.auth, services.identity))
@@ -47,6 +53,8 @@ func newServerRegistry(infra *serverInfrastructure, platform *serverPlatform, se
 	}
 	return registry
 }
+
+func configOrigin(value string) string { return strings.TrimRight(strings.TrimSpace(value), "/") }
 
 func newRouter(cfg *config.Config, infra *serverInfrastructure, registry *handler.Registry) *gin.Engine {
 	if cfg.App.Mode == "production" {
