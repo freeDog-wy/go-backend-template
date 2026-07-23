@@ -2,6 +2,9 @@ package auth
 
 import (
 	"errors"
+	"net/http"
+	"strings"
+	"time"
 
 	"github.com/freeDog-wy/go-backend-template/internal/handler"
 	svcAuth "github.com/freeDog-wy/go-backend-template/internal/usecase/auth"
@@ -18,6 +21,18 @@ type Handler struct {
 	authorizationSvc svcAuthorization.AccessAuthorizer
 	identitySvc      svcIdentity.RegistrationService
 	verificationSvc  svcVerification.VerificationService
+	cookieOptions    CookieOptions
+}
+
+const refreshCookiePath = "/api/v1/auth/"
+
+// CookieOptions configures the optional refresh-token transport for the admin UI.
+// Access tokens remain Bearer tokens and are never read from a cookie.
+type CookieOptions struct {
+	AdminOrigin string
+	Name        string
+	Secure      bool
+	TTL         time.Duration
 }
 
 func New(
@@ -26,11 +41,29 @@ func New(
 	identitySvc svcIdentity.RegistrationService,
 	verificationSvc svcVerification.VerificationService,
 ) *Handler {
+	return NewWithCookieOptions(authSvc, authorizationSvc, identitySvc, verificationSvc, CookieOptions{})
+}
+
+func NewWithCookieOptions(
+	authSvc svcAuth.AuthenticationService,
+	authorizationSvc svcAuthorization.AccessAuthorizer,
+	identitySvc svcIdentity.RegistrationService,
+	verificationSvc svcVerification.VerificationService,
+	cookieOptions CookieOptions,
+) *Handler {
+	if cookieOptions.Name == "" {
+		cookieOptions.Name = "admin_refresh_token"
+	}
+	if cookieOptions.TTL <= 0 {
+		cookieOptions.TTL = 7 * 24 * time.Hour
+	}
+	cookieOptions.AdminOrigin = strings.TrimRight(strings.TrimSpace(cookieOptions.AdminOrigin), "/")
 	return &Handler{
 		authSvc:          authSvc,
 		authorizationSvc: authorizationSvc,
 		identitySvc:      identitySvc,
 		verificationSvc:  verificationSvc,
+		cookieOptions:    cookieOptions,
 	}
 }
 
@@ -187,13 +220,12 @@ func (h *Handler) Login(c *gin.Context) {
 }
 
 func (h *Handler) Refresh(c *gin.Context) {
-	var req RefreshReq
-	if err := c.ShouldBindJSON(&req); err != nil {
-		handler.Fail(c, "INVALID_INPUT", err.Error())
+	refreshToken, cookieSession, ok := h.refreshTokenFromRequest(c)
+	if !ok {
 		return
 	}
 
-	result, err := h.authSvc.Refresh(c.Request.Context(), req.ToCommand())
+	result, err := h.authSvc.Refresh(c.Request.Context(), svcAuth.RefreshCmd{RefreshToken: refreshToken})
 	if err != nil {
 		switch {
 		case errors.Is(err, svcAuth.ErrInvalidRefreshToken):
@@ -210,19 +242,23 @@ func (h *Handler) Refresh(c *gin.Context) {
 		return
 	}
 
+	if cookieSession {
+		h.writeRefreshCookie(c, result.RefreshToken)
+		handler.OK(c, FromAuthResultWithoutRefreshToken(result))
+		return
+	}
 	handler.OK(c, FromAuthResult(result))
 }
 
 func (h *Handler) Logout(c *gin.Context) {
-	var req LogoutReq
-	if err := c.ShouldBindJSON(&req); err != nil {
-		handler.Fail(c, "INVALID_INPUT", err.Error())
+	refreshToken, cookieSession, ok := h.refreshTokenFromRequest(c)
+	if !ok {
 		return
 	}
 
 	meta := handler.AuditMetaFromRequest(c)
 	if err := h.authSvc.Logout(c.Request.Context(), svcAuth.LogoutCmd{
-		RefreshToken: req.RefreshToken,
+		RefreshToken: refreshToken,
 		IP:           meta.IP,
 		UserAgent:    meta.UserAgent,
 	}); err != nil {
@@ -235,6 +271,9 @@ func (h *Handler) Logout(c *gin.Context) {
 		return
 	}
 
+	if cookieSession {
+		h.clearRefreshCookie(c)
+	}
 	handler.OK(c, MessageResponse{Message: "已退出登录"})
 }
 
@@ -245,7 +284,10 @@ func (h *Handler) AdminLogin(c *gin.Context) {
 		return
 	}
 
-	result, err := h.authSvc.Login(c.Request.Context(), req.ToCommand())
+	meta := handler.AuditMetaFromRequest(c)
+	result, err := h.authSvc.Login(c.Request.Context(), svcAuth.LoginCmd{
+		Email: req.Email, Password: req.Password, IP: meta.IP, UserAgent: meta.UserAgent,
+	})
 	if err != nil {
 		switch {
 		case errors.Is(err, svcAuth.ErrInvalidCredentials):
@@ -267,5 +309,43 @@ func (h *Handler) AdminLogin(c *gin.Context) {
 		return
 	}
 
+	if h.cookieSessionsEnabled() {
+		h.writeRefreshCookie(c, result.RefreshToken)
+		handler.OK(c, FromAuthResultWithoutRefreshToken(result))
+		return
+	}
 	handler.OK(c, FromAuthResult(result))
+}
+
+func (h *Handler) refreshTokenFromRequest(c *gin.Context) (string, bool, bool) {
+	if refreshToken, err := c.Cookie(h.cookieOptions.Name); err == nil && strings.TrimSpace(refreshToken) != "" {
+		if !h.cookieSessionsEnabled() || !h.hasAllowedAdminOrigin(c) {
+			handler.Fail(c, "FORBIDDEN", "untrusted admin origin")
+			return "", false, false
+		}
+		return refreshToken, true, true
+	}
+
+	var req RefreshReq
+	if err := c.ShouldBindJSON(&req); err != nil {
+		handler.Fail(c, "INVALID_INPUT", err.Error())
+		return "", false, false
+	}
+	return req.RefreshToken, false, true
+}
+
+func (h *Handler) cookieSessionsEnabled() bool { return h.cookieOptions.AdminOrigin != "" }
+
+func (h *Handler) hasAllowedAdminOrigin(c *gin.Context) bool {
+	return strings.TrimRight(strings.TrimSpace(c.GetHeader("Origin")), "/") == h.cookieOptions.AdminOrigin
+}
+
+func (h *Handler) writeRefreshCookie(c *gin.Context, refreshToken string) {
+	c.SetSameSite(http.SameSiteStrictMode)
+	c.SetCookie(h.cookieOptions.Name, refreshToken, int(h.cookieOptions.TTL.Seconds()), refreshCookiePath, "", h.cookieOptions.Secure, true)
+}
+
+func (h *Handler) clearRefreshCookie(c *gin.Context) {
+	c.SetSameSite(http.SameSiteStrictMode)
+	c.SetCookie(h.cookieOptions.Name, "", -1, refreshCookiePath, "", h.cookieOptions.Secure, true)
 }

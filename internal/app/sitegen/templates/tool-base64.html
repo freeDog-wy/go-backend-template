@@ -1,0 +1,39 @@
+{{define "content"}}
+<section class="site-shell page-intro compact">
+  <p class="eyebrow">{{.Labels.Tools}}</p>
+  <h1>{{.Tool.Title}}</h1>
+  <p class="page-description">{{.Tool.Description}}</p>
+</section>
+<section class="site-shell content-section" data-base64-tool
+  data-need-input="{{.Copy.NeedInput}}"
+  data-input-too-large="{{.Copy.InputTooLarge}}"
+  data-copied="{{.Copy.Copied}}"
+  data-copy-failed="{{.Copy.CopyFailed}}"
+  data-cleared="{{.Copy.Cleared}}"
+  data-invalid-base64="{{.Copy.InvalidBase64}}">
+  <div class="tool-workspace">
+    <div class="tool-columns">
+      <label class="tool-field" for="base64-input">
+        <span>{{.Copy.InputLabel}}</span>
+        <textarea id="base64-input" data-base64-input maxlength="1048576" spellcheck="false"></textarea>
+      </label>
+      <label class="tool-field" for="base64-output">
+        <span>{{.Copy.OutputLabel}}</span>
+        <textarea id="base64-output" data-base64-output readonly spellcheck="false"></textarea>
+      </label>
+    </div>
+    <div class="tool-toolbar">
+      <div class="tool-actions" aria-label="{{.Tool.Title}}">
+        <button type="button" data-base64-action="encode">{{.Copy.EncodeLabel}}</button>
+        <button type="button" class="secondary" data-base64-action="decode">{{.Copy.DecodeLabel}}</button>
+      </div>
+      <div class="tool-actions">
+        <button type="button" class="secondary outline" data-base64-copy>{{.Copy.CopyLabel}}</button>
+        <button type="button" class="secondary outline" data-base64-clear>{{.Copy.ClearLabel}}</button>
+      </div>
+    </div>
+    <p class="tool-hint">{{.Copy.Hint}}</p>
+    <p class="tool-status" data-base64-status aria-live="polite"></p>
+  </div>
+</section>
+{{end}}

@@ -48,10 +48,18 @@ func TestBuildGeneratesMultilingualStaticSite(t *testing.T) {
 		"en-US/articles/go-static-site/index.html",
 		"zh-CN/categories/backend/index.html",
 		"zh-CN/tags/go/index.html",
+		"zh-CN/tools/index.html",
+		"zh-CN/tools/base64/index.html",
+		"zh-CN/tools/json/index.html",
+		"en-US/tools/index.html",
+		"en-US/tools/base64/index.html",
+		"en-US/tools/json/index.html",
 		"sitemap.xml",
 		"robots.txt",
 		"_redirects",
 		"assets/site.css",
+		"assets/tool-base64.js",
+		"assets/tool-json.js",
 	} {
 		if _, err := os.Stat(filepath.Join(outputDir, path)); err != nil {
 			t.Errorf("expected generated %s: %v", path, err)
@@ -62,6 +70,15 @@ func TestBuildGeneratesMultilingualStaticSite(t *testing.T) {
 	}
 	if sitemap := readOutput(t, outputDir, "sitemap.xml"); !strings.Contains(sitemap, "https://docs.example.test/zh-CN/articles/go-jing-tai-zhan/") {
 		t.Fatalf("sitemap did not contain an absolute canonical URL:\n%s", sitemap)
+	} else if !strings.Contains(sitemap, "https://docs.example.test/en-US/tools/json/") {
+		t.Fatalf("sitemap did not contain a static tool URL:\n%s", sitemap)
+	}
+	zhBase64 := readOutput(t, outputDir, "zh-CN/tools/base64/index.html")
+	if !strings.Contains(zhBase64, `href="/en-US/tools/base64/"`) {
+		t.Fatalf("Chinese Base64 tool is missing its matching English route:\n%s", zhBase64)
+	}
+	if !strings.Contains(zhBase64, `data-base64-tool`) || !strings.Contains(zhBase64, `src="/assets/tool-base64.js"`) {
+		t.Fatalf("Chinese Base64 tool is missing its browser-only controls:\n%s", zhBase64)
 	}
 }
 

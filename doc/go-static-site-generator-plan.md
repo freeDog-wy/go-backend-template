@@ -164,11 +164,23 @@ go run ./cmd/sitegen \
 | 分类分页 | `/{locale}/categories/{slug}/page/{n}/` | `{locale}/categories/{slug}/page/{n}/index.html` |
 | 标签页 | `/{locale}/tags/{slug}/` | `{locale}/tags/{slug}/index.html` |
 | 标签分页 | `/{locale}/tags/{slug}/page/{n}/` | `{locale}/tags/{slug}/page/{n}/index.html` |
+| 工具目录 | `/{locale}/tools/` | `{locale}/tools/index.html` |
+| 静态工具页 | `/{locale}/tools/{tool}/` | `{locale}/tools/{tool}/index.html` |
 | 404 页 | `/404/` | `404.html` |
 
 根路径 `/` 必须由静态托管平台返回到默认语言首页的 `301`。Cloudflare Pages 使用 `_redirects`，Nginx 或对象存储 CDN 使用各自的重定向规则。不能为 `/` 生成默认语言首页的重复内容。
 
 链接由 `routes.go` 统一生成，模板禁止拼接 URL 字符串，避免尾随斜杠、URL 编码和相对路径不一致。
+
+### 6.1 浏览器端静态工具
+
+工具是站点自身的静态功能页，不属于 CMS 内容，也不出现在文章 API、内容 Sitemap 条目或重定向接口中。第一批工具为 `base64`（UTF-8 Base64 编解码）和 `json`（格式化、压缩、结构化预览），每个已启用语言均生成一个独立页面。
+
+- 工具目录和工具详情页使用与文章站一致的语言路由。工具详情的语言菜单必须指向同一工具的其他语言版本，例如 `/zh-CN/tools/base64/` 切换至 `/en-US/tools/base64/`。
+- 工具页面独立生成 canonical 和各语言 `hreflang`，并加入最终 `sitemap.xml`；工具输入内容不得进入 URL、HTML、Sitemap 或任何构建产物。
+- JavaScript 使用原生 ES Module 和浏览器内建 API。不得 `fetch`、不得访问 CMS API、不得 `eval`，也不得将工具输入写入 localStorage、cookie 或其他持久化存储。
+- JSON 预览只可通过 `document.createElement` 和 `textContent` 写入 DOM；禁止以 `innerHTML` 渲染用户 JSON。输入限制为 1 MB，树形预览限制最大深度和节点数，防止异常内容阻塞页面。
+- 工具按钮和状态提示需要键盘可操作，状态区使用 `aria-live="polite"`。小屏幕将输入、结果和操作区改为单列，深色主题沿用站点 CSS 令牌。
 
 ## 7. 数据读取与构建流程
 

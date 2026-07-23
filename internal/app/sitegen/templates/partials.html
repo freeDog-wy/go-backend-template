@@ -1,10 +1,11 @@
 {{define "site-header"}}
 <header class="site-header">
   <div class="site-shell header-inner">
-    <a class="site-brand" href="{{.CurrentLocale.URL}}">{{.SiteName}}</a>
+    <a class="site-brand" href="{{.HomeURL}}">{{.SiteName}}</a>
     <nav class="site-nav" aria-label="{{.Labels.Categories}}">
-      <a href="{{.CurrentLocale.URL}}">{{.Labels.Home}}</a>
-      <a href="{{.CurrentLocale.URL}}articles/">{{.Labels.Articles}}</a>
+      <a href="{{.HomeURL}}">{{.Labels.Home}}</a>
+      <a href="{{.HomeURL}}articles/">{{.Labels.Articles}}</a>
+      <a href="{{.HomeURL}}tools/">{{.Labels.Tools}}</a>
       {{range .Navigation}}<a href="{{.URL}}">{{.Name}}</a>{{end}}
     </nav>
     <div class="header-tools">
@@ -17,8 +18,9 @@
       <details class="mobile-navigation">
         <summary aria-label="{{.Labels.Menu}}" title="{{.Labels.Menu}}"><i data-lucide="menu" aria-hidden="true"></i></summary>
         <nav aria-label="{{.Labels.Menu}}">
-          <a href="{{.CurrentLocale.URL}}">{{.Labels.Home}}</a>
-          <a href="{{.CurrentLocale.URL}}articles/">{{.Labels.Articles}}</a>
+          <a href="{{.HomeURL}}">{{.Labels.Home}}</a>
+          <a href="{{.HomeURL}}articles/">{{.Labels.Articles}}</a>
+          <a href="{{.HomeURL}}tools/">{{.Labels.Tools}}</a>
           {{range .Navigation}}<a href="{{.URL}}">{{.Name}}</a>{{end}}
         </nav>
       </details>

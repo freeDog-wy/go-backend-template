@@ -54,12 +54,15 @@ type S3Config struct {
 }
 
 type AuthConfig struct {
-	JWTIssuer             string
-	JWTAudience           string
-	JWTSecret             string
-	AccessTokenTTLMinutes int
-	RefreshTokenTTLHours  int
-	LoginFailThreshold    int
+	JWTIssuer                string
+	JWTAudience              string
+	JWTSecret                string
+	AccessTokenTTLMinutes    int
+	RefreshTokenTTLHours     int
+	LoginFailThreshold       int
+	AdminOrigin              string `mapstructure:"admin_origin"`
+	AdminRefreshCookieName   string `mapstructure:"admin_refresh_cookie_name"`
+	AdminRefreshCookieSecure bool   `mapstructure:"admin_refresh_cookie_secure"`
 }
 
 type DatabaseConfig struct {
@@ -201,6 +204,9 @@ func Load(configPath string) (*Config, error) {
 	v.SetDefault("auth.accessTokenTTLMinutes", 15)
 	v.SetDefault("auth.refreshTokenTTLHours", 24*7)
 	v.SetDefault("auth.loginFailThreshold", 5)
+	v.SetDefault("auth.adminOrigin", "")
+	v.SetDefault("auth.adminRefreshCookieName", "admin_refresh_token")
+	v.SetDefault("auth.adminRefreshCookieSecure", true)
 	v.SetDefault("worker.consumer_group", "user-worker")
 	v.SetDefault("worker.probe.ip", "0.0.0.0")
 	v.SetDefault("worker.probe.port", 8081)
@@ -300,7 +306,7 @@ var configEnvBindings = map[string]string{
 	"redis.addr": "REDIS_ADDR", "redis.password": "REDIS_PASSWORD", "redis.db": "REDIS_DB",
 	"rate_limit.enabled": "RATE_LIMIT_ENABLED", "rate_limit.requests": "RATE_LIMIT_REQUESTS", "rate_limit.window_seconds": "RATE_LIMIT_WINDOW_SECONDS",
 	"worker.consumer_group": "WORKER_CONSUMER_GROUP", "worker.probe.ip": "WORKER_PROBE_IP", "worker.probe.port": "WORKER_PROBE_PORT", "worker.consumer_max_retries": "WORKER_CONSUMER_MAX_RETRIES", "worker.consumer_processing_lock_seconds": "WORKER_CONSUMER_PROCESSING_LOCK_SECONDS", "worker.kafka_read_min_bytes": "WORKER_KAFKA_READ_MIN_BYTES", "worker.kafka_read_max_bytes": "WORKER_KAFKA_READ_MAX_BYTES", "worker.kafka_max_wait_seconds": "WORKER_KAFKA_MAX_WAIT_SECONDS", "worker.kafka_dead_letter_topic": "WORKER_KAFKA_DEAD_LETTER_TOPIC",
-	"auth.jwtIssuer": "AUTH_JWT_ISSUER", "auth.jwtAudience": "AUTH_JWT_AUDIENCE", "auth.jwtSecret": "AUTH_JWT_SECRET", "auth.accessTokenTTLMinutes": "AUTH_ACCESS_TOKEN_TTL_MINUTES", "auth.refreshTokenTTLHours": "AUTH_REFRESH_TOKEN_TTL_HOURS", "auth.loginFailThreshold": "AUTH_LOGIN_FAIL_THRESHOLD",
+	"auth.jwtIssuer": "AUTH_JWT_ISSUER", "auth.jwtAudience": "AUTH_JWT_AUDIENCE", "auth.jwtSecret": "AUTH_JWT_SECRET", "auth.accessTokenTTLMinutes": "AUTH_ACCESS_TOKEN_TTL_MINUTES", "auth.refreshTokenTTLHours": "AUTH_REFRESH_TOKEN_TTL_HOURS", "auth.loginFailThreshold": "AUTH_LOGIN_FAIL_THRESHOLD", "auth.adminOrigin": "AUTH_ADMIN_ORIGIN", "auth.adminRefreshCookieName": "AUTH_ADMIN_REFRESH_COOKIE_NAME", "auth.adminRefreshCookieSecure": "AUTH_ADMIN_REFRESH_COOKIE_SECURE",
 	"email.mode": "EMAIL_MODE", "email.smtpHost": "EMAIL_SMTP_HOST", "email.smtpPort": "EMAIL_SMTP_PORT", "email.smtpUser": "EMAIL_SMTP_USER", "email.smtpPassword": "EMAIL_SMTP_PASSWORD", "email.fromAddress": "EMAIL_FROM_ADDRESS", "email.siteBaseURL": "EMAIL_SITE_BASE_URL",
 	"captcha.width": "CAPTCHA_WIDTH", "captcha.height": "CAPTCHA_HEIGHT", "captcha.length": "CAPTCHA_LENGTH",
 	"cron.enabled": "CRON_ENABLED", "cron.probe.ip": "CRON_PROBE_IP", "cron.probe.port": "CRON_PROBE_PORT", "cron.outbox_publish_interval_seconds": "CRON_OUTBOX_PUBLISH_INTERVAL_SECONDS", "cron.outbox_batch_size": "CRON_OUTBOX_BATCH_SIZE", "cron.outbox_claim_ttl_seconds": "CRON_OUTBOX_CLAIM_TTL_SECONDS", "cron.verification_cleanup_interval_seconds": "CRON_VERIFICATION_CLEANUP_INTERVAL_SECONDS", "cron.media_upload_cleanup_interval_seconds": "CRON_MEDIA_UPLOAD_CLEANUP_INTERVAL_SECONDS", "cron.media_upload_cleanup_batch_size": "CRON_MEDIA_UPLOAD_CLEANUP_BATCH_SIZE",

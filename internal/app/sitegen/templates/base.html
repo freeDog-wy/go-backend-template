@@ -23,6 +23,7 @@
     {{template "site-footer" .}}
     <script defer src="https://unpkg.com/lucide@0.468.0/dist/umd/lucide.min.js"></script>
     <script type="module" src="/assets/app.js"></script>
+    {{range .Scripts}}<script type="module" src="{{.}}"></script>{{end}}
   </body>
 </html>
 {{end}}

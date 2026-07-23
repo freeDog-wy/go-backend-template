@@ -48,7 +48,7 @@ func initApp(cfg *config.Config) (*App, error) {
 	if err != nil {
 		return nil, err
 	}
-	registry := newServerRegistry(infra, platform, services, serviceTokenHandler)
+	registry := newServerRegistry(cfg, infra, platform, services, serviceTokenHandler)
 
 	return &App{
 		server: newHTTPServer(cfg, newRouter(cfg, infra, registry)),

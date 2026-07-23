@@ -39,6 +39,14 @@ func tagRoute(locale, slug string, page int) string {
 	return base + "page/" + strconvItoa(page) + "/"
 }
 
+func toolsRoute(locale string) string {
+	return localeRoute(locale) + "tools/"
+}
+
+func toolRoute(locale, toolID string) string {
+	return toolsRoute(locale) + url.PathEscape(toolID) + "/"
+}
+
 func outputPath(route string) string {
 	clean := strings.Trim(route, "/")
 	if clean == "" {

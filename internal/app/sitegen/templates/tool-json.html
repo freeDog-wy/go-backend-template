@@ -1,0 +1,44 @@
+{{define "content"}}
+<section class="site-shell page-intro compact">
+  <p class="eyebrow">{{.Labels.Tools}}</p>
+  <h1>{{.Tool.Title}}</h1>
+  <p class="page-description">{{.Tool.Description}}</p>
+</section>
+<section class="site-shell content-section" data-json-tool
+  data-need-input="{{.Copy.NeedInput}}"
+  data-input-too-large="{{.Copy.InputTooLarge}}"
+  data-copied="{{.Copy.Copied}}"
+  data-copy-failed="{{.Copy.CopyFailed}}"
+  data-cleared="{{.Copy.Cleared}}"
+  data-invalid-json="{{.Copy.InvalidJSON}}"
+  data-tree-truncated="{{.Copy.TreeTruncated}}">
+  <div class="tool-workspace">
+    <div class="tool-columns">
+      <label class="tool-field" for="json-input">
+        <span>{{.Copy.InputLabel}}</span>
+        <textarea id="json-input" data-json-input maxlength="1048576" spellcheck="false"></textarea>
+      </label>
+      <label class="tool-field" for="json-output">
+        <span>{{.Copy.OutputLabel}}</span>
+        <textarea id="json-output" data-json-output readonly spellcheck="false"></textarea>
+      </label>
+    </div>
+    <div class="tool-toolbar">
+      <div class="tool-actions" aria-label="{{.Tool.Title}}">
+        <button type="button" data-json-action="format">{{.Copy.FormatLabel}}</button>
+        <button type="button" class="secondary" data-json-action="minify">{{.Copy.MinifyLabel}}</button>
+      </div>
+      <div class="tool-actions">
+        <button type="button" class="secondary outline" data-json-copy>{{.Copy.CopyLabel}}</button>
+        <button type="button" class="secondary outline" data-json-clear>{{.Copy.ClearLabel}}</button>
+      </div>
+    </div>
+    <p class="tool-hint">{{.Copy.Hint}}</p>
+    <p class="tool-status" data-json-status aria-live="polite"></p>
+    <section class="json-tree-panel" aria-labelledby="json-tree-heading">
+      <h2 id="json-tree-heading">{{.Copy.TreeLabel}}</h2>
+      <div class="json-tree" data-json-tree aria-live="polite"></div>
+    </section>
+  </div>
+</section>
+{{end}}

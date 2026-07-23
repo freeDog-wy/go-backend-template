@@ -1,0 +1,18 @@
+{{define "content"}}
+<section class="site-shell page-intro compact">
+  <p class="eyebrow">{{.CurrentLocale.Name}}</p>
+  <h1>{{.Heading}}</h1>
+  <p class="page-description">{{.Description}}</p>
+</section>
+<section class="site-shell content-section tool-directory" aria-label="{{.Heading}}">
+  {{range .Tools}}
+  <article class="tool-card">
+    <i data-lucide="{{.Icon}}" aria-hidden="true"></i>
+    <div>
+      <h2><a href="{{.URL}}">{{.Title}}</a></h2>
+      <p>{{.Description}}</p>
+    </div>
+  </article>
+  {{end}}
+</section>
+{{end}}

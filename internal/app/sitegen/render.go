@@ -27,6 +27,7 @@ type labels struct {
 	TableOfContents string
 	ArticleLanguage string
 	SelectLanguage  string
+	Tools           string
 	Previous        string
 	Next            string
 	Page            string
@@ -73,6 +74,7 @@ type pageBaseView struct {
 	Labels        labels
 	Head          headView
 	HomeURL       string
+	Scripts       []string
 }
 
 type articleCardView struct {
@@ -135,6 +137,19 @@ type notFoundView struct {
 	pageBaseView
 }
 
+type toolsIndexView struct {
+	pageBaseView
+	Heading     string
+	Description string
+	Tools       []toolCardView
+}
+
+type toolPageView struct {
+	pageBaseView
+	Tool toolCardView
+	Copy toolCopy
+}
+
 func newRenderer() *renderer { return &renderer{} }
 
 func (r *renderer) Render(templateName string, data any) ([]byte, error) {
@@ -168,7 +183,7 @@ func localizedLabels(locale string) labels {
 		return labels{
 			Home: "首页", Articles: "文章", Categories: "分类", Tags: "标签", LatestArticles: "最新文章",
 			Published: "发布于", Updated: "更新于", ReadingTime: "阅读约", Minutes: "分钟",
-			TableOfContents: "目录", ArticleLanguage: "文章语言", SelectLanguage: "选择文章语言",
+			TableOfContents: "目录", ArticleLanguage: "文章语言", SelectLanguage: "选择文章语言", Tools: "工具",
 			Previous: "上一页", Next: "下一页", Page: "第", NotFound: "页面不存在", BackToHome: "返回首页",
 			SkipToContent: "跳至正文", Menu: "导航菜单", ToggleDark: "切换至深色主题", ToggleLight: "切换至浅色主题",
 		}
@@ -176,7 +191,7 @@ func localizedLabels(locale string) labels {
 	return labels{
 		Home: "Home", Articles: "Articles", Categories: "Categories", Tags: "Tags", LatestArticles: "Latest articles",
 		Published: "Published", Updated: "Updated", ReadingTime: "Reading time", Minutes: "min",
-		TableOfContents: "On this page", ArticleLanguage: "Article language", SelectLanguage: "Choose article language",
+		TableOfContents: "On this page", ArticleLanguage: "Article language", SelectLanguage: "Choose article language", Tools: "Tools",
 		Previous: "Previous", Next: "Next", Page: "Page", NotFound: "Page not found", BackToHome: "Back to home",
 		SkipToContent: "Skip to content", Menu: "Navigation menu", ToggleDark: "Switch to dark theme", ToggleLight: "Switch to light theme",
 	}

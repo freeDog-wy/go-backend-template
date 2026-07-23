@@ -14,7 +14,7 @@ type UserResponse struct {
 
 type AuthResponse struct {
 	AccessToken  string        `json:"access_token"`
-	RefreshToken string        `json:"refresh_token"`
+	RefreshToken string        `json:"refresh_token,omitempty"`
 	User         *UserResponse `json:"user,omitempty"`
 }
 
@@ -40,5 +40,12 @@ func FromAuthResult(r *svcAuth.AuthResult) *AuthResponse {
 		AccessToken:  r.AccessToken,
 		RefreshToken: r.RefreshToken,
 		User:         FromUserResult(r.User),
+	}
+}
+
+func FromAuthResultWithoutRefreshToken(r *svcAuth.AuthResult) *AuthResponse {
+	return &AuthResponse{
+		AccessToken: r.AccessToken,
+		User:        FromUserResult(r.User),
 	}
 }

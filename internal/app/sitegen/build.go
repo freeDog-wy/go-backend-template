@@ -73,7 +73,7 @@ func (a *App) Build(ctx context.Context) (BuildStats, error) {
 		return BuildStats{}, err
 	}
 	defer writer.Abort()
-	for _, asset := range []string{"theme-init.js", "app.js", "site.css"} {
+	for _, asset := range []string{"theme-init.js", "app.js", "site.css", "tool-base64.js", "tool-json.js"} {
 		if err := writer.CopyEmbeddedFile(siteFiles, "assets/"+asset, "assets/"+asset); err != nil {
 			return BuildStats{}, err
 		}
@@ -91,6 +91,11 @@ func (a *App) Build(ctx context.Context) (BuildStats, error) {
 		}
 		stats.Pages += pages
 		stats.Articles += articles
+		toolPages, err := a.renderTools(writer, snapshot, locales)
+		if err != nil {
+			return BuildStats{}, fmt.Errorf("render tools for locale %s: %w", locale.Code, err)
+		}
+		stats.Pages += toolPages
 	}
 
 	defaultSnapshot := snapshots[defaultLocale.Code]
@@ -320,15 +325,51 @@ func (a *App) renderLocale(writer *stagingWriter, snapshot *localeSnapshot, loca
 }
 
 func (a *App) baseView(snapshot *localeSnapshot, locales []Locale, head headView) pageBaseView {
+	return a.baseViewWithLocaleRoute(snapshot, locales, head, func(locale Locale) string {
+		return localeRoute(locale.Code)
+	})
+}
+
+func (a *App) baseViewWithLocaleRoute(snapshot *localeSnapshot, locales []Locale, head headView, routeForLocale func(Locale) string) pageBaseView {
 	options := make([]localeOptionView, 0, len(locales))
 	for _, locale := range locales {
-		options = append(options, localeOptionView{Code: locale.Code, Name: locale.Name, URL: localeRoute(locale.Code), Current: locale.Code == snapshot.Locale.Code})
+		options = append(options, localeOptionView{Code: locale.Code, Name: locale.Name, URL: routeForLocale(locale), Current: locale.Code == snapshot.Locale.Code})
 	}
 	return pageBaseView{
 		SiteName:      a.cfg.SiteName,
-		CurrentLocale: localeOptionView{Code: snapshot.Locale.Code, Name: snapshot.Locale.Name, URL: localeRoute(snapshot.Locale.Code), Current: true},
+		CurrentLocale: localeOptionView{Code: snapshot.Locale.Code, Name: snapshot.Locale.Name, URL: routeForLocale(snapshot.Locale), Current: true},
 		Locales:       options, Navigation: a.categoryNavs(snapshot.Locale.Code, snapshot.Categories), Labels: localizedLabels(snapshot.Locale.Code), Head: head, HomeURL: localeRoute(snapshot.Locale.Code),
 	}
+}
+
+func (a *App) renderTools(writer *stagingWriter, snapshot *localeSnapshot, locales []Locale) (int, error) {
+	pages := 0
+	indexRoute := toolsRoute(snapshot.Locale.Code)
+	indexRouteForLocale := func(locale Locale) string {
+		return toolsRoute(locale.Code)
+	}
+	indexBase := a.baseViewWithLocaleRoute(snapshot, locales, a.toolsHead(indexRoute, a.label(snapshot.Locale.Code, "tools"), a.toolsDescription(snapshot.Locale.Code), locales, indexRouteForLocale), indexRouteForLocale)
+	indexView := toolsIndexView{pageBaseView: indexBase, Heading: a.label(snapshot.Locale.Code, "tools"), Description: a.toolsDescription(snapshot.Locale.Code), Tools: staticTools(snapshot.Locale.Code)}
+	if err := a.writeTemplate(writer, "tools-index.html", outputPath(indexRoute), indexView); err != nil {
+		return 0, err
+	}
+	pages++
+
+	for _, definition := range toolDefinitions {
+		copy := definition.copyFor(snapshot.Locale.Code)
+		route := toolRoute(snapshot.Locale.Code, definition.ID)
+		routeForLocale := func(locale Locale) string {
+			return toolRoute(locale.Code, definition.ID)
+		}
+		base := a.baseViewWithLocaleRoute(snapshot, locales, a.toolsHead(route, copy.Title, copy.Description, locales, routeForLocale), routeForLocale)
+		base.Scripts = []string{definition.Script}
+		view := toolPageView{pageBaseView: base, Tool: toolCardView{ID: definition.ID, Title: copy.Title, Description: copy.Description, URL: route, Icon: definition.Icon}, Copy: copy}
+		if err := a.writeTemplate(writer, definition.Template, outputPath(route), view); err != nil {
+			return 0, err
+		}
+		pages++
+	}
+	return pages, nil
 }
 
 func (a *App) standardHead(locale Locale, title, description, route string) headView {
@@ -336,6 +377,14 @@ func (a *App) standardHead(locale Locale, title, description, route string) head
 		description = a.cfg.SiteName
 	}
 	return headView{Title: joinTitle(title, a.cfg.SiteName), Description: summaryDescription(description), Canonical: a.cfg.absoluteURL(route), Kind: "website"}
+}
+
+func (a *App) toolsHead(route, title, description string, locales []Locale, routeForLocale func(Locale) string) headView {
+	head := headView{Title: joinTitle(title, a.cfg.SiteName), Description: summaryDescription(description), Canonical: a.cfg.absoluteURL(route), Kind: "website"}
+	for _, alternate := range locales {
+		head.Hreflangs = append(head.Hreflangs, hreflangView{Locale: alternate.Code, URL: a.cfg.absoluteURL(routeForLocale(alternate))})
+	}
+	return head
 }
 
 func (a *App) articleHead(article Article, route string, localeByCode map[string]Locale, defaultLocale string) headView {
@@ -438,6 +487,10 @@ func (a *App) writeSitemap(writer *stagingWriter, snapshots map[string]*localeSn
 				return fmt.Errorf("invalid sitemap path %q", entry.URL)
 			}
 			urls = append(urls, sitemapURL{Location: a.cfg.absoluteURL(route), LastMod: entry.LastModified.Format("2006-01-02")})
+		}
+		urls = append(urls, sitemapURL{Location: a.cfg.absoluteURL(toolsRoute(snapshot.Locale.Code))})
+		for _, definition := range toolDefinitions {
+			urls = append(urls, sitemapURL{Location: a.cfg.absoluteURL(toolRoute(snapshot.Locale.Code, definition.ID))})
 		}
 	}
 	sort.Slice(urls, func(i, j int) bool { return urls[i].Location < urls[j].Location })
@@ -561,7 +614,16 @@ func (a *App) label(locale, key string) string {
 	switch key {
 	case "articles":
 		return labels.Articles
+	case "tools":
+		return labels.Tools
 	default:
 		return key
 	}
+}
+
+func (a *App) toolsDescription(locale string) string {
+	if strings.HasPrefix(strings.ToLower(locale), "zh") {
+		return "无需上传数据的浏览器本地工具。"
+	}
+	return "Browser-based tools that keep your data on this device."
 }
