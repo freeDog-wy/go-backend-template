@@ -4,16 +4,19 @@ import (
 	"context"
 	"encoding/xml"
 	"fmt"
+	"net/http"
 	"net/url"
 	"sort"
 	"strings"
 	"sync"
+
+	"github.com/freeDog-wy/go-backend-template/internal/app/pkg/cmsclient"
 )
 
 // App coordinates a complete, repeatable static site build.
 type App struct {
 	cfg      Config
-	client   *Client
+	public   *cmsclient.PublicClient
 	markdown *MarkdownRenderer
 	renderer *renderer
 }
@@ -38,16 +41,20 @@ type localeSnapshot struct {
 }
 
 func New(cfg Config) *App {
+	public, err := cmsclient.NewPublic(cfg.APIBaseURL.String(), &http.Client{Timeout: cfg.HTTPTimeout})
+	if err != nil {
+		panic(fmt.Sprintf("create sitegen CMS client: %v", err))
+	}
 	return &App{
 		cfg:      cfg,
-		client:   NewClient(cfg),
+		public:   public,
 		markdown: NewMarkdownRenderer(),
 		renderer: newRenderer(),
 	}
 }
 
 func (a *App) Build(ctx context.Context) (BuildStats, error) {
-	locales, err := a.client.ListLocales(ctx)
+	locales, err := a.public.ListLocales(ctx)
 	if err != nil {
 		return BuildStats{}, err
 	}
@@ -144,23 +151,31 @@ func validateLocales(locales []Locale) (Locale, map[string]Locale, error) {
 }
 
 func (a *App) loadLocale(ctx context.Context, locale Locale) (*localeSnapshot, error) {
-	categories, err := a.client.ListCategories(ctx, locale.Code)
+	categories, err := a.public.ListCategories(ctx, locale.Code)
 	if err != nil {
 		return nil, err
 	}
-	tags, err := a.client.ListTags(ctx, locale.Code)
+	tags, err := loadAllPages(ctx, func(ctx context.Context, page int) ([]Tag, *pageMeta, error) {
+		return a.public.ListTags(ctx, locale.Code, page, a.cfg.PerPage)
+	})
 	if err != nil {
 		return nil, err
 	}
-	articles, err := a.client.ListArticles(ctx, locale.Code)
+	articles, err := loadAllPages(ctx, func(ctx context.Context, page int) ([]ArticleListItem, *pageMeta, error) {
+		return a.public.ListArticles(ctx, locale.Code, page, a.cfg.PerPage)
+	})
 	if err != nil {
 		return nil, err
 	}
-	sitemap, err := a.client.ListSitemapEntries(ctx, locale.Code)
+	sitemap, err := loadAllPages(ctx, func(ctx context.Context, page int) ([]SitemapEntry, *pageMeta, error) {
+		return a.public.ListSitemapEntries(ctx, locale.Code, page, a.cfg.PerPage)
+	})
 	if err != nil {
 		return nil, err
 	}
-	redirects, err := a.client.ListRedirects(ctx, locale.Code)
+	redirects, err := loadAllPages(ctx, func(ctx context.Context, page int) ([]Redirect, *pageMeta, error) {
+		return a.public.ListRedirects(ctx, locale.Code, page, a.cfg.PerPage)
+	})
 	if err != nil {
 		return nil, err
 	}
@@ -176,7 +191,9 @@ func (a *App) loadLocale(ctx context.Context, locale Locale) (*localeSnapshot, e
 			return nil, fmt.Errorf("duplicate category slug %q", category.Slug)
 		}
 		categoriesBySlug[category.Slug] = category
-		items, err := a.client.ListCategoryArticles(ctx, locale.Code, category.Slug)
+		items, err := loadAllPages(ctx, func(ctx context.Context, page int) ([]ArticleListItem, *pageMeta, error) {
+			return a.public.ListCategoryArticles(ctx, locale.Code, category.Slug, page, a.cfg.PerPage)
+		})
 		if err != nil {
 			return nil, fmt.Errorf("read category %s articles: %w", category.Slug, err)
 		}
@@ -184,7 +201,9 @@ func (a *App) loadLocale(ctx context.Context, locale Locale) (*localeSnapshot, e
 	}
 	tagArticles := make(map[string][]ArticleListItem)
 	for _, tag := range tags {
-		items, err := a.client.ListTagArticles(ctx, locale.Code, tag.Slug)
+		items, err := loadAllPages(ctx, func(ctx context.Context, page int) ([]ArticleListItem, *pageMeta, error) {
+			return a.public.ListTagArticles(ctx, locale.Code, tag.Slug, page, a.cfg.PerPage)
+		})
 		if err != nil {
 			return nil, fmt.Errorf("read tag %s articles: %w", tag.Slug, err)
 		}
@@ -211,7 +230,7 @@ func (a *App) loadArticleDetails(ctx context.Context, locale string, items []Art
 		go func() {
 			defer workers.Done()
 			for item := range jobs {
-				article, err := a.client.GetArticle(ctx, locale, item.Slug)
+				article, err := a.public.GetArticle(ctx, locale, item.Slug)
 				results <- result{item: item, article: article, err: err}
 			}
 		}()

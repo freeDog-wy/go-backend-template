@@ -4,7 +4,6 @@ import (
 	"context"
 	"net/http"
 	"strconv"
-	"strings"
 	"time"
 
 	"github.com/freeDog-wy/go-backend-template/internal/config"
@@ -34,7 +33,7 @@ func newServerRegistry(cfg *config.Config, infra *serverInfrastructure, platform
 	}, 2*time.Second))
 	registry.Add(hdlCaptcha.New(infra.captcha))
 	registry.Add(hdlAuth.NewWithCookieOptions(services.auth, services.authorization, services.identity, services.verification, hdlAuth.CookieOptions{
-		AdminOrigin: configOrigin(cfg.Auth.AdminOrigin),
+		AdminOrigin: cfg.Auth.AdminOrigin,
 		Name:        cfg.Auth.AdminRefreshCookieName,
 		Secure:      cfg.Auth.AdminRefreshCookieSecure,
 		TTL:         time.Duration(cfg.Auth.RefreshTokenTTLHours) * time.Hour,
@@ -54,8 +53,6 @@ func newServerRegistry(cfg *config.Config, infra *serverInfrastructure, platform
 	return registry
 }
 
-func configOrigin(value string) string { return strings.TrimRight(strings.TrimSpace(value), "/") }
-
 func newRouter(cfg *config.Config, infra *serverInfrastructure, registry *handler.Registry) *gin.Engine {
 	if cfg.App.Mode == "production" {
 		gin.SetMode(gin.ReleaseMode)
@@ -63,6 +60,7 @@ func newRouter(cfg *config.Config, infra *serverInfrastructure, registry *handle
 	r := gin.New()
 	r.Use(otelgin.Middleware("go-backend-template"))
 	r.Use(middleware.Recovery(infra.logger))
+	r.Use(middleware.CORS(cfg.Server.CORSAllowedOrigins))
 	r.Use(middleware.RateLimit(
 		infra.rateLimiter,
 		infra.logger,

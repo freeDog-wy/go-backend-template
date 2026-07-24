@@ -102,3 +102,56 @@ func TestLoadDoesNotSearchInternalSourceDirectories(t *testing.T) {
 		t.Fatal("Load() error = nil, want no implicit internal/config lookup")
 	}
 }
+
+func TestLoadValidatesCORSOrigins(t *testing.T) {
+	originalDir, err := os.Getwd()
+	if err != nil {
+		t.Fatal(err)
+	}
+	tempDir := t.TempDir()
+	if err := os.Chdir(tempDir); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.Chdir(originalDir) })
+
+	t.Run("normalizes and accepts the configured admin origin", func(t *testing.T) {
+		configPath := filepath.Join(tempDir, "valid.yaml")
+		content := "app:\n  mode: production\nserver:\n  cors_allowed_origins:\n    - https://admin.example.test/\nauth:\n  admin_origin: https://admin.example.test\n"
+		if err := os.WriteFile(configPath, []byte(content), 0600); err != nil {
+			t.Fatal(err)
+		}
+		cfg, err := Load(configPath)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if cfg.Auth.AdminOrigin != "https://admin.example.test" || len(cfg.Server.CORSAllowedOrigins) != 1 || cfg.Server.CORSAllowedOrigins[0] != "https://admin.example.test" {
+			t.Fatalf("CORS config = %#v, auth config = %#v", cfg.Server.CORSAllowedOrigins, cfg.Auth)
+		}
+	})
+
+	t.Run("rejects an admin origin outside the allowlist", func(t *testing.T) {
+		configPath := filepath.Join(tempDir, "mismatch.yaml")
+		content := "server:\n  cors_allowed_origins:\n    - http://admin.example.test\nauth:\n  admin_origin: http://other.example.test\n"
+		if err := os.WriteFile(configPath, []byte(content), 0600); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := Load(configPath); err == nil {
+			t.Fatal("Load() error = nil, want CORS allowlist mismatch")
+		}
+	})
+
+	t.Run("reads a comma-separated CORS allowlist from the environment", func(t *testing.T) {
+		configPath := filepath.Join(tempDir, "environment.yaml")
+		if err := os.WriteFile(configPath, []byte("{}\n"), 0600); err != nil {
+			t.Fatal(err)
+		}
+		t.Setenv("SERVER_CORS_ALLOWED_ORIGINS", "https://admin.example.test, https://preview.example.test/")
+		cfg, err := Load(configPath)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got := cfg.Server.CORSAllowedOrigins; len(got) != 2 || got[0] != "https://admin.example.test" || got[1] != "https://preview.example.test" {
+			t.Fatalf("CORS origins = %#v", got)
+		}
+	})
+}

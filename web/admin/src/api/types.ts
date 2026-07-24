@@ -1,0 +1,10 @@
+export type ApiEnvelope<T> = { success: boolean; data: T; error?: { code: string; message: string }; meta?: PageMeta };
+export type PageMeta = { page: number; per_page: number; total: number; total_pages: number };
+export type User = { id: number; name: string; email: string; status: string };
+export type AuthResult = { access_token: string; user?: User };
+export type Locale = { code: string; name: string; is_default: boolean; is_enabled: boolean; sort_order: number };
+export type Tag = { id: number; locale: string; name: string; slug: string };
+export type Category = { id: number; parent_id?: number | null; sort_order: number; name: string; slug: string; description: string; children: Category[] };
+export type Article = { id: number; locale: string; title: string; slug: string; status: string; published_at?: string | null };
+export type ArticleDetail = Article & { summary: string; content: string; content_format: string; seo_title: string; seo_description: string; canonical_url: string; categories: { category_id: number; is_primary: boolean }[]; tags: Tag[] };
+export type ArticleInput = { locale: string; title: string; slug: string; summary: string; content: string; content_format: string; seo_title: string; seo_description: string; canonical_url: string };
