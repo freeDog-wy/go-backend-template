@@ -3,6 +3,7 @@ package config
 import (
 	"fmt"
 	"net"
+	"net/url"
 	"os"
 	"strconv"
 	"strings"
@@ -122,11 +123,12 @@ type KafkaRetryTopicConfig struct {
 }
 
 type ServerConfig struct {
-	IP             string
-	Port           int
-	ReadTimeout    int
-	WriteTimeout   int
-	TrustedProxies []string
+	IP                 string
+	Port               int
+	ReadTimeout        int
+	WriteTimeout       int
+	TrustedProxies     []string
+	CORSAllowedOrigins []string `mapstructure:"cors_allowed_origins"`
 }
 
 type EmailConfig struct {
@@ -189,6 +191,7 @@ func Load(configPath string) (*Config, error) {
 	v.SetDefault("server.port", 8080)
 	v.SetDefault("server.readTimeout", 30)
 	v.SetDefault("server.writeTimeout", 30)
+	v.SetDefault("server.cors_allowed_origins", []string{})
 	v.SetDefault("email.mode", "log")
 	v.SetDefault("email.smtpPort", 465)
 	v.SetDefault("email.siteBaseURL", "http://localhost:5173")
@@ -286,6 +289,21 @@ func Load(configPath string) (*Config, error) {
 	if strings.TrimSpace(cfg.Cron.DLQReplayGroup) == "" {
 		cfg.Cron.DLQReplayGroup = strings.TrimSpace(cfg.Worker.ConsumerGroup) + "-dlq-replay"
 	}
+	allowedOrigins, err := normalizeOrigins(cfg.Server.CORSAllowedOrigins, cfg.App.Mode == "production")
+	if err != nil {
+		return nil, fmt.Errorf("validate CORS origins: %w", err)
+	}
+	cfg.Server.CORSAllowedOrigins = allowedOrigins
+	if cfg.Auth.AdminOrigin != "" {
+		adminOrigin, err := normalizeOrigin(cfg.Auth.AdminOrigin, cfg.App.Mode == "production")
+		if err != nil {
+			return nil, fmt.Errorf("validate admin origin: %w", err)
+		}
+		if !containsOrigin(allowedOrigins, adminOrigin) {
+			return nil, fmt.Errorf("admin origin must be included in server.cors_allowed_origins")
+		}
+		cfg.Auth.AdminOrigin = adminOrigin
+	}
 
 	return &cfg, nil
 }
@@ -296,6 +314,59 @@ func applyEnvOverrides(v *viper.Viper) {
 			v.Set(key, value)
 		}
 	}
+	if value, exists := os.LookupEnv("SERVER_CORS_ALLOWED_ORIGINS"); exists {
+		v.Set("server.cors_allowed_origins", splitCommaSeparated(value))
+	}
+}
+
+func splitCommaSeparated(value string) []string {
+	values := strings.Split(value, ",")
+	result := make([]string, 0, len(values))
+	for _, item := range values {
+		if item = strings.TrimSpace(item); item != "" {
+			result = append(result, item)
+		}
+	}
+	return result
+}
+
+func normalizeOrigins(values []string, requireHTTPS bool) ([]string, error) {
+	result := make([]string, 0, len(values))
+	for _, value := range values {
+		origin, err := normalizeOrigin(value, requireHTTPS)
+		if err != nil {
+			return nil, err
+		}
+		if !containsOrigin(result, origin) {
+			result = append(result, origin)
+		}
+	}
+	return result, nil
+}
+
+func normalizeOrigin(value string, requireHTTPS bool) (string, error) {
+	value = strings.TrimRight(strings.TrimSpace(value), "/")
+	u, err := url.ParseRequestURI(value)
+	if err != nil || u.Scheme == "" || u.Host == "" || u.User != nil || u.Path != "" || u.RawQuery != "" || u.Fragment != "" {
+		return "", fmt.Errorf("%q is not an origin", value)
+	}
+	scheme := strings.ToLower(u.Scheme)
+	if scheme != "http" && scheme != "https" {
+		return "", fmt.Errorf("%q uses an unsupported scheme", value)
+	}
+	if requireHTTPS && scheme != "https" {
+		return "", fmt.Errorf("%q must use HTTPS in production", value)
+	}
+	return scheme + "://" + strings.ToLower(u.Host), nil
+}
+
+func containsOrigin(origins []string, want string) bool {
+	for _, origin := range origins {
+		if origin == want {
+			return true
+		}
+	}
+	return false
 }
 
 var configEnvBindings = map[string]string{

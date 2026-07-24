@@ -318,6 +318,7 @@ func (h *Handler) AdminLogin(c *gin.Context) {
 }
 
 func (h *Handler) refreshTokenFromRequest(c *gin.Context) (string, bool, bool) {
+	// refresh token 可以通过 Cookie 或 JSON body 传递。Cookie 优先级更高。
 	if refreshToken, err := c.Cookie(h.cookieOptions.Name); err == nil && strings.TrimSpace(refreshToken) != "" {
 		if !h.cookieSessionsEnabled() || !h.hasAllowedAdminOrigin(c) {
 			handler.Fail(c, "FORBIDDEN", "untrusted admin origin")
@@ -325,7 +326,7 @@ func (h *Handler) refreshTokenFromRequest(c *gin.Context) (string, bool, bool) {
 		}
 		return refreshToken, true, true
 	}
-
+	// 如果没有 Cookie，则尝试从 JSON body 中获取 refresh token。
 	var req RefreshReq
 	if err := c.ShouldBindJSON(&req); err != nil {
 		handler.Fail(c, "INVALID_INPUT", err.Error())
