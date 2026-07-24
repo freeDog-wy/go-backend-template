@@ -11,9 +11,9 @@ import (
 	"time"
 
 	mcpauth "github.com/freeDog-wy/go-backend-template/internal/app/mcp/auth"
-	mcpclient "github.com/freeDog-wy/go-backend-template/internal/app/mcp/client"
 	mcpconfig "github.com/freeDog-wy/go-backend-template/internal/app/mcp/config"
 	mcpserver "github.com/freeDog-wy/go-backend-template/internal/app/mcp/server"
+	"github.com/freeDog-wy/go-backend-template/internal/app/pkg/cmsclient"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
@@ -35,7 +35,7 @@ func main() {
 	if err != nil {
 		log.Fatalf("initialize service token provider: %v", err)
 	}
-	client, err := mcpclient.New(cfg.CMSBaseURL, httpClient, provider, cfg.AllowInsecureHTTP)
+	client, err := cmsclient.NewAdmin(cfg.CMSBaseURL, httpClient, cmsclient.BearerAuthorizer(provider), cfg.AllowInsecureHTTP)
 	if err != nil {
 		log.Fatalf("initialize CMS client: %v", err)
 	}

@@ -170,7 +170,12 @@ func pageMetaFor(total int64) *pageMeta {
 
 func writeAPI(t *testing.T, w http.ResponseWriter, data any, meta *pageMeta) {
 	t.Helper()
-	if err := json.NewEncoder(w).Encode(apiResponse[any]{Success: true, Data: data, Meta: meta}); err != nil {
+	payload := struct {
+		Success bool      `json:"success"`
+		Data    any       `json:"data"`
+		Meta    *pageMeta `json:"meta"`
+	}{Success: true, Data: data, Meta: meta}
+	if err := json.NewEncoder(w).Encode(payload); err != nil {
 		t.Fatalf("write test response: %v", err)
 	}
 }

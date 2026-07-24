@@ -3,74 +3,19 @@ package contract
 import (
 	"context"
 	"encoding/json"
-	"strings"
+
+	"github.com/freeDog-wy/go-backend-template/internal/app/pkg/cmsclient"
 )
 
-type ArticleInput struct {
-	Locale         string `json:"locale"`
-	Title          string `json:"title"`
-	Slug           string `json:"slug"`
-	Summary        string `json:"summary,omitempty"`
-	Content        string `json:"content,omitempty"`
-	ContentFormat  string `json:"content_format,omitempty"`
-	SEOTitle       string `json:"seo_title,omitempty"`
-	SEODescription string `json:"seo_description,omitempty"`
-	CanonicalURL   string `json:"canonical_url,omitempty"`
-}
-
-type CategoryInput struct {
-	ParentID       *uint  `json:"parent_id,omitempty"`
-	SortOrder      int    `json:"sort_order"`
-	Locale         string `json:"locale"`
-	Name           string `json:"name"`
-	Slug           string `json:"slug"`
-	Description    string `json:"description,omitempty"`
-	SEOTitle       string `json:"seo_title,omitempty"`
-	SEODescription string `json:"seo_description,omitempty"`
-}
-
-type CategoryStateInput struct {
-	IsEnabled bool `json:"is_enabled"`
-	SortOrder int  `json:"sort_order"`
-}
-
-type CategoryMoveInput struct {
-	ParentID  *uint `json:"parent_id,omitempty"`
-	SortOrder int   `json:"sort_order"`
-}
-
-type CategoryTranslationInput struct {
-	Name           string `json:"name"`
-	Slug           string `json:"slug"`
-	Description    string `json:"description,omitempty"`
-	SEOTitle       string `json:"seo_title,omitempty"`
-	SEODescription string `json:"seo_description,omitempty"`
-}
-
-type TagInput struct {
-	Locale string `json:"locale"`
-	Name   string `json:"name"`
-	Slug   string `json:"slug"`
-}
-
-type TagTranslationInput struct {
-	Name string `json:"name"`
-	Slug string `json:"slug"`
-}
-
-type LocaleCreateInput struct {
-	Code      string `json:"code"`
-	Name      string `json:"name"`
-	IsEnabled bool   `json:"is_enabled"`
-	SortOrder int    `json:"sort_order"`
-}
-
-type LocaleUpdateInput struct {
-	Name      string `json:"name"`
-	IsEnabled bool   `json:"is_enabled"`
-	SortOrder int    `json:"sort_order"`
-	IsDefault bool   `json:"is_default"`
-}
+type ArticleInput = cmsclient.ArticleInput
+type CategoryInput = cmsclient.CategoryInput
+type CategoryStateInput = cmsclient.CategoryStateInput
+type CategoryMoveInput = cmsclient.CategoryMoveInput
+type CategoryTranslationInput = cmsclient.CategoryTranslationInput
+type TagInput = cmsclient.TagInput
+type TagTranslationInput = cmsclient.TagTranslationInput
+type LocaleCreateInput = cmsclient.LocaleCreateInput
+type LocaleUpdateInput = cmsclient.LocaleUpdateInput
 
 type SiteReader interface {
 	Health(context.Context) (json.RawMessage, error)
@@ -111,21 +56,13 @@ type TagService interface {
 	UpsertTagTranslation(context.Context, uint, string, TagTranslationInput) (json.RawMessage, error)
 }
 
-type APIError struct {
-	Code    string
-	Message string
-}
-
-func (e *APIError) Error() string { return e.Code + ": " + e.Message }
-
-type writeOperationKey struct{}
+type APIError = cmsclient.APIError
 
 // WithWriteOperation binds an MCP write intent to its duplicate-write guard key.
 func WithWriteOperation(ctx context.Context, operationID string) context.Context {
-	return context.WithValue(ctx, writeOperationKey{}, strings.TrimSpace(operationID))
+	return cmsclient.WithWriteOperation(ctx, operationID)
 }
 
 func WriteOperationID(ctx context.Context) string {
-	operationID, _ := ctx.Value(writeOperationKey{}).(string)
-	return operationID
+	return cmsclient.WriteOperationID(ctx)
 }

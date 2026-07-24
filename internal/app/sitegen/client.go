@@ -2,128 +2,73 @@ package sitegen
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"net/http"
-	"net/url"
-	"strconv"
-	"strings"
+
+	"github.com/freeDog-wy/go-backend-template/internal/app/pkg/cmsclient"
 )
 
-// Client reads only the CMS public content API.
+// Client adapts the CMS public API to the static build's full-pagination
+// snapshot requirements. CMS route definitions live in cmsclient.
 type Client struct {
-	baseURL *url.URL
-	http    *http.Client
+	public  *cmsclient.PublicClient
 	perPage int
 }
 
 func NewClient(cfg Config) *Client {
-	return &Client{
-		baseURL: cfg.APIBaseURL,
-		http:    &http.Client{Timeout: cfg.HTTPTimeout},
-		perPage: cfg.PerPage,
+	public, err := cmsclient.NewPublic(cfg.APIBaseURL.String(), &http.Client{Timeout: cfg.HTTPTimeout})
+	if err != nil {
+		panic(fmt.Sprintf("create sitegen CMS client: %v", err))
 	}
+	return &Client{public: public, perPage: cfg.PerPage}
 }
 
 func (c *Client) ListLocales(ctx context.Context) ([]Locale, error) {
-	return getData[[]Locale](ctx, c, "/api/v1/public/locales", nil)
+	return c.public.ListLocales(ctx)
 }
 
 func (c *Client) ListCategories(ctx context.Context, locale string) ([]Category, error) {
-	return getData[[]Category](ctx, c, publicPath(locale, "/categories"), nil)
+	return c.public.ListCategories(ctx, locale)
 }
 
 func (c *Client) ListArticles(ctx context.Context, locale string) ([]ArticleListItem, error) {
 	return listAll(ctx, func(ctx context.Context, page int) ([]ArticleListItem, *pageMeta, error) {
-		return getPage[ArticleListItem](ctx, c, publicPath(locale, "/articles"), page)
+		return c.public.ListArticles(ctx, locale, page, c.perPage)
 	})
 }
 
 func (c *Client) GetArticle(ctx context.Context, locale, slug string) (Article, error) {
-	return getData[Article](ctx, c, publicPath(locale, "/articles/"+url.PathEscape(slug)), nil)
+	return c.public.GetArticle(ctx, locale, slug)
 }
 
 func (c *Client) ListTags(ctx context.Context, locale string) ([]Tag, error) {
 	return listAll(ctx, func(ctx context.Context, page int) ([]Tag, *pageMeta, error) {
-		return getPage[Tag](ctx, c, publicPath(locale, "/tags"), page)
+		return c.public.ListTags(ctx, locale, page, c.perPage)
 	})
 }
 
 func (c *Client) ListCategoryArticles(ctx context.Context, locale, slug string) ([]ArticleListItem, error) {
-	path := publicPath(locale, "/categories/"+url.PathEscape(slug)+"/articles")
 	return listAll(ctx, func(ctx context.Context, page int) ([]ArticleListItem, *pageMeta, error) {
-		return getPage[ArticleListItem](ctx, c, path, page)
+		return c.public.ListCategoryArticles(ctx, locale, slug, page, c.perPage)
 	})
 }
 
 func (c *Client) ListTagArticles(ctx context.Context, locale, slug string) ([]ArticleListItem, error) {
-	path := publicPath(locale, "/tags/"+url.PathEscape(slug)+"/articles")
 	return listAll(ctx, func(ctx context.Context, page int) ([]ArticleListItem, *pageMeta, error) {
-		return getPage[ArticleListItem](ctx, c, path, page)
+		return c.public.ListTagArticles(ctx, locale, slug, page, c.perPage)
 	})
 }
 
 func (c *Client) ListSitemapEntries(ctx context.Context, locale string) ([]SitemapEntry, error) {
 	return listAll(ctx, func(ctx context.Context, page int) ([]SitemapEntry, *pageMeta, error) {
-		return getPage[SitemapEntry](ctx, c, publicPath(locale, "/sitemap-entries"), page)
+		return c.public.ListSitemapEntries(ctx, locale, page, c.perPage)
 	})
 }
 
 func (c *Client) ListRedirects(ctx context.Context, locale string) ([]Redirect, error) {
 	return listAll(ctx, func(ctx context.Context, page int) ([]Redirect, *pageMeta, error) {
-		return getPage[Redirect](ctx, c, publicPath(locale, "/redirects"), page)
+		return c.public.ListRedirects(ctx, locale, page, c.perPage)
 	})
-}
-
-func publicPath(locale, suffix string) string {
-	return "/api/v1/public/" + url.PathEscape(locale) + suffix
-}
-
-func getData[T any](ctx context.Context, c *Client, path string, query url.Values) (T, error) {
-	data, _, err := get[T](ctx, c, path, query, false)
-	return data, err
-}
-
-func getPage[T any](ctx context.Context, c *Client, path string, page int) ([]T, *pageMeta, error) {
-	query := url.Values{}
-	query.Set("page", strconv.Itoa(page))
-	query.Set("per_page", strconv.Itoa(c.perPage))
-	return get[[]T](ctx, c, path, query, true)
-}
-
-func get[T any](ctx context.Context, c *Client, path string, query url.Values, requireMeta bool) (T, *pageMeta, error) {
-	var zero T
-	u := *c.baseURL
-	u.Path = strings.TrimRight(c.baseURL.Path, "/") + path
-	u.RawQuery = query.Encode()
-
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, u.String(), nil)
-	if err != nil {
-		return zero, nil, fmt.Errorf("create CMS request: %w", err)
-	}
-	resp, err := c.http.Do(req)
-	if err != nil {
-		return zero, nil, fmt.Errorf("request %s: %w", u.Path, err)
-	}
-	defer resp.Body.Close()
-	if resp.StatusCode < http.StatusOK || resp.StatusCode >= http.StatusMultipleChoices {
-		return zero, nil, fmt.Errorf("CMS request %s returned HTTP %d", u.Path, resp.StatusCode)
-	}
-
-	var payload apiResponse[T]
-	if err := json.NewDecoder(resp.Body).Decode(&payload); err != nil {
-		return zero, nil, fmt.Errorf("decode CMS response %s: %w", u.Path, err)
-	}
-	if !payload.Success {
-		if payload.Error == nil {
-			return zero, nil, fmt.Errorf("CMS request %s failed without error details", u.Path)
-		}
-		return zero, nil, fmt.Errorf("CMS request %s failed: %s: %s", u.Path, payload.Error.Code, payload.Error.Message)
-	}
-	if requireMeta && payload.Meta == nil {
-		return zero, nil, fmt.Errorf("CMS response %s is missing pagination metadata", u.Path)
-	}
-	return payload.Data, payload.Meta, nil
 }
 
 func listAll[T any](ctx context.Context, getPage func(context.Context, int) ([]T, *pageMeta, error)) ([]T, error) {
