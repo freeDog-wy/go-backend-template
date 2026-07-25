@@ -1,0 +1,20 @@
+name: Redeploy Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      image_tag:
+        description: Existing immutable release tag to deploy, for example go-cms-v1.2.3.
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  redeploy-production:
+    uses: ./.github/workflows/deploy-production.yml
+    with:
+      image_tag: ${{ inputs.image_tag }}
+      source_ref: refs/tags/${{ inputs.image_tag }}
+    secrets: inherit
