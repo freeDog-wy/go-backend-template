@@ -13,7 +13,10 @@ type Server struct {
 	server *http.Server
 }
 
-func NewServer(addr string, checks map[string]Checker, timeout time.Duration) *Server {
+func NewServer(addr, appMode string, checks map[string]Checker, timeout time.Duration) *Server {
+	if appMode == "production" {
+		gin.SetMode(gin.ReleaseMode)
+	}
 	router := gin.New()
 	New(checks, timeout).RegisterRoutes(router)
 	return &Server{

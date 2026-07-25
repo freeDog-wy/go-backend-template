@@ -59,6 +59,18 @@ func TestHealthRoutes(t *testing.T) {
 	})
 }
 
+func TestNewServerSetsReleaseModeInProduction(t *testing.T) {
+	previousMode := gin.Mode()
+	t.Cleanup(func() { gin.SetMode(previousMode) })
+
+	gin.SetMode(gin.DebugMode)
+	NewServer(":0", "production", nil, time.Second)
+
+	if gin.Mode() != gin.ReleaseMode {
+		t.Fatalf("gin mode = %q, want %q", gin.Mode(), gin.ReleaseMode)
+	}
+}
+
 func newRouter(checks map[string]Checker) *gin.Engine {
 	router := gin.New()
 	New(checks, time.Second).RegisterRoutes(router)

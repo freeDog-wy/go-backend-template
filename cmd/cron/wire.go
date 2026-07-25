@@ -85,6 +85,6 @@ func initCronApp(cfg *config.Config) (*CronApp, error) {
 		}
 	}
 
-	app.probeServer = hdlHealth.NewServer(cfg.Cron.Probe.Address(), checks, 2*time.Second)
+	app.probeServer = hdlHealth.NewServer(cfg.Cron.Probe.Address(), cfg.App.Mode, checks, 2*time.Second)
 	return app, nil
 }

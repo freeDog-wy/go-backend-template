@@ -52,7 +52,7 @@ func initWorker(cfg *config.Config) (*Worker, error) {
 	}
 
 	worker := &Worker{consumer: consumer, tp: infra.tracerProvider}
-	worker.probeServer = hdlHealth.NewServer(cfg.Worker.Probe.Address(), map[string]hdlHealth.Checker{
+	worker.probeServer = hdlHealth.NewServer(cfg.Worker.Probe.Address(), cfg.App.Mode, map[string]hdlHealth.Checker{
 		"consumer": hdlHealth.CheckFunc(func(context.Context) error {
 			if !worker.running.Load() {
 				return errors.New("consumer loop is not running")
