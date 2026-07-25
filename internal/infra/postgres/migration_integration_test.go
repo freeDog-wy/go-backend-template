@@ -36,8 +36,8 @@ func TestMigrationsApplyInitialSchema(t *testing.T) {
 	if err != nil {
 		t.Fatalf("migration version: %v", err)
 	}
-	if version != 12 || dirty {
-		t.Fatalf("migration version = (%d, dirty=%t), want (11, false)", version, dirty)
+	if version != 13 || dirty {
+		t.Fatalf("migration version = (%d, dirty=%t), want (13, false)", version, dirty)
 	}
 
 	for _, table := range initialTables {
@@ -72,7 +72,7 @@ var initialTables = []string{
 	"message_consumptions",
 	"email_verification_tokens",
 	"password_reset_tokens",
-	"logs",
+	"audit_logs",
 	"locales",
 	"categories",
 	"category_translations",
