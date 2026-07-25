@@ -41,7 +41,7 @@ func TestResourceURIParsing(t *testing.T) {
 func TestCategoryResourceReadsTemplateURI(t *testing.T) {
 	ctx := context.Background()
 	categories := &categoryResourceFake{}
-	server := New(Dependencies{Categories: categories})
+	server := New(Dependencies{Categories: categories}, nil)
 	client := mcp.NewClient(&mcp.Implementation{Name: "test-client", Version: "1.0.0"}, nil)
 	serverTransport, clientTransport := mcp.NewInMemoryTransports()
 	serverSession, err := server.Connect(ctx, serverTransport, nil)
@@ -130,7 +130,7 @@ func TestOperationIDForUsesHostValueOrSessionFingerprint(t *testing.T) {
 
 func TestServerRegistersOperationalToolsAndPrompts(t *testing.T) {
 	ctx := context.Background()
-	server := New(Dependencies{})
+	server := New(Dependencies{}, nil)
 	client := mcp.NewClient(&mcp.Implementation{Name: "test-client", Version: "1.0.0"}, nil)
 	serverTransport, clientTransport := mcp.NewInMemoryTransports()
 	serverSession, err := server.Connect(ctx, serverTransport, nil)

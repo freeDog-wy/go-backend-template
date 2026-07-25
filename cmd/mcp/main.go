@@ -4,6 +4,7 @@ import (
 	"context"
 	"flag"
 	"log"
+	"log/slog"
 	"net/http"
 	"os"
 	"os/signal"
@@ -50,7 +51,8 @@ func main() {
 		Tags:        client,
 		ContentRoot: cfg.ContentRoot,
 	}
-	if err := mcpserver.New(deps).Run(ctx, &mcp.StdioTransport{}); err != nil && ctx.Err() == nil {
+	mcpLogger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelInfo})).With("component", "cms-mcp")
+	if err := mcpserver.New(deps, mcpLogger).Run(ctx, &mcp.StdioTransport{}); err != nil && ctx.Err() == nil {
 		log.Printf("MCP server stopped: %v", err)
 	}
 }

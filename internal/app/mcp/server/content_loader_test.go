@@ -99,7 +99,7 @@ func TestArticleCreateDraftLoadsContentFileBeforeCallingCMS(t *testing.T) {
 		t.Fatal(err)
 	}
 	articles := &articleWriteFake{}
-	server := New(Dependencies{Articles: articles, ContentRoot: root})
+	server := New(Dependencies{Articles: articles, ContentRoot: root}, nil)
 	client := mcp.NewClient(&mcp.Implementation{Name: "test-client", Version: "1.0.0"}, nil)
 	serverTransport, clientTransport := mcp.NewInMemoryTransports()
 	serverSession, err := server.Connect(ctx, serverTransport, nil)
