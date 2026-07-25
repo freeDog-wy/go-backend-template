@@ -158,6 +158,11 @@ jobs:
           : "${AUTH_ADMIN_ORIGIN:?Missing go-cms variable AUTH_ADMIN_ORIGIN}"
           : "${AUTH_ADMIN_REFRESH_COOKIE_SECURE:?Missing go-cms variable AUTH_ADMIN_REFRESH_COOKIE_SECURE}"
           : "${SERVER_CORS_ALLOWED_ORIGINS:?Missing go-cms variable SERVER_CORS_ALLOWED_ORIGINS}"
+          : "${EMAIL_MODE:?Missing go-cms variable EMAIL_MODE}"
+          : "${EMAIL_SMTP_HOST:?Missing go-cms variable EMAIL_SMTP_HOST}"
+          : "${EMAIL_SMTP_PORT:?Missing go-cms variable EMAIL_SMTP_PORT}"
+          : "${EMAIL_FROM_ADDRESS:?Missing go-cms variable EMAIL_FROM_ADDRESS}"
+          test "$EMAIL_MODE" = smtp || { echo 'EMAIL_MODE must be smtp for production'; exit 1; }
           umask 077
           {
             printf '%s\n' "REGISTRY=$REGISTRY"
@@ -187,9 +192,9 @@ jobs:
             printf '%s\n' "MCP_SECRET_ROTATION_GRACE_MINUTES=${MCP_SECRET_ROTATION_GRACE_MINUTES:-60}"
             printf '%s\n' "MCP_TOKEN_AUDIENCE=${MCP_TOKEN_AUDIENCE:-cms-api}"
             printf '%s\n' "MCP_ACCESS_TOKEN_TTL_MINUTES=${MCP_ACCESS_TOKEN_TTL_MINUTES:-10}"
-            printf '%s\n' "EMAIL_MODE=${EMAIL_MODE:-log}"
+            printf '%s\n' "EMAIL_MODE=$EMAIL_MODE"
             printf '%s\n' "EMAIL_SMTP_HOST=$EMAIL_SMTP_HOST"
-            printf '%s\n' "EMAIL_SMTP_PORT=${EMAIL_SMTP_PORT:-465}"
+            printf '%s\n' "EMAIL_SMTP_PORT=$EMAIL_SMTP_PORT"
             printf '%s\n' "EMAIL_SMTP_USER=$EMAIL_SMTP_USER"
             printf '%s\n' "EMAIL_SMTP_PASSWORD=$EMAIL_SMTP_PASSWORD"
             printf '%s\n' "EMAIL_FROM_ADDRESS=$EMAIL_FROM_ADDRESS"
