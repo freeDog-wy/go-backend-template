@@ -213,7 +213,7 @@ jobs:
           docker compose --env-file .env -f compose.production.yml up -d postgres redis kafka jaeger
           docker compose --env-file .env -f compose.production.yml up --wait --wait-timeout 180 postgres redis kafka
           docker compose --env-file .env -f compose.production.yml run --rm --no-deps migrate
-          docker compose --env-file .env -f compose.production.yml up -d --remove-orphans server worker cron
+          docker compose --env-file .env -f compose.production.yml up -d --force-recreate --remove-orphans server worker cron
           docker compose --env-file .env -f compose.production.yml up --wait --wait-timeout 180 server worker cron
           curl --fail --retry 10 --retry-delay 3 http://127.0.0.1:8080/readyz
           docker compose --env-file .env -f compose.production.yml ps
