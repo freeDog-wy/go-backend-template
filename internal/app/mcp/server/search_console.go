@@ -214,7 +214,10 @@ func contentOpportunities(rows []contract.SearchAnalyticsRow, minImpressions, ma
 
 func searchConsoleOutput(data any, requestErr error) (*mcp.CallToolResult, map[string]any, error) {
 	if requestErr != nil {
-		return toolError("GSC_UNAVAILABLE", "Google Search Console request failed"), nil, nil
+		return toolError(
+			"GSC_UNAVAILABLE",
+			fmt.Sprintf("Google Search Console request failed: %v", requestErr),
+		), nil, nil
 	}
 	raw, err := json.Marshal(data)
 	if err != nil {
