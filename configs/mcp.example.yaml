@@ -6,3 +6,7 @@ allow_insecure_http: false
 # Optional local staging directory used by article content_file inputs. It may
 # also be supplied by CMS_CONTENT_ROOT, which takes precedence.
 content_root: /absolute/path/to/cms-content
+# Optional Google Search Console integration. Keep credentials outside this
+# file; set GSC_SERVICE_ACCOUNT_FILE in the MCP process environment.
+gsc_enabled: false
+gsc_property: sc-domain:example.com

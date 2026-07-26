@@ -13,6 +13,7 @@ import (
 
 	mcpauth "github.com/freeDog-wy/go-backend-template/internal/app/mcp/auth"
 	mcpconfig "github.com/freeDog-wy/go-backend-template/internal/app/mcp/config"
+	"github.com/freeDog-wy/go-backend-template/internal/app/mcp/gsc"
 	mcpserver "github.com/freeDog-wy/go-backend-template/internal/app/mcp/server"
 	"github.com/freeDog-wy/go-backend-template/internal/app/pkg/cmsclient"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
@@ -40,16 +41,24 @@ func main() {
 	if err != nil {
 		log.Fatalf("initialize CMS client: %v", err)
 	}
+	var searchConsole *gsc.Client
+	if cfg.GSCEnabled {
+		searchConsole, err = gsc.New(cfg.GSCProperty, cfg.GSCServiceAccountFile, httpClient)
+		if err != nil {
+			log.Fatalf("initialize Google Search Console client: %v", err)
+		}
+	}
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 	deps := mcpserver.Dependencies{
-		Site:        client,
-		Locales:     client,
-		Articles:    client,
-		Categories:  client,
-		Tags:        client,
-		ContentRoot: cfg.ContentRoot,
+		Site:          client,
+		Locales:       client,
+		Articles:      client,
+		Categories:    client,
+		Tags:          client,
+		SearchConsole: searchConsole,
+		ContentRoot:   cfg.ContentRoot,
 	}
 	mcpLogger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelInfo})).With("component", "cms-mcp")
 	if err := mcpserver.New(deps, mcpLogger).Run(ctx, &mcp.StdioTransport{}); err != nil && ctx.Err() == nil {

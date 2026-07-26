@@ -15,11 +15,14 @@ const (
 	envCMSMCPClientID         = "CMS_MCP_CLIENT_ID"
 	envCMSMCPClientSecret     = "CMS_MCP_CLIENT_SECRET"
 	envCMSContentRoot         = "CMS_CONTENT_ROOT"
+	envGSCEnabled             = "GSC_ENABLED"
+	envGSCProperty            = "GSC_PROPERTY"
+	envGSCServiceAccountFile  = "GSC_SERVICE_ACCOUNT_FILE"
 	defaultRequestTimeoutSecs = 10
 )
 
-// Config contains only the settings required by the MCP HTTP client.
-// Service-account lifecycle settings remain owned by the CMS server.
+// Config contains the MCP process settings for its CMS and optional GSC clients.
+// CMS service-account lifecycle settings remain owned by the CMS server.
 type Config struct {
 	CMSBaseURL            string `mapstructure:"cms_base_url"`
 	RequestTimeoutSeconds int    `mapstructure:"request_timeout_seconds"`
@@ -27,6 +30,9 @@ type Config struct {
 	ClientID              string `mapstructure:"-"`
 	ClientSecret          string `mapstructure:"-"`
 	ContentRoot           string `mapstructure:"content_root"`
+	GSCEnabled            bool   `mapstructure:"gsc_enabled"`
+	GSCProperty           string `mapstructure:"gsc_property"`
+	GSCServiceAccountFile string `mapstructure:"-"`
 }
 
 // Load reads an optional MCP-only YAML file and MCP-specific environment
@@ -51,6 +57,8 @@ func Load(configPath string) (*Config, error) {
 	cfg.ClientID = strings.TrimSpace(os.Getenv(envCMSMCPClientID))
 	cfg.ClientSecret = os.Getenv(envCMSMCPClientSecret)
 	cfg.ContentRoot = strings.TrimSpace(cfg.ContentRoot)
+	cfg.GSCProperty = strings.TrimSpace(cfg.GSCProperty)
+	cfg.GSCServiceAccountFile = strings.TrimSpace(os.Getenv(envGSCServiceAccountFile))
 	return &cfg, nil
 }
 
@@ -64,6 +72,9 @@ func (c Config) Validate() error {
 	if c.ClientID == "" || strings.TrimSpace(c.ClientSecret) == "" {
 		return fmt.Errorf("%s and %s are required", envCMSMCPClientID, envCMSMCPClientSecret)
 	}
+	if c.GSCEnabled && (c.GSCProperty == "" || c.GSCServiceAccountFile == "") {
+		return fmt.Errorf("%s and %s are required when %s is true", envGSCProperty, envGSCServiceAccountFile, envGSCEnabled)
+	}
 	return nil
 }
 
@@ -73,6 +84,8 @@ func applyEnvOverrides(v *viper.Viper) {
 		"request_timeout_seconds": envCMSRequestTimeout,
 		"allow_insecure_http":     envCMSAllowInsecureHTTP,
 		"content_root":            envCMSContentRoot,
+		"gsc_enabled":             envGSCEnabled,
+		"gsc_property":            envGSCProperty,
 	} {
 		if value, exists := os.LookupEnv(envKey); exists {
 			v.Set(key, value)

@@ -17,6 +17,9 @@ func TestLoadUsesMCPConfigAndEnvironment(t *testing.T) {
 	t.Setenv(envCMSMCPClientID, "mcp-client")
 	t.Setenv(envCMSMCPClientSecret, "mcp-secret")
 	t.Setenv(envCMSContentRoot, "/private/content")
+	t.Setenv(envGSCEnabled, "true")
+	t.Setenv(envGSCProperty, "sc-domain:example.com")
+	t.Setenv(envGSCServiceAccountFile, "/private/gsc-reader.json")
 
 	cfg, err := Load(configPath)
 	if err != nil {
@@ -30,6 +33,9 @@ func TestLoadUsesMCPConfigAndEnvironment(t *testing.T) {
 	}
 	if cfg.ContentRoot != "/private/content" {
 		t.Fatalf("ContentRoot = %q, want environment override", cfg.ContentRoot)
+	}
+	if !cfg.GSCEnabled || cfg.GSCProperty != "sc-domain:example.com" || cfg.GSCServiceAccountFile != "/private/gsc-reader.json" {
+		t.Fatalf("GSC configuration = (%t, %q, %q)", cfg.GSCEnabled, cfg.GSCProperty, cfg.GSCServiceAccountFile)
 	}
 	if err := cfg.Validate(); err != nil {
 		t.Fatalf("Validate() error = %v", err)
@@ -60,6 +66,9 @@ func TestLoadDoesNotReadDotEnvOrCredentialsFromYAML(t *testing.T) {
 	t.Setenv(envCMSMCPClientID, "")
 	t.Setenv(envCMSMCPClientSecret, "")
 	t.Setenv(envCMSContentRoot, "")
+	t.Setenv(envGSCEnabled, "")
+	t.Setenv(envGSCProperty, "")
+	t.Setenv(envGSCServiceAccountFile, "")
 
 	cfg, err := Load(configPath)
 	if err != nil {

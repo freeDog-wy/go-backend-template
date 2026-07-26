@@ -130,7 +130,7 @@ func TestOperationIDForUsesHostValueOrSessionFingerprint(t *testing.T) {
 
 func TestServerRegistersOperationalToolsAndPrompts(t *testing.T) {
 	ctx := context.Background()
-	server := New(Dependencies{}, nil)
+	server := New(Dependencies{SearchConsole: &searchConsoleFake{}}, nil)
 	client := mcp.NewClient(&mcp.Implementation{Name: "test-client", Version: "1.0.0"}, nil)
 	serverTransport, clientTransport := mcp.NewInMemoryTransports()
 	serverSession, err := server.Connect(ctx, serverTransport, nil)
@@ -145,6 +145,9 @@ func TestServerRegistersOperationalToolsAndPrompts(t *testing.T) {
 	defer clientSession.Close()
 
 	wantTools := map[string]bool{
+		"gsc.search.performance":          false,
+		"gsc.content.opportunities":       false,
+		"gsc.url.inspect":                 false,
 		"cms.article.create_translation":  false,
 		"cms.article.archive":             false,
 		"cms.article.restore":             false,
@@ -228,3 +231,36 @@ func TestServerRegistersOperationalToolsAndPrompts(t *testing.T) {
 		t.Fatalf("draft prompt = %#v", result)
 	}
 }
+
+func TestSearchConsoleInputAndOpportunities(t *testing.T) {
+	request, err := performanceRequest(gscPerformanceInput{StartDate: "2026-06-01", EndDate: "2026-06-28", Page: "https://example.com/articles/test", Device: "mobile", SearchType: "googlenews"}, []string{"query", "page"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if request.SearchType != "googleNews" || request.RowLimit != 100 || len(request.Filters) != 2 || request.Filters[1].Expression != "MOBILE" {
+		t.Fatalf("performance request = %#v", request)
+	}
+	if _, err := performanceRequest(gscPerformanceInput{StartDate: "2026-06-28", EndDate: "2026-06-01"}, []string{"query"}); err == nil {
+		t.Fatal("performanceRequest accepted an inverted date range")
+	}
+
+	opportunities := contentOpportunities([]contract.SearchAnalyticsRow{
+		{Keys: []string{"query one", "https://example.com/a"}, Impressions: 200, CTR: 0.02, Position: 8},
+		{Keys: []string{"query two", "https://example.com/b"}, Impressions: 300, CTR: 0.2, Position: 30},
+	}, 20, 0.05)
+	if len(opportunities) != 1 || opportunities[0]["keys"].([]string)[0] != "query one" {
+		t.Fatalf("opportunities = %#v", opportunities)
+	}
+}
+
+type searchConsoleFake struct{}
+
+func (*searchConsoleFake) SearchAnalytics(context.Context, contract.SearchAnalyticsRequest) (*contract.SearchAnalyticsResult, error) {
+	return &contract.SearchAnalyticsResult{}, nil
+}
+
+func (*searchConsoleFake) InspectURL(context.Context, string, string) (*contract.URLInspectionResult, error) {
+	return &contract.URLInspectionResult{}, nil
+}
+
+var _ contract.SearchConsoleService = (*searchConsoleFake)(nil)
