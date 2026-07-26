@@ -1,0 +1,93 @@
+name: Deploy Static Site
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - project/go-cms
+    paths:
+      - cmd/sitegen/**
+      - internal/app/sitegen/**
+      - internal/app/pkg/cmsclient/**
+      - go.mod
+      - go.sum
+      - .github/workflows/deploy-sitegen.yml
+
+permissions:
+  contents: read
+  deployments: write
+
+concurrency:
+  group: cloudflare-pages-production
+  cancel-in-progress: false
+
+jobs:
+  build-and-deploy:
+    name: Build and deploy sitegen
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment: production-site
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Validate deployment configuration
+        env:
+          CLOUDFLARE_PAGES_PROJECT: ${{ vars.CLOUDFLARE_PAGES_PROJECT }}
+          SITEGEN_CMS_API_BASE_URL: ${{ vars.SITEGEN_CMS_API_BASE_URL }}
+          SITEGEN_SITE_URL: ${{ vars.SITEGEN_SITE_URL }}
+        run: |
+          test -n "$CLOUDFLARE_PAGES_PROJECT"
+          test -n "$SITEGEN_CMS_API_BASE_URL"
+          test -n "$SITEGEN_SITE_URL"
+
+      - name: Test site generator
+        run: go test ./internal/app/sitegen ./cmd/sitegen
+
+      - name: Build static site
+        env:
+          SITEGEN_CMS_API_BASE_URL: ${{ vars.SITEGEN_CMS_API_BASE_URL }}
+          SITEGEN_SITE_URL: ${{ vars.SITEGEN_SITE_URL }}
+          SITEGEN_SITE_NAME: ${{ vars.SITEGEN_SITE_NAME }}
+          SITEGEN_GOOGLE_ANALYTICS_ID: ${{ vars.SITEGEN_GOOGLE_ANALYTICS_ID }}
+          SITEGEN_OUTPUT_DIR: dist
+          SITEGEN_PER_PAGE: "20"
+          SITEGEN_CONCURRENCY: "4"
+          SITEGEN_HTTP_TIMEOUT_SECONDS: "30"
+        run: go run ./cmd/sitegen
+
+      - name: Validate static output
+        shell: bash
+        run: |
+          test -s dist/404.html
+          test -s dist/sitemap.xml
+          test -s dist/robots.txt
+          test -s dist/_redirects
+          test -s dist/assets/site.css
+          find dist -mindepth 2 -name index.html -print -quit | grep -q .
+
+      - name: Deploy to Cloudflare Pages
+        id: cloudflare
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          command: >-
+            pages deploy dist
+            --project-name=${{ vars.CLOUDFLARE_PAGES_PROJECT }}
+            --branch=project/go-cms
+          gitHubToken: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Add deployment summary
+        env:
+          DEPLOYMENT_URL: ${{ steps.cloudflare.outputs.deployment-url }}
+        run: |
+          echo "## Cloudflare Pages deployment" >> "$GITHUB_STEP_SUMMARY"
+          echo "$DEPLOYMENT_URL" >> "$GITHUB_STEP_SUMMARY"
