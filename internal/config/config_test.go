@@ -79,6 +79,32 @@ func TestLoadBindsS3Environment(t *testing.T) {
 	}
 }
 
+func TestLoadBindsRegistrationEnvironment(t *testing.T) {
+	originalDir, err := os.Getwd()
+	if err != nil {
+		t.Fatal(err)
+	}
+	tempDir := t.TempDir()
+	if err := os.Chdir(tempDir); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.Chdir(originalDir) })
+
+	configPath := filepath.Join(tempDir, "config.yaml")
+	if err := os.WriteFile(configPath, []byte("registration:\n  enabled: false\n"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("REGISTRATION_ENABLED", "true")
+
+	cfg, err := Load(configPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !cfg.Registration.Enabled {
+		t.Fatal("registration should be enabled by environment override")
+	}
+}
+
 func TestLoadDoesNotSearchInternalSourceDirectories(t *testing.T) {
 	originalDir, err := os.Getwd()
 	if err != nil {

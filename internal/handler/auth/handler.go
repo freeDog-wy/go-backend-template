@@ -29,10 +29,11 @@ const refreshCookiePath = "/api/v1/auth/"
 // CookieOptions configures the optional refresh-token transport for the admin UI.
 // Access tokens remain Bearer tokens and are never read from a cookie.
 type CookieOptions struct {
-	AdminOrigin string
-	Name        string
-	Secure      bool
-	TTL         time.Duration
+	AdminOrigin         string
+	Name                string
+	Secure              bool
+	TTL                 time.Duration
+	RegistrationEnabled bool
 }
 
 func New(
@@ -70,6 +71,7 @@ func NewWithCookieOptions(
 func (h *Handler) RegisterRoutes(route *gin.Engine) {
 	group := route.Group("/api/v1")
 	{
+		group.GET("/public/registration-status", h.RegistrationStatus)
 		group.POST("/auth/register", h.Register)
 		group.POST("/auth/resend-verification", h.ResendVerification)
 		group.POST("/auth/verify-email", h.VerifyEmail)
@@ -83,6 +85,11 @@ func (h *Handler) RegisterRoutes(route *gin.Engine) {
 }
 
 func (h *Handler) Register(c *gin.Context) {
+	if !h.cookieOptions.RegistrationEnabled {
+		handler.Fail(c, "REGISTRATION_DISABLED", "User registration is currently disabled")
+		return
+	}
+
 	var req RegisterReq
 	if err := c.ShouldBindJSON(&req); err != nil {
 		handler.Fail(c, "INVALID_INPUT", err.Error())
@@ -103,6 +110,11 @@ func (h *Handler) Register(c *gin.Context) {
 	}
 
 	handler.OK(c, FromUserResult(result))
+}
+
+// RegistrationStatus exposes only the public registration capability.
+func (h *Handler) RegistrationStatus(c *gin.Context) {
+	handler.OK(c, RegistrationStatusResponse{Enabled: h.cookieOptions.RegistrationEnabled})
 }
 
 func (h *Handler) ResendVerification(c *gin.Context) {

@@ -5,6 +5,10 @@ import (
 	svcIdentity "github.com/freeDog-wy/go-backend-template/internal/usecase/identity"
 )
 
+type RegistrationStatusResponse struct {
+	Enabled bool `json:"enabled"`
+}
+
 type UserResponse struct {
 	ID     uint   `json:"id"`
 	Name   string `json:"name"`

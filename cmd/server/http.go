@@ -33,10 +33,11 @@ func newServerRegistry(cfg *config.Config, infra *serverInfrastructure, platform
 	}, 2*time.Second))
 	registry.Add(hdlCaptcha.New(infra.captcha))
 	registry.Add(hdlAuth.NewWithCookieOptions(services.auth, services.authorization, services.identity, services.verification, hdlAuth.CookieOptions{
-		AdminOrigin: cfg.Auth.AdminOrigin,
-		Name:        cfg.Auth.AdminRefreshCookieName,
-		Secure:      cfg.Auth.AdminRefreshCookieSecure,
-		TTL:         time.Duration(cfg.Auth.RefreshTokenTTLHours) * time.Hour,
+		AdminOrigin:         cfg.Auth.AdminOrigin,
+		Name:                cfg.Auth.AdminRefreshCookieName,
+		Secure:              cfg.Auth.AdminRefreshCookieSecure,
+		TTL:                 time.Duration(cfg.Auth.RefreshTokenTTLHours) * time.Hour,
+		RegistrationEnabled: cfg.Registration.Enabled,
 	}))
 	registry.Add(hdlAdminRole.New(services.auth, services.authorization, services.authorization))
 	registry.Add(hdlAdminUser.New(services.auth, services.authorization, services.authorization, services.identity))

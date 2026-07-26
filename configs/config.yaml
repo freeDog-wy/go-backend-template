@@ -60,6 +60,10 @@ auth:
   admin_refresh_cookie_name: "admin_refresh_token"
   admin_refresh_cookie_secure: false
 
+registration:
+  # Unauthenticated account creation is disabled unless explicitly enabled.
+  enabled: false
+
 mcp:
   enabled: false
   service_account_name: "MCP Operator"
