@@ -35,6 +35,7 @@ type Service struct {
 	logger          logger.Logger
 	issuer          string
 	audience        string
+	loginFailThreshold int
 	accessTokenTTL  time.Duration
 	refreshTokenTTL time.Duration
 }
@@ -121,27 +122,17 @@ func (s *Service) Login(ctx context.Context, cmd LoginCmd) (result *AuthResult, 
 	credential, err := s.credentialRepo.FindByUserID(ctx, user.GetID())
 	if err != nil {
 		if errors.Is(err, shared.ErrNotFound) {
-			return nil, ErrInvalidCredentials
+			return nil, s.failLogin(ctx, user, cmd, "invalid_credentials")
 		}
 		return nil, err
 	}
 
 	if !s.passwordHasher.Verify(cmd.Password, credential.GetPasswordHash()) {
-		s.publishAudit(ctx, platformAudit.RecordInput{
-			TargetType: "user",
-			TargetID:   uintString(user.GetID()),
-			Action:     auditActionLogin,
-			Result:     platformAudit.ResultFailure,
-			IP:         cmd.IP,
-			UserAgent:  cmd.UserAgent,
-			Metadata: map[string]any{
-				"reason": "invalid_credentials",
-			},
-		})
-		return nil, ErrInvalidCredentials
+		return nil, s.failLogin(ctx, user, cmd, "invalid_credentials")
 	}
 
 	now := time.Now()
+	user.ResetFailedLoginAttempts()
 	user.RecordLogin(now)
 	if err := s.inTransaction(ctx, func(ctx context.Context) error {
 		if err := s.userRepo.Update(ctx, user); err != nil {
@@ -468,11 +459,66 @@ func (s *Service) SetTxManager(tx shared.TxManager) {
 	s.tx = tx
 }
 
+func (s *Service) SetLoginFailThreshold(threshold int) {
+	s.loginFailThreshold = threshold
+}
+
 func (s *Service) inTransaction(ctx context.Context, fn func(context.Context) error) error {
 	if s.tx == nil {
 		return fn(ctx)
 	}
 	return s.tx.Do(ctx, fn)
+}
+
+func (s *Service) failLogin(ctx context.Context, user *domainIdentity.User, cmd LoginCmd, reason string) error {
+	locked, err := s.recordFailedLogin(ctx, user, cmd, reason)
+	if err != nil {
+		return err
+	}
+	if locked {
+		return ErrUserLocked
+	}
+	return ErrInvalidCredentials
+}
+
+func (s *Service) recordFailedLogin(ctx context.Context, user *domainIdentity.User, cmd LoginCmd, reason string) (bool, error) {
+	locked := false
+	if s.loginFailThreshold > 0 {
+		var err error
+		locked, err = user.RecordFailedLogin(s.loginFailThreshold)
+		if err != nil {
+			return false, err
+		}
+	}
+
+	metadata := map[string]any{
+		"reason": reason,
+	}
+	if s.loginFailThreshold > 0 {
+		metadata["failed_login_attempts"] = user.GetFailedLoginAttempts()
+		metadata["login_fail_threshold"] = s.loginFailThreshold
+		metadata["account_locked"] = locked
+	}
+
+	if err := s.inTransaction(ctx, func(ctx context.Context) error {
+		if s.loginFailThreshold > 0 {
+			if err := s.userRepo.Update(ctx, user); err != nil {
+				return err
+			}
+		}
+		return s.recordAudit(ctx, platformAudit.RecordInput{
+			TargetType: "user",
+			TargetID:   uintString(user.GetID()),
+			Action:     auditActionLogin,
+			Result:     platformAudit.ResultFailure,
+			IP:         cmd.IP,
+			UserAgent:  cmd.UserAgent,
+			Metadata:   metadata,
+		})
+	}); err != nil {
+		return false, err
+	}
+	return locked, nil
 }
 
 func uintPtr(value uint) *uint {

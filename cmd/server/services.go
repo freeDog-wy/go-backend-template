@@ -92,6 +92,7 @@ func newServerServices(cfg *config.Config, infra *serverInfrastructure, repos *s
 		time.Duration(cfg.Auth.RefreshTokenTTLHours)*time.Hour,
 		auditRecorder,
 	)
+	auth.SetLoginFailThreshold(cfg.Auth.LoginFailThreshold)
 	auth.SetTxManager(infra.txManager)
 	cms := svcCMS.NewWithRepositories(infra.txManager, svcCMS.Repositories{
 		LocaleRepository:          repos.cms,

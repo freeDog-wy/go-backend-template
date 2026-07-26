@@ -8,16 +8,17 @@ import (
 )
 
 type User struct {
-	id            uint
-	name          string
-	email         string
-	status        Status
-	emailVerified bool
-	lastLoginAt   *time.Time
-	createdAt     time.Time
-	updatedAt     time.Time
-	deletedAt     *time.Time
-	events        []shared.Event
+	id                  uint
+	name                string
+	email               string
+	status              Status
+	emailVerified       bool
+	failedLoginAttempts int
+	lastLoginAt         *time.Time
+	createdAt           time.Time
+	updatedAt           time.Time
+	deletedAt           *time.Time
+	events              []shared.Event
 }
 
 type Status int
@@ -37,16 +38,41 @@ func ReconstituteUser(
 	lastLoginAt, createdAt, updatedAt time.Time,
 	deletedAt *time.Time,
 ) *User {
+	return ReconstituteUserWithLoginFailures(
+		id,
+		name,
+		email,
+		status,
+		emailVerified,
+		0,
+		lastLoginAt,
+		createdAt,
+		updatedAt,
+		deletedAt,
+	)
+}
+
+func ReconstituteUserWithLoginFailures(
+	id uint, name, email string,
+	status Status, emailVerified bool,
+	failedLoginAttempts int,
+	lastLoginAt, createdAt, updatedAt time.Time,
+	deletedAt *time.Time,
+) *User {
+	if failedLoginAttempts < 0 {
+		failedLoginAttempts = 0
+	}
 	return &User{
-		id:            id,
-		name:          name,
-		email:         email,
-		status:        status,
-		emailVerified: emailVerified,
-		lastLoginAt:   timePtr(lastLoginAt),
-		createdAt:     createdAt,
-		updatedAt:     updatedAt,
-		deletedAt:     deletedAt,
+		id:                  id,
+		name:                name,
+		email:               email,
+		status:              status,
+		emailVerified:       emailVerified,
+		failedLoginAttempts: failedLoginAttempts,
+		lastLoginAt:         timePtr(lastLoginAt),
+		createdAt:           createdAt,
+		updatedAt:           updatedAt,
+		deletedAt:           deletedAt,
 	}
 }
 
@@ -89,7 +115,8 @@ func (u *User) Activate() error {
 	case StatusPendingVerification:
 		u.status = StatusActive
 	case StatusLocked:
-		return ErrUserLocked
+		u.status = StatusActive
+		u.failedLoginAttempts = 0
 	case StatusBanned:
 		return ErrUserBanned
 	case StatusDeleted:
@@ -139,6 +166,31 @@ func (u *User) VerifyEmail() {
 }
 
 func (u *User) IsEmailVerified() bool { return u.emailVerified }
+func (u *User) GetFailedLoginAttempts() int {
+	return u.failedLoginAttempts
+}
+
+func (u *User) ResetFailedLoginAttempts() {
+	u.failedLoginAttempts = 0
+}
+
+func (u *User) RecordFailedLogin(threshold int) (bool, error) {
+	switch u.status {
+	case StatusBanned:
+		return false, ErrUserBanned
+	case StatusDeleted:
+		return false, ErrUserDeleted
+	case StatusLocked:
+		return true, nil
+	}
+
+	u.failedLoginAttempts++
+	if threshold > 0 && u.failedLoginAttempts >= threshold {
+		u.status = StatusLocked
+		return true, nil
+	}
+	return false, nil
+}
 
 // RecordLogin 记录最近一次登录时间。
 func (u *User) RecordLogin(t time.Time) {

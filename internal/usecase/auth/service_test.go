@@ -12,6 +12,188 @@ import (
 	platformAudit "github.com/freeDog-wy/go-backend-template/internal/platform/audit"
 )
 
+func TestLogin(t *testing.T) {
+	t.Parallel()
+
+	now := time.Now()
+	credential := domainAuth.ReconstituteUserCredential(42, "stored-hash", now.Add(-time.Hour), now.Add(-2*time.Hour), now.Add(-time.Hour))
+
+	t.Run("locks the user when failed attempts reach the configured threshold", func(t *testing.T) {
+		t.Parallel()
+
+		user := domainIdentity.ReconstituteUserWithLoginFailures(
+			42,
+			"Test User",
+			"user@example.com",
+			domainIdentity.StatusActive,
+			true,
+			2,
+			time.Time{},
+			now.Add(-2*time.Hour),
+			now.Add(-time.Hour),
+			nil,
+		)
+		userRepo := &stubIdentityRepo{userByEmail: user}
+		bus := &stubEventBus{}
+		service := New(
+			userRepo,
+			&stubCredentialRepo{credential: credential},
+			&stubSessionStore{},
+			&stubPasswordHasher{verifyResult: false},
+			&stubAccessTokenManager{},
+			nil,
+			nil,
+			"",
+			"",
+			15*time.Minute,
+			24*time.Hour,
+			bus,
+		)
+		service.SetLoginFailThreshold(3)
+
+		result, err := service.Login(context.Background(), LoginCmd{
+			Email:     "user@example.com",
+			Password:  "wrong-password",
+			IP:        "127.0.0.1",
+			UserAgent: "unit-test",
+		})
+		if !errors.Is(err, ErrUserLocked) {
+			t.Fatalf("Login() error = %v, want %v", err, ErrUserLocked)
+		}
+		if result != nil {
+			t.Fatalf("Login() result = %+v, want nil", result)
+		}
+		if userRepo.updatedUser == nil {
+			t.Fatal("Update() was not called")
+		}
+		if !userRepo.updatedUser.IsLocked() {
+			t.Fatalf("updated user status = %v, want locked", userRepo.updatedUser.GetStatus())
+		}
+		if userRepo.updatedUser.GetFailedLoginAttempts() != 3 {
+			t.Fatalf("failed login attempts = %d, want 3", userRepo.updatedUser.GetFailedLoginAttempts())
+		}
+		assertSingleAuditEvent(t, bus, func(event platformAudit.RecordInput) {
+			if event.Action != auditActionLogin || event.Result != platformAudit.ResultFailure {
+				t.Fatalf("audit event = %+v", event)
+			}
+			if event.Metadata["account_locked"] != true {
+				t.Fatalf("audit metadata account_locked = %v, want true", event.Metadata["account_locked"])
+			}
+		})
+	})
+
+	t.Run("resets failed attempts after a successful login", func(t *testing.T) {
+		t.Parallel()
+
+		user := domainIdentity.ReconstituteUserWithLoginFailures(
+			42,
+			"Test User",
+			"user@example.com",
+			domainIdentity.StatusActive,
+			true,
+			2,
+			time.Time{},
+			now.Add(-2*time.Hour),
+			now.Add(-time.Hour),
+			nil,
+		)
+		userRepo := &stubIdentityRepo{userByEmail: user}
+		store := &stubSessionStore{}
+		tokenManager := &stubAccessTokenManager{issueToken: "access-token"}
+		service := New(
+			userRepo,
+			&stubCredentialRepo{credential: credential},
+			store,
+			&stubPasswordHasher{verifyResult: true},
+			tokenManager,
+			nil,
+			nil,
+			"issuer",
+			"audience",
+			15*time.Minute,
+			24*time.Hour,
+		)
+		service.SetLoginFailThreshold(3)
+
+		result, err := service.Login(context.Background(), LoginCmd{
+			Email:     "user@example.com",
+			Password:  "correct-password",
+			IP:        "127.0.0.1",
+			UserAgent: "unit-test",
+		})
+		if err != nil {
+			t.Fatalf("Login() error = %v", err)
+		}
+		if result == nil || result.AccessToken != "access-token" {
+			t.Fatalf("Login() result = %+v", result)
+		}
+		if userRepo.updatedUser == nil {
+			t.Fatal("Update() was not called")
+		}
+		if userRepo.updatedUser.GetFailedLoginAttempts() != 0 {
+			t.Fatalf("failed login attempts = %d, want 0", userRepo.updatedUser.GetFailedLoginAttempts())
+		}
+		if userRepo.updatedUser.GetLastLoginAt() == nil {
+			t.Fatal("last login time was not recorded")
+		}
+		if store.savedSession == nil {
+			t.Fatal("refresh session was not created")
+		}
+		if tokenManager.issuedClaims == nil {
+			t.Fatal("IssueAccessToken() was not called")
+		}
+	})
+
+	t.Run("returns invalid credentials without updating counters when threshold is disabled", func(t *testing.T) {
+		t.Parallel()
+
+		user := domainIdentity.ReconstituteUserWithLoginFailures(
+			42,
+			"Test User",
+			"user@example.com",
+			domainIdentity.StatusActive,
+			true,
+			0,
+			time.Time{},
+			now.Add(-2*time.Hour),
+			now.Add(-time.Hour),
+			nil,
+		)
+		userRepo := &stubIdentityRepo{userByEmail: user}
+		service := New(
+			userRepo,
+			&stubCredentialRepo{credential: credential},
+			&stubSessionStore{},
+			&stubPasswordHasher{verifyResult: false},
+			&stubAccessTokenManager{},
+			nil,
+			nil,
+			"",
+			"",
+			15*time.Minute,
+			24*time.Hour,
+		)
+		service.SetLoginFailThreshold(0)
+
+		result, err := service.Login(context.Background(), LoginCmd{
+			Email:    "user@example.com",
+			Password: "wrong-password",
+		})
+		if !errors.Is(err, ErrInvalidCredentials) {
+			t.Fatalf("Login() error = %v, want %v", err, ErrInvalidCredentials)
+		}
+		if result != nil {
+			t.Fatalf("Login() result = %+v, want nil", result)
+		}
+		if userRepo.updatedUser != nil {
+			t.Fatalf("Update() should not be called when threshold is disabled, got %+v", userRepo.updatedUser)
+		}
+		if user.GetFailedLoginAttempts() != 0 {
+			t.Fatalf("failed login attempts = %d, want 0", user.GetFailedLoginAttempts())
+		}
+	})
+}
+
 func TestParseAccessToken(t *testing.T) {
 	t.Parallel()
 
