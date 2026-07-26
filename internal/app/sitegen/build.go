@@ -355,9 +355,10 @@ func (a *App) baseViewWithLocaleRoute(snapshot *localeSnapshot, locales []Locale
 		options = append(options, localeOptionView{Code: locale.Code, Name: locale.Name, URL: routeForLocale(locale), Current: locale.Code == snapshot.Locale.Code})
 	}
 	return pageBaseView{
-		SiteName:      a.cfg.SiteName,
-		CurrentLocale: localeOptionView{Code: snapshot.Locale.Code, Name: snapshot.Locale.Name, URL: routeForLocale(snapshot.Locale), Current: true},
-		Locales:       options, Navigation: a.categoryNavs(snapshot.Locale.Code, snapshot.Categories), Labels: localizedLabels(snapshot.Locale.Code), Head: head, HomeURL: localeRoute(snapshot.Locale.Code),
+		SiteName:          a.cfg.SiteName,
+		GoogleAnalyticsID: a.cfg.GoogleAnalyticsID,
+		CurrentLocale:     localeOptionView{Code: snapshot.Locale.Code, Name: snapshot.Locale.Name, URL: routeForLocale(snapshot.Locale), Current: true},
+		Locales:           options, Navigation: a.categoryNavs(snapshot.Locale.Code, snapshot.Categories), Labels: localizedLabels(snapshot.Locale.Code), Head: head, HomeURL: localeRoute(snapshot.Locale.Code),
 	}
 }
 

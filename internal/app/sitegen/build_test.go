@@ -20,6 +20,7 @@ func TestBuildGeneratesMultilingualStaticSite(t *testing.T) {
 	cfg, err := NewConfig(ConfigInput{
 		APIBaseURL: server.URL, SiteURL: "https://docs.example.test", OutputDir: outputDir,
 		PerPage: 20, Concurrency: 2, HTTPTimeout: time.Second, SiteName: "Docs",
+		GoogleAnalyticsID: "G-TEYF1MDSD6",
 	})
 	if err != nil {
 		t.Fatalf("NewConfig() error = %v", err)
@@ -34,6 +35,10 @@ func TestBuildGeneratesMultilingualStaticSite(t *testing.T) {
 	}
 
 	zhArticle := readOutput(t, outputDir, "zh-CN/articles/go-jing-tai-zhan/index.html")
+	if !strings.Contains(zhArticle, `googletagmanager.com/gtag/js?id=G-TEYF1MDSD6`) ||
+		!strings.Contains(zhArticle, `gtag('config', 'G-TEYF1MDSD6')`) {
+		t.Fatalf("Chinese article is missing Google Analytics:\n%s", zhArticle)
+	}
 	if !strings.Contains(zhArticle, `href="/en-US/articles/go-static-site/"`) {
 		t.Fatalf("Chinese article is missing its translated article route:\n%s", zhArticle)
 	}

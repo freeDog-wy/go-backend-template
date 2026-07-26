@@ -16,24 +16,26 @@ import (
 
 func main() {
 	var (
-		apiBase     = flag.String("api-base", envOr("SITEGEN_CMS_API_BASE_URL", ""), "CMS public API base URL")
-		siteURL     = flag.String("site-url", envOr("SITEGEN_SITE_URL", ""), "Public site URL")
-		outputDir   = flag.String("out", envOr("SITEGEN_OUTPUT_DIR", "dist"), "Static output directory")
-		perPage     = flag.Int("per-page", envInt("SITEGEN_PER_PAGE", 20), "CMS and static listing page size")
-		concurrency = flag.Int("concurrency", envInt("SITEGEN_CONCURRENCY", 4), "Concurrent article detail requests")
-		timeout     = flag.Duration("http-timeout", envDuration("SITEGEN_HTTP_TIMEOUT_SECONDS", 15*time.Second), "CMS request timeout")
-		siteName    = flag.String("site-name", envOr("SITEGEN_SITE_NAME", "Content Site"), "Site name")
+		apiBase           = flag.String("api-base", envOr("SITEGEN_CMS_API_BASE_URL", ""), "CMS public API base URL")
+		siteURL           = flag.String("site-url", envOr("SITEGEN_SITE_URL", ""), "Public site URL")
+		outputDir         = flag.String("out", envOr("SITEGEN_OUTPUT_DIR", "dist"), "Static output directory")
+		perPage           = flag.Int("per-page", envInt("SITEGEN_PER_PAGE", 20), "CMS and static listing page size")
+		concurrency       = flag.Int("concurrency", envInt("SITEGEN_CONCURRENCY", 4), "Concurrent article detail requests")
+		timeout           = flag.Duration("http-timeout", envDuration("SITEGEN_HTTP_TIMEOUT_SECONDS", 15*time.Second), "CMS request timeout")
+		siteName          = flag.String("site-name", envOr("SITEGEN_SITE_NAME", "Content Site"), "Site name")
+		googleAnalyticsID = flag.String("google-analytics-id", envOr("SITEGEN_GOOGLE_ANALYTICS_ID", ""), "GA4 measurement ID (for example G-TEYF1MDSD6)")
 	)
 	flag.Parse()
 
 	cfg, err := sitegen.NewConfig(sitegen.ConfigInput{
-		APIBaseURL:  *apiBase,
-		SiteURL:     *siteURL,
-		OutputDir:   *outputDir,
-		PerPage:     *perPage,
-		Concurrency: *concurrency,
-		HTTPTimeout: *timeout,
-		SiteName:    *siteName,
+		APIBaseURL:        *apiBase,
+		SiteURL:           *siteURL,
+		OutputDir:         *outputDir,
+		PerPage:           *perPage,
+		Concurrency:       *concurrency,
+		HTTPTimeout:       *timeout,
+		SiteName:          *siteName,
+		GoogleAnalyticsID: *googleAnalyticsID,
 	})
 	if err != nil {
 		log.Fatalf("invalid site generator configuration: %v", err)

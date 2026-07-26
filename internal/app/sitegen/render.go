@@ -67,14 +67,15 @@ type categoryNavView struct {
 }
 
 type pageBaseView struct {
-	SiteName      string
-	CurrentLocale localeOptionView
-	Locales       []localeOptionView
-	Navigation    []categoryNavView
-	Labels        labels
-	Head          headView
-	HomeURL       string
-	Scripts       []string
+	SiteName          string
+	GoogleAnalyticsID string
+	CurrentLocale     localeOptionView
+	Locales           []localeOptionView
+	Navigation        []categoryNavView
+	Labels            labels
+	Head              headView
+	HomeURL           string
+	Scripts           []string
 }
 
 type articleCardView struct {

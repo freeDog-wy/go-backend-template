@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net/url"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"time"
 )
@@ -14,26 +15,30 @@ const (
 	defaultTimeout     = 15 * time.Second
 )
 
+var googleAnalyticsIDPattern = regexp.MustCompile(`^G-[A-Z0-9]+$`)
+
 // Config contains the build-time inputs for a static site generation run.
 type Config struct {
-	APIBaseURL  *url.URL
-	SiteURL     *url.URL
-	OutputDir   string
-	PerPage     int
-	Concurrency int
-	HTTPTimeout time.Duration
-	SiteName    string
+	APIBaseURL        *url.URL
+	SiteURL           *url.URL
+	OutputDir         string
+	PerPage           int
+	Concurrency       int
+	HTTPTimeout       time.Duration
+	SiteName          string
+	GoogleAnalyticsID string
 }
 
 // ConfigInput keeps command-line and environment parsing outside the builder.
 type ConfigInput struct {
-	APIBaseURL  string
-	SiteURL     string
-	OutputDir   string
-	PerPage     int
-	Concurrency int
-	HTTPTimeout time.Duration
-	SiteName    string
+	APIBaseURL        string
+	SiteURL           string
+	OutputDir         string
+	PerPage           int
+	Concurrency       int
+	HTTPTimeout       time.Duration
+	SiteName          string
+	GoogleAnalyticsID string
 }
 
 func NewConfig(input ConfigInput) (Config, error) {
@@ -92,15 +97,20 @@ func NewConfig(input ConfigInput) (Config, error) {
 	if siteName == "" {
 		siteName = "Content Site"
 	}
+	googleAnalyticsID := strings.ToUpper(strings.TrimSpace(input.GoogleAnalyticsID))
+	if googleAnalyticsID != "" && !googleAnalyticsIDPattern.MatchString(googleAnalyticsID) {
+		return Config{}, fmt.Errorf("Google Analytics ID must be a GA4 measurement ID such as G-TEYF1MDSD6")
+	}
 
 	return Config{
-		APIBaseURL:  apiURL,
-		SiteURL:     siteURL,
-		OutputDir:   absOutput,
-		PerPage:     perPage,
-		Concurrency: concurrency,
-		HTTPTimeout: timeout,
-		SiteName:    siteName,
+		APIBaseURL:        apiURL,
+		SiteURL:           siteURL,
+		OutputDir:         absOutput,
+		PerPage:           perPage,
+		Concurrency:       concurrency,
+		HTTPTimeout:       timeout,
+		SiteName:          siteName,
+		GoogleAnalyticsID: googleAnalyticsID,
 	}, nil
 }
 
