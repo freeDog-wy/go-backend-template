@@ -1,0 +1,115 @@
+name: Deploy Admin Site
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - project/go-cms
+    paths:
+      - web/admin/**
+      - .github/workflows/deploy-admin.yml
+
+permissions:
+  contents: read
+  deployments: write
+
+concurrency:
+  group: cloudflare-pages-admin-production
+  cancel-in-progress: false
+
+jobs:
+  build-and-deploy:
+    name: Build and deploy admin
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment: admin-production
+
+    defaults:
+      run:
+        working-directory: web/admin
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: web/admin/package-lock.json
+
+      - name: Validate deployment configuration
+        env:
+          ADMIN_API_BASE_URL: ${{ vars.ADMIN_API_BASE_URL }}
+          CLOUDFLARE_ADMIN_PAGES_PROJECT: ${{ vars.CLOUDFLARE_ADMIN_PAGES_PROJECT }}
+        run: |
+          test -n "$ADMIN_API_BASE_URL"
+          test -n "$CLOUDFLARE_ADMIN_PAGES_PROJECT"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Test
+        run: npm run test
+
+      - name: Build
+        run: npm run build
+
+      - name: Write production runtime configuration
+        env:
+          ADMIN_API_BASE_URL: ${{ vars.ADMIN_API_BASE_URL }}
+        run: |
+          node --input-type=module -e '
+            import { writeFileSync } from "node:fs";
+
+            const apiBaseURL = process.env.ADMIN_API_BASE_URL?.trim();
+            if (!apiBaseURL) throw new Error("ADMIN_API_BASE_URL is required");
+
+            const url = new URL(apiBaseURL);
+            if (url.protocol !== "https:" || url.pathname !== "/" || url.search || url.hash) {
+              throw new Error("ADMIN_API_BASE_URL must be an HTTPS origin without a path, query, or fragment");
+            }
+
+            writeFileSync(
+              "dist/runtime-config.js",
+              `window.__ADMIN_CONFIG__ = ${JSON.stringify({ apiBaseURL: url.origin })};\n`,
+            );
+          '
+
+      - name: Validate build output
+        run: |
+          test -s dist/index.html
+          test -s dist/runtime-config.js
+          test -d dist/assets
+          grep -Fq "$ADMIN_API_BASE_URL" dist/runtime-config.js
+          ! grep -Fq "http://localhost:8080" dist/runtime-config.js
+        env:
+          ADMIN_API_BASE_URL: ${{ vars.ADMIN_API_BASE_URL }}
+
+      - name: Deploy to Cloudflare Pages
+        id: cloudflare
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          wranglerVersion: "4.114.0"
+          command: >-
+            pages deploy web/admin/dist
+            --project-name=${{ vars.CLOUDFLARE_ADMIN_PAGES_PROJECT }}
+            --branch=project/go-cms
+            --commit-dirty=true
+          gitHubToken: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Add deployment summary
+        working-directory: .
+        env:
+          DEPLOYMENT_URL: ${{ steps.cloudflare.outputs.deployment-url }}
+          DEPLOYMENT_ALIAS_URL: ${{ steps.cloudflare.outputs.pages-deployment-alias-url }}
+        run: |
+          echo "## Cloudflare Pages admin deployment" >> "$GITHUB_STEP_SUMMARY"
+          echo "Deployment: $DEPLOYMENT_URL" >> "$GITHUB_STEP_SUMMARY"
+          echo "Alias: $DEPLOYMENT_ALIAS_URL" >> "$GITHUB_STEP_SUMMARY"
