@@ -104,16 +104,3 @@ jobs:
       - name: Stop integration dependencies
         if: always()
         run: docker compose -f deploy/docker-compose.yml down -v --remove-orphans
-
-  build-images:
-    name: Build Container Images
-    needs: [unit-tests, static-analysis, build-executables, integration-tests]
-    runs-on: ubuntu-latest
-    timeout-minutes: 20
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Build container images
-        run: make docker-build IMAGE_TAG=ci-${{ github.sha }}
