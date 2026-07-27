@@ -8,6 +8,7 @@ import (
 	domainMedia "github.com/freeDog-wy/go-backend-template/internal/domain/media"
 	"github.com/freeDog-wy/go-backend-template/internal/domain/shared"
 	platformAudit "github.com/freeDog-wy/go-backend-template/internal/platform/audit"
+	markdownpkg "github.com/freeDog-wy/go-backend-template/pkg/markdown"
 )
 
 // Service coordinates CMS writes, public queries, audit records, and media checks.
@@ -21,6 +22,7 @@ type Service struct {
 	auditor           platformAudit.Recorder
 	mediaFinder       ReadyMediaFinder
 	publicMediaFinder PublicMediaFinder
+	markdown          *markdownpkg.Renderer
 }
 
 type ReadyMediaFinder interface {

@@ -11,6 +11,7 @@ import (
 	svcAuth "github.com/freeDog-wy/go-backend-template/internal/usecase/auth"
 	svcAuthorization "github.com/freeDog-wy/go-backend-template/internal/usecase/authorization"
 	svcCMS "github.com/freeDog-wy/go-backend-template/internal/usecase/cms"
+	markdownpkg "github.com/freeDog-wy/go-backend-template/pkg/markdown"
 	"github.com/gin-gonic/gin"
 )
 
@@ -19,10 +20,11 @@ type Handler struct {
 	authorizer  svcAuthorization.AccessAuthorizer
 	cms         svcCMS.AdminService
 	idempotency gin.HandlerFunc
+	markdown    *markdownpkg.Renderer
 }
 
 func New(auth svcAuth.AccessAuthenticator, authorizer svcAuthorization.AccessAuthorizer, cms svcCMS.AdminService) *Handler {
-	return &Handler{auth: auth, authorizer: authorizer, cms: cms}
+	return &Handler{auth: auth, authorizer: authorizer, cms: cms, markdown: markdownpkg.NewRenderer()}
 }
 func (h *Handler) SetIdempotency(mw gin.HandlerFunc) { h.idempotency = mw }
 func (h *Handler) writeHandlers(permission string, endpoint gin.HandlerFunc) []gin.HandlerFunc {
@@ -46,6 +48,7 @@ func (h *Handler) RegisterRoutes(r *gin.Engine) {
 	g.PATCH("/categories/:id", h.writeHandlers("cms.category.manage", h.UpdateCategory)...)
 	g.PUT("/categories/:id/translations/:locale", h.writeHandlers("cms.category.manage", h.UpsertCategoryTranslation)...)
 	g.POST("/articles", h.writeHandlers("cms.article.create", h.CreateArticle)...)
+	g.POST("/markdown/preview", handlerMiddleware.RequirePermission(h.auth, h.authorizer, "cms.article.update"), h.PreviewMarkdown)
 	g.GET("/articles", handlerMiddleware.RequirePermission(h.auth, h.authorizer, "cms.article.update"), h.ListArticles)
 	g.DELETE("/articles/:id", h.writeHandlers("cms.article.archive", h.DeleteArticle)...)
 	g.POST("/articles/:id/restore", h.writeHandlers("cms.article.archive", h.RestoreArticle)...)
@@ -127,6 +130,24 @@ type articleReq struct {
 	SEOTitle       string `json:"seo_title"`
 	SEODescription string `json:"seo_description"`
 	CanonicalURL   string `json:"canonical_url"`
+}
+
+type markdownPreviewReq struct {
+	Content string `json:"content"`
+}
+
+func (h *Handler) PreviewMarkdown(c *gin.Context) {
+	var req markdownPreviewReq
+	if c.ShouldBindJSON(&req) != nil {
+		invalid(c)
+		return
+	}
+	rendered, err := h.markdown.Render(req.Content)
+	if err != nil {
+		handler.Fail(c, "INVALID_MARKDOWN", err.Error())
+		return
+	}
+	handler.OK(c, rendered)
 }
 
 func (h *Handler) CreateCategory(c *gin.Context) {

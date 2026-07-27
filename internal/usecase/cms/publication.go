@@ -65,11 +65,20 @@ func (s *Service) evaluatePublication(ctx context.Context, articleID uint, local
 			break
 		}
 	}
+	markdownPassed := true
+	markdownMessage := "Markdown content is valid"
+	if translation.ContentFormat == "markdown" && strings.TrimSpace(translation.Content) != "" {
+		if _, renderErr := s.markdown.Render(translation.Content); renderErr != nil {
+			markdownPassed = false
+			markdownMessage = renderErr.Error()
+		}
+	}
 	checks := []PublishCheck{
 		{Name: "title", Passed: strings.TrimSpace(translation.Title) != "", Blocking: true, Message: "title is required"},
 		{Name: "slug", Passed: strings.TrimSpace(translation.Slug) != "", Blocking: true, Message: "slug is required"},
 		{Name: "content", Passed: strings.TrimSpace(translation.Content) != "", Blocking: true, Message: "content is required"},
 		{Name: "content_format", Passed: translation.ContentFormat == "markdown" || translation.ContentFormat == "html", Blocking: true, Message: "content_format must be markdown or html"},
+		{Name: "markdown_render", Passed: markdownPassed, Blocking: true, Message: markdownMessage},
 		{Name: "article_active", Passed: article.DeletedAt == nil, Blocking: true, Message: "article is deleted"},
 		{Name: "seo_title", Passed: strings.TrimSpace(translation.SEOTitle) != "", Message: "SEO title is recommended"},
 		{Name: "seo_description", Passed: strings.TrimSpace(translation.SEODescription) != "", Message: "SEO description is recommended"},

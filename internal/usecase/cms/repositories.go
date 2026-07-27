@@ -3,6 +3,7 @@ package cms
 import (
 	domainCMS "github.com/freeDog-wy/go-backend-template/internal/domain/cms"
 	"github.com/freeDog-wy/go-backend-template/internal/domain/shared"
+	markdownpkg "github.com/freeDog-wy/go-backend-template/pkg/markdown"
 	"time"
 )
 
@@ -22,5 +23,5 @@ type Repositories struct {
 var _ domainCMS.Repository = Repositories{}
 
 func NewWithRepositories(tx shared.TxManager, repositories Repositories) *Service {
-	return &Service{tx: tx, repo: repositories, now: time.Now}
+	return &Service{tx: tx, repo: repositories, now: time.Now, markdown: markdownpkg.NewRenderer()}
 }

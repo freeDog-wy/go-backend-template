@@ -1,16 +1,12 @@
-import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { AlertTriangle, Plus, Save } from "lucide-react";
+import { AlertTriangle, Plus } from "lucide-react";
 import { useForm } from "react-hook-form";
-import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
-import { z } from "zod";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { ApiError } from "../api/http";
 import { cms } from "../api/cms";
-import type { ArticleInput, Locale } from "../api/types";
+import type { Locale } from "../api/types";
 import { useAuth } from "../app/auth";
 
-const articleSchema = z.object({ locale: z.string().min(1), title: z.string().min(1), slug: z.string().min(1).regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/), summary: z.string(), content: z.string(), content_format: z.literal("markdown"), seo_title: z.string(), seo_description: z.string(), canonical_url: z.string() });
-type ArticleForm = z.infer<typeof articleSchema>;
 const message = (error: unknown) => error instanceof ApiError ? `${error.code}: ${error.message}` : "Request failed";
 
 export function LoginPage() {
@@ -25,15 +21,6 @@ export function ArticlesPage() {
   const locales = useQuery({ queryKey: ["locales"], queryFn: cms.locales }); const selected = locale || locales.data?.find((item) => item.is_default)?.code || "";
   const articles = useQuery({ queryKey: ["articles", selected, status], queryFn: () => cms.articles(selected, status || undefined), enabled: Boolean(selected) });
   return <section className="page"><div className="page-heading"><div><h1>Articles</h1><p>Drafts and published translations.</p></div><Link className="button" to="/articles/new"><Plus size={16} />New article</Link></div><div className="filters"><LocaleSelect value={selected} onChange={(value) => setParams({ locale: value, status })} /><select value={status} onChange={(e) => setParams({ locale: selected, status: e.target.value })}><option value="">All statuses</option><option value="draft">Draft</option><option value="published">Published</option><option value="archived">Archived</option></select></div>{articles.error && <ErrorNotice error={articles.error} />}{articles.isLoading ? <p>Loading articles...</p> : <table><thead><tr><th>Title</th><th>Locale</th><th>Status</th><th>Published</th></tr></thead><tbody>{articles.data?.map((item) => <tr key={`${item.id}-${item.locale}`}><td><Link to={`/articles/${item.id}/${item.locale}`}>{item.title}</Link></td><td>{item.locale}</td><td><span className={`status ${item.status}`}>{item.status}</span></td><td>{item.published_at ? new Date(item.published_at).toLocaleDateString() : "-"}</td></tr>)}</tbody></table>}</section>;
-}
-
-export function ArticleEditorPage() {
-  const { id, locale: routeLocale } = useParams(); const navigate = useNavigate(); const idNumber = id ? Number(id) : null; const locales = useQuery({ queryKey: ["locales"], queryFn: cms.locales }); const detail = useQuery({ queryKey: ["article", idNumber, routeLocale], queryFn: () => cms.article(idNumber!, routeLocale!), enabled: Boolean(idNumber && routeLocale) });
-  const form = useForm<ArticleForm>({ resolver: zodResolver(articleSchema), defaultValues: { locale: routeLocale ?? "", title: "", slug: "", summary: "", content: "", content_format: "markdown", seo_title: "", seo_description: "", canonical_url: "" }, values: detail.data ? { locale: detail.data.locale, title: detail.data.title, slug: detail.data.slug, summary: detail.data.summary, content: detail.data.content, content_format: "markdown", seo_title: detail.data.seo_title, seo_description: detail.data.seo_description, canonical_url: detail.data.canonical_url } : undefined });
-  const client = useQueryClient(); const save = useMutation({ mutationFn: (input: ArticleInput) => idNumber ? cms.updateArticle(idNumber, routeLocale!, input) : cms.createArticle(input), onSuccess: (article) => { client.invalidateQueries({ queryKey: ["articles"] }); navigate(`/articles/${article.id}/${article.locale}`); } });
-  const publish = useMutation({ mutationFn: () => cms.publish(idNumber!, routeLocale!), onSuccess: () => client.invalidateQueries({ queryKey: ["article", idNumber, routeLocale] }) });
-  if (detail.error) return <section className="page"><ErrorNotice error={detail.error} /></section>;
-  return <section className="page"><div className="page-heading"><div><h1>{idNumber ? "Edit article" : "New article"}</h1><p>{routeLocale ?? "Create a new translation"}</p></div>{idNumber && <button className="secondary" onClick={() => publish.mutate()} disabled={publish.isPending}>Publish</button>}</div><form className="editor-form" onSubmit={form.handleSubmit((values) => save.mutate(values))}><label>Locale{idNumber ? <input readOnly {...form.register("locale")} /> : <LocaleSelect value={form.watch("locale")} onChange={(value) => form.setValue("locale", value)} />}</label><label>Title<input {...form.register("title")} /></label><label>Slug<input {...form.register("slug")} /></label><label>Summary<textarea rows={3} {...form.register("summary")} /></label><label>Markdown<textarea className="markdown" rows={18} {...form.register("content")} /></label><details><summary>SEO</summary><label>SEO title<input {...form.register("seo_title")} /></label><label>SEO description<textarea rows={3} {...form.register("seo_description")} /></label><label>Canonical URL<input {...form.register("canonical_url")} /></label></details>{Object.values(form.formState.errors).map((error) => <p className="error" key={error.message}>{error.message}</p>)}{save.error && <ErrorNotice error={save.error} />}<button disabled={save.isPending}><Save size={16} />{save.isPending ? "Saving..." : "Save"}</button></form></section>;
 }
 
 export function CategoriesPage() {

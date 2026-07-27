@@ -11,13 +11,14 @@ import (
 	"sync"
 
 	"github.com/freeDog-wy/go-backend-template/internal/app/pkg/cmsclient"
+	markdownpkg "github.com/freeDog-wy/go-backend-template/pkg/markdown"
 )
 
 // App coordinates a complete, repeatable static site build.
 type App struct {
 	cfg      Config
 	public   *cmsclient.PublicClient
-	markdown *MarkdownRenderer
+	markdown *markdownpkg.Renderer
 	renderer *renderer
 }
 
@@ -48,7 +49,7 @@ func New(cfg Config) *App {
 	return &App{
 		cfg:      cfg,
 		public:   public,
-		markdown: NewMarkdownRenderer(),
+		markdown: markdownpkg.NewRenderer(),
 		renderer: newRenderer(),
 	}
 }

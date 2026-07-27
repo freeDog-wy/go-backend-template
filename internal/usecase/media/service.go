@@ -85,10 +85,16 @@ type UploadResult struct {
 	Status    string            `json:"status"`
 }
 type MediaResult struct {
-	ID                                            uint `json:"id"`
-	ObjectKey, OriginalFilename, MimeType, Status string
-	SizeBytes                                     int64     `json:"size_bytes"`
-	CreatedAt                                     time.Time `json:"created_at"`
+	ID               uint      `json:"id"`
+	ObjectKey        string    `json:"object_key"`
+	OriginalFilename string    `json:"original_filename"`
+	MimeType         string    `json:"mime_type"`
+	Status           string    `json:"status"`
+	PublicURL        string    `json:"public_url"`
+	SizeBytes        int64     `json:"size_bytes"`
+	Width            int       `json:"width"`
+	Height           int       `json:"height"`
+	CreatedAt        time.Time `json:"created_at"`
 }
 
 func (s *Service) List(ctx context.Context, page, perPage int) ([]MediaResult, int64, error) {
@@ -104,7 +110,11 @@ func (s *Service) List(ctx context.Context, page, perPage int) ([]MediaResult, i
 	}
 	out := make([]MediaResult, 0, len(items))
 	for _, a := range items {
-		out = append(out, MediaResult{ID: a.ID, ObjectKey: a.ObjectKey, OriginalFilename: a.OriginalFilename, MimeType: a.MimeType, Status: a.Status, SizeBytes: a.SizeBytes, CreatedAt: a.CreatedAt})
+		publicURL := ""
+		if s.storage != nil && a.Status == "ready" {
+			publicURL = strings.TrimSpace(s.storage.PublicURL(a.ObjectKey))
+		}
+		out = append(out, MediaResult{ID: a.ID, ObjectKey: a.ObjectKey, OriginalFilename: a.OriginalFilename, MimeType: a.MimeType, Status: a.Status, PublicURL: publicURL, SizeBytes: a.SizeBytes, Width: a.Width, Height: a.Height, CreatedAt: a.CreatedAt})
 	}
 	return out, total, nil
 }

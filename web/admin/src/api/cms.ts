@@ -1,5 +1,5 @@
 import { request, write } from "./http";
-import type { Article, ArticleDetail, ArticleInput, Category, Locale, Tag } from "./types";
+import type { Article, ArticleDetail, ArticleInput, Category, Locale, MarkdownPreview, MediaList, MediaUpload, PublishPreview, Tag } from "./types";
 
 const query = (items: Record<string, string | number | boolean | undefined>) => `?${new URLSearchParams(Object.entries(items).filter(([, v]) => v !== undefined).map(([k, v]) => [k, String(v)])).toString()}`;
 export const cms = {
@@ -16,9 +16,18 @@ export const cms = {
     return request<Article[]>(path);
   },
   article: (id: number, locale: string) => request<ArticleDetail>(`/api/v1/admin/cms/articles/${id}/translations/${encodeURIComponent(locale)}`),
+  previewMarkdown: (content: string) => request<MarkdownPreview>("/api/v1/admin/cms/markdown/preview", { method: "POST", body: { content } }),
+  previewPublish: (id: number, locale: string) => request<PublishPreview>(`/api/v1/admin/cms/articles/${id}/translations/${encodeURIComponent(locale)}/publish-preview`),
   createArticle: (input: ArticleInput) => write<Article>("POST", "/api/v1/admin/cms/articles", input),
   updateArticle: (id: number, locale: string, input: ArticleInput) => write<Article>("PUT", `/api/v1/admin/cms/articles/${id}/translations/${encodeURIComponent(locale)}`, input),
   publish: (id: number, locale: string) => write<Article>("POST", `/api/v1/admin/cms/articles/${id}/translations/${encodeURIComponent(locale)}/publish`),
   archive: (id: number, locale: string) => write<Article>("POST", `/api/v1/admin/cms/articles/${id}/translations/${encodeURIComponent(locale)}/archive`),
   restore: (id: number) => write<Article>("POST", `/api/v1/admin/cms/articles/${id}/restore`),
+  media: (page = 1) => request<MediaList>(`/api/v1/admin/cms/media${query({ page, per_page: 40 })}`),
+  requestMediaUpload: (file: File) => write<MediaUpload>("POST", "/api/v1/admin/cms/media/upload-requests", { filename: file.name, content_type: file.type, size_bytes: file.size }),
+  uploadMediaObject: async (upload: MediaUpload, file: File) => {
+    const response = await fetch(upload.upload_url, { method: "PUT", headers: upload.headers, body: file });
+    if (!response.ok) throw new Error(`Object upload failed with HTTP ${response.status}`);
+  },
+  completeMediaUpload: (id: number) => write<{ id: number; status: string }>("POST", `/api/v1/admin/cms/media/${id}/complete`),
 };

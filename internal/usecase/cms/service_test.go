@@ -315,6 +315,23 @@ func TestPublishTranslationRejectsFailedPublicationChecks(t *testing.T) {
 		t.Fatalf("translation mutated after rejected publication: %#v", translation)
 	}
 }
+
+func TestPreviewPublishRejectsInvalidMarkdown(t *testing.T) {
+	translation := &domainCMS.ArticleTranslation{ArticleID: 1, Locale: "zh-CN", Title: "Article", Slug: "article", Content: "![cover](images/cover.png)", ContentFormat: "markdown", Status: domainCMS.TranslationDraft}
+	preview, err := New(testTx{}, &testRepo{tr: translation}).PreviewPublish(context.Background(), PreviewPublishCmd{ArticleID: 1, Locale: "zh-CN"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, check := range preview.Checks {
+		if check.Name == "markdown_render" {
+			if check.Passed || !check.Blocking {
+				t.Fatalf("markdown check = %#v", check)
+			}
+			return
+		}
+	}
+	t.Fatal("markdown_render check is missing")
+}
 func TestGetPublishedArticleHidesAbsentTranslation(t *testing.T) {
 	svc := New(testTx{}, &testRepo{})
 	_, err := svc.GetPublishedArticle(context.Background(), "en-US", "missing")

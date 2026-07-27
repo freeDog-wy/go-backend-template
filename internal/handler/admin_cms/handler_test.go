@@ -66,6 +66,19 @@ func TestPublishTranslationRejectsContentThatFailsPublicationChecks(t *testing.T
 	assertCMSResponse(t, w, false, "CONTENT_NOT_READY_FOR_PUBLICATION")
 }
 
+func TestPreviewMarkdownUsesSharedRenderer(t *testing.T) {
+	w := serveCMSMethod(t, http.MethodPost, true, &cmsServiceFake{}, "/api/v1/admin/cms/markdown/preview", `{"content":"## Preview\n\n**body**"}`)
+	assertCMSResponse(t, w, true, "")
+	if !strings.Contains(w.Body.String(), `"reading_minutes":1`) || !strings.Contains(w.Body.String(), `\u003cstrong\u003e`) {
+		t.Fatalf("response = %s", w.Body.String())
+	}
+}
+
+func TestPreviewMarkdownRejectsInvalidImageURL(t *testing.T) {
+	w := serveCMSMethod(t, http.MethodPost, true, &cmsServiceFake{}, "/api/v1/admin/cms/markdown/preview", `{"content":"![cover](images/cover.png)"}`)
+	assertCMSResponse(t, w, false, "INVALID_MARKDOWN")
+}
+
 func TestListArticlesPassesStatusFilter(t *testing.T) {
 	service := &cmsServiceFake{}
 	w := serveCMSMethod(t, http.MethodGet, true, service, "/api/v1/admin/cms/articles?locale=zh-CN&status=published&page=2&per_page=10", "")

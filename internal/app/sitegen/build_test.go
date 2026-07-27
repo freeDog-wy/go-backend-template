@@ -10,6 +10,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	markdownpkg "github.com/freeDog-wy/go-backend-template/pkg/markdown"
 )
 
 func TestBuildGeneratesMultilingualStaticSite(t *testing.T) {
@@ -89,7 +91,7 @@ func TestBuildGeneratesMultilingualStaticSite(t *testing.T) {
 
 func TestMarkdownRendererRejectsRelativeImagesAndSanitizesRawHTML(t *testing.T) {
 	t.Parallel()
-	renderer := NewMarkdownRenderer()
+	renderer := markdownpkg.NewRenderer()
 	if _, err := renderer.Render("![bad](images/example.png)"); err == nil {
 		t.Fatal("relative Markdown image was accepted")
 	}
