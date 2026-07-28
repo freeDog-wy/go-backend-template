@@ -12,9 +12,14 @@ import (
 	"time"
 
 	"github.com/freeDog-wy/go-backend-template/internal/app/sitegen"
+	"github.com/freeDog-wy/go-backend-template/pkg/envfile"
 )
 
 func main() {
+	if err := loadDotEnv(); err != nil {
+		log.Fatalf("load .env: %v", err)
+	}
+
 	var (
 		apiBase           = flag.String("api-base", envOr("SITEGEN_CMS_API_BASE_URL", ""), "CMS public API base URL")
 		siteURL           = flag.String("site-url", envOr("SITEGEN_SITE_URL", ""), "Public site URL")
@@ -24,6 +29,8 @@ func main() {
 		timeout           = flag.Duration("http-timeout", envDuration("SITEGEN_HTTP_TIMEOUT_SECONDS", 15*time.Second), "CMS request timeout")
 		siteName          = flag.String("site-name", envOr("SITEGEN_SITE_NAME", "Content Site"), "Site name")
 		googleAnalyticsID = flag.String("google-analytics-id", envOr("SITEGEN_GOOGLE_ANALYTICS_ID", ""), "GA4 measurement ID (for example G-TEYF1MDSD6)")
+		serve             = flag.Bool("serve", false, "serve the generated site locally after building")
+		serveAddr         = flag.String("serve-addr", envOr("SITEGEN_SERVE_ADDR", "127.0.0.1:8788"), "local static-server listen address")
 	)
 	flag.Parse()
 
@@ -48,6 +55,16 @@ func main() {
 		log.Fatalf("build static site: %v", err)
 	}
 	log.Printf("static site built: locales=%d articles=%d pages=%d output=%s", stats.Locales, stats.Articles, stats.Pages, cfg.OutputDir)
+	if *serve {
+		log.Printf("serving %s at http://%s", cfg.OutputDir, *serveAddr)
+		if err := serveStatic(ctx, cfg.OutputDir, *serveAddr); err != nil {
+			log.Fatalf("serve static site: %v", err)
+		}
+	}
+}
+
+func loadDotEnv() error {
+	return envfile.Load(".env")
 }
 
 func envOr(name, fallback string) string {
