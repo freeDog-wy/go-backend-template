@@ -1,10 +1,11 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { AlertTriangle, Plus } from "lucide-react";
+import { Fragment, useEffect, useState } from "react";
+import { AlertTriangle, ChevronDown, ChevronRight, Folder, FolderOpen, Plus } from "lucide-react";
 import { useForm } from "react-hook-form";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { ApiError } from "../api/http";
 import { cms } from "../api/cms";
-import type { Locale } from "../api/types";
+import type { Category, Locale } from "../api/types";
 import { useAuth } from "../app/auth";
 
 const message = (error: unknown) => error instanceof ApiError ? `${error.code}: ${error.message}` : "Request failed";
@@ -23,10 +24,57 @@ export function ArticlesPage() {
   return <section className="page"><div className="page-heading"><div><h1>Articles</h1><p>Drafts and published translations.</p></div><Link className="button" to="/articles/new"><Plus size={16} />New article</Link></div><div className="filters"><LocaleSelect value={selected} onChange={(value) => setParams({ locale: value, status })} /><select value={status} onChange={(e) => setParams({ locale: selected, status: e.target.value })}><option value="">All statuses</option><option value="draft">Draft</option><option value="published">Published</option><option value="archived">Archived</option></select></div>{articles.error && <ErrorNotice error={articles.error} />}{articles.isLoading ? <p>Loading articles...</p> : <table><thead><tr><th>Title</th><th>Locale</th><th>Status</th><th>Published</th></tr></thead><tbody>{articles.data?.map((item) => <tr key={`${item.id}-${item.locale}`}><td><Link to={`/articles/${item.id}/${item.locale}`}>{item.title}</Link></td><td>{item.locale}</td><td><span className={`status ${item.status}`}>{item.status}</span></td><td>{item.published_at ? new Date(item.published_at).toLocaleDateString() : "-"}</td></tr>)}</tbody></table>}</section>;
 }
 
+type CategoryForm = { name: string; slug: string; description: string; parent_id: string };
+type CategoryOption = { category: Category; depth: number };
+
+function flattenCategories(categories: Category[], depth = 0): CategoryOption[] {
+  return categories.flatMap((category) => [{ category, depth }, ...flattenCategories(category.children, depth + 1)]);
+}
+
+function CategoryTreeRows({ categories, expanded, onToggle, depth = 0 }: { categories: Category[]; expanded: Set<number>; onToggle(id: number): void; depth?: number }) {
+  return <>{categories.map((category) => {
+    const hasChildren = category.children.length > 0;
+    const isExpanded = expanded.has(category.id);
+    return <Fragment key={category.id}>
+      <tr>
+        <td>
+          <div className="category-tree-item" style={{ paddingInlineStart: `${depth * 22}px` }}>
+            {hasChildren ? <button className="category-tree-toggle" type="button" aria-expanded={isExpanded} aria-label={`${isExpanded ? "Collapse" : "Expand"} ${category.name}`} title={isExpanded ? "Collapse" : "Expand"} onClick={() => onToggle(category.id)}>{isExpanded ? <ChevronDown size={16} /> : <ChevronRight size={16} />}</button> : <span className="category-tree-spacer" aria-hidden="true" />}
+            {hasChildren && isExpanded ? <FolderOpen className="category-tree-icon" size={16} aria-hidden="true" /> : <Folder className="category-tree-icon" size={16} aria-hidden="true" />}
+            <span>{category.name}</span>
+          </div>
+        </td>
+        <td>{category.slug}</td>
+        <td>{category.sort_order}</td>
+      </tr>
+      {hasChildren && isExpanded && <CategoryTreeRows categories={category.children} expanded={expanded} onToggle={onToggle} depth={depth + 1} />}
+    </Fragment>;
+  })}</>;
+}
+
 export function CategoriesPage() {
-  const locales = useQuery({ queryKey: ["locales"], queryFn: cms.locales }); const [params, setParams] = useSearchParams(); const selected = params.get("locale") || locales.data?.find((item) => item.is_default)?.code || "";
-  const categories = useQuery({ queryKey: ["categories", selected], queryFn: () => cms.categories(selected), enabled: Boolean(selected) }); const form = useForm({ defaultValues: { name: "", slug: "", description: "" } }); const client = useQueryClient(); const create = useMutation({ mutationFn: (v: { name: string; slug: string; description: string }) => cms.createCategory({ ...v, locale: selected, sort_order: 0 }), onSuccess: () => { form.reset(); client.invalidateQueries({ queryKey: ["categories", selected] }); } });
-  return <section className="page"><PageTitle title="Categories" description="Maintain localized taxonomy." /><div className="filters"><LocaleSelect value={selected} onChange={(value) => setParams({ locale: value })} /></div><form className="inline-form" onSubmit={form.handleSubmit((v) => create.mutate(v))}><input placeholder="Name" required {...form.register("name")} /><input placeholder="slug" required {...form.register("slug")} /><input placeholder="Description" {...form.register("description")} /><button disabled={create.isPending}><Plus size={16} />Add</button></form>{create.error && <ErrorNotice error={create.error} />}<table><thead><tr><th>Name</th><th>Slug</th><th>Order</th></tr></thead><tbody>{categories.data?.map((item) => <tr key={item.id}><td>{item.name}</td><td>{item.slug}</td><td>{item.sort_order}</td></tr>)}</tbody></table></section>;
+  const locales = useQuery({ queryKey: ["locales"], queryFn: cms.locales });
+  const [params, setParams] = useSearchParams();
+  const selected = params.get("locale") || locales.data?.find((item) => item.is_default)?.code || "";
+  const categories = useQuery({ queryKey: ["categories", selected], queryFn: () => cms.categories(selected), enabled: Boolean(selected) });
+  const options = flattenCategories(categories.data ?? []);
+  const categoryIDs = options.map(({ category }) => category.id).join(",");
+  const [expanded, setExpanded] = useState<Set<number>>(new Set());
+  const form = useForm<CategoryForm>({ defaultValues: { name: "", slug: "", description: "", parent_id: "" } });
+  const client = useQueryClient();
+  const create = useMutation({
+    mutationFn: (value: CategoryForm) => cms.createCategory({ ...value, locale: selected, parent_id: value.parent_id ? Number(value.parent_id) : null, sort_order: 0 }),
+    onSuccess: () => { form.reset(); client.invalidateQueries({ queryKey: ["categories", selected] }); },
+  });
+
+  useEffect(() => { setExpanded(new Set(options.map(({ category }) => category.id))); }, [selected, categoryIDs]);
+  const toggleCategory = (id: number) => setExpanded((current) => {
+    const next = new Set(current);
+    if (next.has(id)) next.delete(id); else next.add(id);
+    return next;
+  });
+
+  return <section className="page"><PageTitle title="Categories" description="Maintain localized taxonomy." /><div className="filters"><LocaleSelect value={selected} onChange={(value) => setParams({ locale: value })} /></div><form className="inline-form category-create-form" onSubmit={form.handleSubmit((value) => create.mutate(value))}><input placeholder="Name" required {...form.register("name")} /><input placeholder="slug" required {...form.register("slug")} /><input placeholder="Description" {...form.register("description")} /><select aria-label="Parent category" {...form.register("parent_id")}><option value="">Root category</option>{options.map(({ category, depth }) => <option key={category.id} value={category.id}>{`${"-- ".repeat(depth)}${category.name}`}</option>)}</select><button disabled={create.isPending}><Plus size={16} />Add</button></form>{create.error && <ErrorNotice error={create.error} />}{categories.error && <ErrorNotice error={categories.error} />}{categories.isLoading ? <p>Loading categories...</p> : <table><thead><tr><th>Name</th><th>Slug</th><th>Order</th></tr></thead><tbody><CategoryTreeRows categories={categories.data ?? []} expanded={expanded} onToggle={toggleCategory} /></tbody></table>}</section>;
 }
 export function TagsPage() {
   const locales = useQuery({ queryKey: ["locales"], queryFn: cms.locales }); const [params, setParams] = useSearchParams(); const selected = params.get("locale") || locales.data?.find((item) => item.is_default)?.code || "";

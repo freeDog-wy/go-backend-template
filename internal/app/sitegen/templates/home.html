@@ -1,14 +1,16 @@
 {{define "content"}}
-<section class="site-shell page-intro">
-  <p class="eyebrow">{{.CurrentLocale.Name}}</p>
-  <h1>{{.Heading}}</h1>
-</section>
 <section class="site-shell content-section" aria-labelledby="categories-heading">
   <h2 id="categories-heading">{{.Labels.Categories}}</h2>
-  <div class="category-grid">{{range .Categories}}<a class="category-link" href="{{.URL}}">{{.Name}}</a>{{end}}</div>
+  <nav class="category-tree" aria-labelledby="categories-heading">{{template "category-tree-list" .Categories}}</nav>
 </section>
 <section class="site-shell content-section" aria-labelledby="latest-heading">
   <div class="section-heading"><h2 id="latest-heading">{{.Labels.LatestArticles}}</h2><a href="{{.CurrentLocale.URL}}articles/">{{.Labels.Articles}}</a></div>
   {{template "article-list" .Articles}}
 </section>
+{{end}}
+
+{{define "category-tree-list"}}
+<ul class="category-tree-list">{{range .}}
+  <li><a class="category-tree-link" href="{{.URL}}">{{.Name}}</a>{{if .Children}}{{template "category-tree-list" .Children}}{{end}}</li>{{end}}
+</ul>
 {{end}}

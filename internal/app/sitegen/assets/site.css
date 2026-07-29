@@ -78,17 +78,18 @@ button { cursor: pointer; }
 .skip-link { position: fixed; z-index: 20; top: 8px; left: 8px; padding: 8px 12px; transform: translateY(-160%); color: var(--color-surface); background: var(--color-ink); border-radius: var(--radius-control); }
 .skip-link:focus { transform: translateY(0); }
 .site-header { position: sticky; z-index: 10; top: 0; border-bottom: 1px solid var(--color-line); background: var(--color-surface); box-shadow: 0 1px 0 rgb(0 0 0 / 0.01); }
-.header-inner { display: flex; min-height: 64px; align-items: center; gap: var(--space-5); }
+.header-inner { display: flex; min-height: 40px; align-items: center; gap: var(--space-5); }
 .site-brand { color: var(--color-ink); font-size: 1.05rem; font-weight: 700; text-decoration: none; white-space: nowrap; }
-.site-nav { display: flex; min-width: 0; flex: 1; align-items: center; gap: var(--space-4); margin: 0; overflow-x: auto; }
+.site-nav { display: flex; min-width: 0; flex: 1; justify-content: flex-start; align-items: center; gap: var(--space-4); margin: 0; overflow-x: auto; }
 .site-nav a { color: var(--color-muted); font-size: 0.92rem; text-decoration: none; white-space: nowrap; }
 .site-nav a:hover { color: var(--color-brand); }
 .header-tools { display: flex; align-items: center; gap: var(--space-2); }
 .header-tools > * { margin: 0; }
 .language-menu, .article-language-switcher { position: relative; }
-.language-menu summary, .article-language-switcher summary { cursor: pointer; color: var(--color-muted); font-size: 0.9rem; }
+.language-menu summary, .article-language-switcher summary { margin: 0; cursor: pointer; color: var(--color-muted); font-size: 0.9rem; }
+.language-menu[open] summary, .article-language-switcher details[open] summary { margin-bottom: 0; }
 .language-menu ul, .article-language-switcher ul { position: absolute; z-index: 12; right: 0; min-width: 150px; margin: var(--space-2) 0 0; padding: var(--space-2); border: 1px solid var(--color-line); border-radius: var(--radius-card); background: var(--color-surface); box-shadow: var(--shadow-subtle); list-style: none; }
-.language-menu li, .article-language-switcher li { margin: 0; padding: 4px 6px; list-style: none; }
+.language-menu li, .article-language-switcher li { margin: 0; padding: 4px 6px; font-size: 0.7rem; list-style: none; }
 .language-menu a, .article-language-switcher a { text-decoration: none; }
 .mobile-navigation { display: none; position: relative; }
 .mobile-navigation summary { display: grid; width: 40px; height: 40px; place-items: center; border: 1px solid var(--color-line); border-radius: var(--radius-control); color: var(--color-ink); cursor: pointer; list-style: none; }
@@ -114,6 +115,13 @@ h4 { font-size: 18px; }
 .category-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--space-3); }
 .category-link { display: block; padding: var(--space-4); border-bottom: 1px solid var(--color-line); color: var(--color-ink); text-decoration: none; }
 .category-link:hover { border-color: var(--color-brand); color: var(--color-brand); }
+.category-tree { max-width: var(--reading-max); }
+.category-tree-list { margin: 0; padding: 0; list-style: none; }
+.category-tree-list .category-tree-list { margin: 4px 0 0 10px; padding-left: 16px; border-left: 1px solid var(--color-line); }
+.category-tree-list li { position: relative; margin: 4px 0; }
+.category-tree-list .category-tree-list > li::before { position: absolute; top: 0.9em; left: -17px; width: 10px; border-top: 1px solid var(--color-line); content: ""; }
+.category-tree-link { display: inline-block; padding: 4px 6px; border-bottom: 1px solid transparent; color: var(--color-ink); text-decoration: none; }
+.category-tree-link:hover { border-color: var(--color-brand); color: var(--color-brand); }
 .article-list { display: grid; gap: var(--space-3); }
 .article-card { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--space-4); padding: 20px; border: 1px solid var(--color-line); border-radius: var(--radius-card); background: var(--color-surface); box-shadow: none; transition: border-color 150ms ease, box-shadow 150ms ease; }
 .article-card:hover { border-color: var(--color-brand); box-shadow: var(--shadow-subtle); }

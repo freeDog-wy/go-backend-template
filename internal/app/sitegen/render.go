@@ -66,6 +66,12 @@ type categoryNavView struct {
 	URL  string
 }
 
+type categoryTreeView struct {
+	Name     string
+	URL      string
+	Children []categoryTreeView
+}
+
 type pageBaseView struct {
 	SiteName          string
 	GoogleAnalyticsID string
@@ -99,8 +105,7 @@ type paginationView struct {
 
 type homeView struct {
 	pageBaseView
-	Heading    string
-	Categories []categoryNavView
+	Categories []categoryTreeView
 	Articles   []articleCardView
 }
 
