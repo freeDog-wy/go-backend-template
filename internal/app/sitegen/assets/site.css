@@ -88,7 +88,7 @@ button { cursor: pointer; }
 .language-menu, .article-language-switcher { position: relative; }
 .language-menu summary, .article-language-switcher summary { cursor: pointer; color: var(--color-muted); font-size: 0.9rem; }
 .language-menu ul, .article-language-switcher ul { position: absolute; z-index: 12; right: 0; min-width: 150px; margin: var(--space-2) 0 0; padding: var(--space-2); border: 1px solid var(--color-line); border-radius: var(--radius-card); background: var(--color-surface); box-shadow: var(--shadow-subtle); list-style: none; }
-.language-menu li, .article-language-switcher li { margin: 0; padding: 4px 6px; list-style: none; }
+.language-menu li, .article-language-switcher li { margin: 0; padding: 4px 6px; font-size: 0.7rem; list-style: none; }
 .language-menu a, .article-language-switcher a { text-decoration: none; }
 .mobile-navigation { display: none; position: relative; }
 .mobile-navigation summary { display: grid; width: 40px; height: 40px; place-items: center; border: 1px solid var(--color-line); border-radius: var(--radius-control); color: var(--color-ink); cursor: pointer; list-style: none; }
