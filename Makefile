@@ -1,5 +1,6 @@
 .PHONY: \
 	server worker cron mcp migrate \
+	sitegen sitegen-build sitegen-serve \
 	docker-build docker-server docker-worker docker-cron docker-migrate \
 	migrate-up migrate-down migrate-version \
 	release-prepare release-check release-tag release-push release project-branch \
@@ -35,6 +36,15 @@ mcp:
 
 migrate:
 	$(GO) build -o build/migrate.exe ./cmd/migrate
+
+sitegen:
+	$(GO) build -o build/sitegen.exe ./cmd/sitegen
+
+sitegen-build: sitegen
+	./build/sitegen.exe
+
+sitegen-serve: sitegen
+	./build/sitegen.exe --serve
 
 docker-build: docker-server docker-worker docker-cron docker-migrate
 
