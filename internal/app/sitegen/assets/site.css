@@ -78,7 +78,7 @@ button { cursor: pointer; }
 .skip-link { position: fixed; z-index: 20; top: 8px; left: 8px; padding: 8px 12px; transform: translateY(-160%); color: var(--color-surface); background: var(--color-ink); border-radius: var(--radius-control); }
 .skip-link:focus { transform: translateY(0); }
 .site-header { position: sticky; z-index: 10; top: 0; border-bottom: 1px solid var(--color-line); background: var(--color-surface); box-shadow: 0 1px 0 rgb(0 0 0 / 0.01); }
-.header-inner { display: flex; min-height: 64px; align-items: center; gap: var(--space-5); }
+.header-inner { display: flex; min-height: 40px; align-items: center; gap: var(--space-5); }
 .site-brand { color: var(--color-ink); font-size: 1.05rem; font-weight: 700; text-decoration: none; white-space: nowrap; }
 .site-nav { display: flex; min-width: 0; flex: 1; align-items: center; gap: var(--space-4); margin: 0; overflow-x: auto; }
 .site-nav a { color: var(--color-muted); font-size: 0.92rem; text-decoration: none; white-space: nowrap; }
@@ -86,7 +86,8 @@ button { cursor: pointer; }
 .header-tools { display: flex; align-items: center; gap: var(--space-2); }
 .header-tools > * { margin: 0; }
 .language-menu, .article-language-switcher { position: relative; }
-.language-menu summary, .article-language-switcher summary { cursor: pointer; color: var(--color-muted); font-size: 0.9rem; }
+.language-menu summary, .article-language-switcher summary { margin: 0; cursor: pointer; color: var(--color-muted); font-size: 0.9rem; }
+.language-menu[open] summary, .article-language-switcher details[open] summary { margin-bottom: 0; }
 .language-menu ul, .article-language-switcher ul { position: absolute; z-index: 12; right: 0; min-width: 150px; margin: var(--space-2) 0 0; padding: var(--space-2); border: 1px solid var(--color-line); border-radius: var(--radius-card); background: var(--color-surface); box-shadow: var(--shadow-subtle); list-style: none; }
 .language-menu li, .article-language-switcher li { margin: 0; padding: 4px 6px; font-size: 0.7rem; list-style: none; }
 .language-menu a, .article-language-switcher a { text-decoration: none; }
