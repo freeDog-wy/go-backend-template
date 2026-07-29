@@ -269,8 +269,8 @@ func (a *App) renderLocale(writer *stagingWriter, snapshot *localeSnapshot, loca
 
 	latest := limitCards(a.cards(snapshot.Locale.Code, snapshot.Articles), 6)
 	home := homeView{
-		pageBaseView: base(a.standardHead(snapshot.Locale, snapshot.Locale.Name, "", localeRoute(snapshot.Locale.Code))),
-		Heading:      snapshot.Locale.Name, Categories: a.categoryNavs(snapshot.Locale.Code, snapshot.Categories), Articles: latest,
+		pageBaseView: base(a.standardHead(snapshot.Locale, "", "", localeRoute(snapshot.Locale.Code))),
+		Categories:   a.categoryNavs(snapshot.Locale.Code, snapshot.Categories), Articles: latest,
 	}
 	if err := a.writeTemplate(writer, "home.html", outputPath(localeRoute(snapshot.Locale.Code)), home); err != nil {
 		return 0, 0, err

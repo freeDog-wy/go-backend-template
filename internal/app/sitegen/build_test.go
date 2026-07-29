@@ -35,6 +35,13 @@ func TestBuildGeneratesMultilingualStaticSite(t *testing.T) {
 	if stats.Locales != 2 || stats.Articles != 2 {
 		t.Fatalf("stats = %+v, want two locales and two articles", stats)
 	}
+	enHome := readOutput(t, outputDir, "en-US/index.html")
+	if strings.Contains(enHome, `<p class="eyebrow">`) {
+		t.Fatalf("English home page repeats the current language in its page intro:\n%s", enHome)
+	}
+	if !strings.Contains(enHome, "<title>Docs</title>") || strings.Contains(enHome, "<h1>") {
+		t.Fatalf("English home page should have only the site name document title and no content heading:\n%s", enHome)
+	}
 
 	zhArticle := readOutput(t, outputDir, "zh-CN/articles/go-jing-tai-zhan/index.html")
 	if !strings.Contains(zhArticle, `googletagmanager.com/gtag/js?id=G-TEYF1MDSD6`) ||

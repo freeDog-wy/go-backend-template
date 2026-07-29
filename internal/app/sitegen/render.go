@@ -99,7 +99,6 @@ type paginationView struct {
 
 type homeView struct {
 	pageBaseView
-	Heading    string
 	Categories []categoryNavView
 	Articles   []articleCardView
 }

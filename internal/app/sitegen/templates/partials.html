@@ -2,11 +2,10 @@
 <header class="site-header">
   <div class="site-shell header-inner">
     <a class="site-brand" href="{{.HomeURL}}">{{.SiteName}}</a>
-    <nav class="site-nav" aria-label="{{.Labels.Categories}}">
+    <nav class="site-nav" aria-label="{{.Labels.Menu}}">
       <a href="{{.HomeURL}}">{{.Labels.Home}}</a>
       <a href="{{.HomeURL}}articles/">{{.Labels.Articles}}</a>
       <a href="{{.HomeURL}}tools/">{{.Labels.Tools}}</a>
-      {{range .Navigation}}<a href="{{.URL}}">{{.Name}}</a>{{end}}
     </nav>
     <div class="header-tools">
       <details class="language-menu">
@@ -21,7 +20,6 @@
           <a href="{{.HomeURL}}">{{.Labels.Home}}</a>
           <a href="{{.HomeURL}}articles/">{{.Labels.Articles}}</a>
           <a href="{{.HomeURL}}tools/">{{.Labels.Tools}}</a>
-          {{range .Navigation}}<a href="{{.URL}}">{{.Name}}</a>{{end}}
         </nav>
       </details>
       <button class="icon-button" type="button" data-theme-toggle data-label-dark="{{.Labels.ToggleDark}}" data-label-light="{{.Labels.ToggleLight}}" aria-label="{{.Labels.ToggleDark}}" title="{{.Labels.ToggleDark}}">

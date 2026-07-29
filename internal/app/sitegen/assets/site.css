@@ -80,7 +80,7 @@ button { cursor: pointer; }
 .site-header { position: sticky; z-index: 10; top: 0; border-bottom: 1px solid var(--color-line); background: var(--color-surface); box-shadow: 0 1px 0 rgb(0 0 0 / 0.01); }
 .header-inner { display: flex; min-height: 40px; align-items: center; gap: var(--space-5); }
 .site-brand { color: var(--color-ink); font-size: 1.05rem; font-weight: 700; text-decoration: none; white-space: nowrap; }
-.site-nav { display: flex; min-width: 0; flex: 1; align-items: center; gap: var(--space-4); margin: 0; overflow-x: auto; }
+.site-nav { display: flex; min-width: 0; flex: 1; justify-content: flex-start; align-items: center; gap: var(--space-4); margin: 0; overflow-x: auto; }
 .site-nav a { color: var(--color-muted); font-size: 0.92rem; text-decoration: none; white-space: nowrap; }
 .site-nav a:hover { color: var(--color-brand); }
 .header-tools { display: flex; align-items: center; gap: var(--space-2); }
