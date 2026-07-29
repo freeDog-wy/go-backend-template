@@ -11,6 +11,7 @@ export const cms = {
   updateCategory: (id: number, input: { is_enabled: boolean; sort_order: number }) => write<Category>("PATCH", `/api/v1/admin/cms/categories/${id}`, input),
   tags: (locale: string, page = 1) => request<Tag[]>(`/api/v1/admin/cms/tags${query({ locale, page, per_page: 100 })}`),
   createTag: (input: { locale: string; name: string; slug: string }) => write<Tag>("POST", "/api/v1/admin/cms/tags", input),
+  updateTag: (id: number, input: { is_enabled: boolean }) => write<{ id: number; is_enabled: boolean }>("PATCH", `/api/v1/admin/cms/tags/${id}`, input),
   articles: (locale: string, status?: string, page = 1, options: { includeDeleted?: boolean; deletedOnly?: boolean } = {}) => {
     const path = `/api/v1/admin/cms/articles${query({ locale, status, page, per_page: 20, include_deleted: options.includeDeleted, deleted_only: options.deletedOnly })}`;
     return request<Article[]>(path);

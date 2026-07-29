@@ -110,6 +110,7 @@ type URLRedirect struct {
 }
 type Tag struct {
 	ID                   uint
+	Enabled              bool
 	CreatedAt, UpdatedAt time.Time
 }
 type TagTranslation struct {

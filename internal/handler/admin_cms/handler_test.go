@@ -60,6 +60,15 @@ func TestCreateLocalePassesInitialEnabledState(t *testing.T) {
 	}
 }
 
+func TestUpdateTagPassesEnabledState(t *testing.T) {
+	service := &cmsServiceFake{}
+	w := serveCMSMethod(t, http.MethodPatch, true, service, "/api/v1/admin/cms/tags/9", `{"is_enabled":false}`)
+	assertCMSResponse(t, w, true, "")
+	if service.updateTag.TagID != 9 || service.updateTag.IsEnabled || service.updateTag.ActorUserID != 1 {
+		t.Fatalf("update tag command = %#v", service.updateTag)
+	}
+}
+
 func TestPublishTranslationRejectsContentThatFailsPublicationChecks(t *testing.T) {
 	service := &cmsServiceFake{publishErr: domainCMS.ErrPublicationNotReady}
 	w := serveCMSMethod(t, http.MethodPost, true, service, "/api/v1/admin/cms/articles/7/translations/zh-CN/publish", "")
@@ -153,6 +162,7 @@ var _ svcAuthorization.AccessAuthorizer = (*cmsAuthorizerFake)(nil)
 type cmsServiceFake struct {
 	setCover        svcCMS.SetArticleCoverCmd
 	createLocale    svcCMS.CreateLocaleCmd
+	updateTag       svcCMS.UpdateTagCmd
 	publishErr      error
 	listArticles    svcCMS.ListArticlesCmd
 	listArticlesErr error
@@ -162,6 +172,10 @@ func (*cmsServiceFake) CreateTag(context.Context, svcCMS.CreateTagCmd) (*svcCMS.
 	return nil, nil
 }
 func (*cmsServiceFake) UpsertTagTranslation(context.Context, svcCMS.UpsertTagTranslationCmd) (*svcCMS.TagResult, error) {
+	return nil, nil
+}
+func (f *cmsServiceFake) UpdateTag(_ context.Context, cmd svcCMS.UpdateTagCmd) (*svcCMS.TagResult, error) {
+	f.updateTag = cmd
 	return nil, nil
 }
 func (*cmsServiceFake) ListTags(context.Context, svcCMS.ListTagsCmd) ([]*svcCMS.TagResult, shared.PageResult, error) {

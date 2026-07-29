@@ -9,6 +9,7 @@ import (
 type AdminService interface {
 	CreateTag(context.Context, CreateTagCmd) (*TagResult, error)
 	UpsertTagTranslation(context.Context, UpsertTagTranslationCmd) (*TagResult, error)
+	UpdateTag(context.Context, UpdateTagCmd) (*TagResult, error)
 	ListTags(context.Context, ListTagsCmd) ([]*TagResult, shared.PageResult, error)
 	ListLocales(context.Context) ([]*LocaleResult, error)
 	CreateLocale(context.Context, CreateLocaleCmd) (*LocaleResult, error)

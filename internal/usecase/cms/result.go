@@ -67,10 +67,11 @@ type PublishCheck struct {
 	Message  string `json:"message,omitempty"`
 }
 type TagResult struct {
-	ID     uint   `json:"id"`
-	Locale string `json:"locale"`
-	Name   string `json:"name"`
-	Slug   string `json:"slug"`
+	ID        uint   `json:"id"`
+	IsEnabled bool   `json:"is_enabled"`
+	Locale    string `json:"locale"`
+	Name      string `json:"name"`
+	Slug      string `json:"slug"`
 }
 type ArticleCategoryResult struct {
 	CategoryID uint `json:"category_id"`

@@ -40,6 +40,7 @@ func (h *Handler) RegisterRoutes(r *gin.Engine) {
 	g.POST("/locales", h.writeHandlers("cms.locale.manage", h.CreateLocale)...)
 	g.GET("/tags", handlerMiddleware.RequirePermission(h.auth, h.authorizer, "cms.tag.manage"), h.ListTags)
 	g.POST("/tags", h.writeHandlers("cms.tag.manage", h.CreateTag)...)
+	g.PATCH("/tags/:id", h.writeHandlers("cms.tag.manage", h.UpdateTag)...)
 	g.PUT("/tags/:id/translations/:locale", h.writeHandlers("cms.tag.manage", h.UpsertTagTranslation)...)
 	g.PATCH("/locales/:code", h.writeHandlers("cms.locale.manage", h.UpdateLocale)...)
 	g.POST("/categories", h.writeHandlers("cms.category.manage", h.CreateCategory)...)
@@ -113,6 +114,9 @@ type tagReq struct {
 type tagTranslationReq struct {
 	Name string `json:"name" binding:"required"`
 	Slug string `json:"slug" binding:"required"`
+}
+type updateTagReq struct {
+	IsEnabled bool `json:"is_enabled"`
 }
 type replaceTagsReq struct {
 	TagIDs []uint `json:"tag_ids"`
@@ -211,6 +215,24 @@ func (h *Handler) CreateTag(c *gin.Context) {
 		return
 	}
 	handler.OK(c, r)
+}
+func (h *Handler) UpdateTag(c *gin.Context) {
+	id, ok := idParam(c)
+	if !ok {
+		return
+	}
+	var req updateTagReq
+	if c.ShouldBindJSON(&req) != nil {
+		invalid(c)
+		return
+	}
+	meta := handler.AuditMetaFromRequest(c)
+	result, err := h.cms.UpdateTag(c, svcCMS.UpdateTagCmd{TagID: id, IsEnabled: req.IsEnabled, ActorUserID: handlerMiddleware.CurrentUserID(c), IP: meta.IP, UserAgent: meta.UserAgent})
+	if err != nil {
+		fail(c, err)
+		return
+	}
+	handler.OK(c, result)
 }
 func (h *Handler) UpsertTagTranslation(c *gin.Context) {
 	id, ok := idParam(c)

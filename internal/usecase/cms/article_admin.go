@@ -267,7 +267,7 @@ func (s *Service) GetArticleTranslation(ctx context.Context, cmd GetArticleTrans
 		result.Categories = append(result.Categories, ArticleCategoryResult{CategoryID: category.CategoryID, IsPrimary: category.IsPrimary})
 	}
 	for _, tag := range tags {
-		result.Tags = append(result.Tags, *tagResult(tag.ID, &tag.TagTranslation))
+		result.Tags = append(result.Tags, *tagResult(&tag.Tag, &tag.TagTranslation))
 	}
 	return result, nil
 }

@@ -57,6 +57,8 @@ type testRepo struct {
 	articleListStatus      domainCMS.TranslationStatus
 	articleListDeletedOnly bool
 	articleListCalls       int
+	updatedTagID           uint
+	updatedTagEnabled      bool
 }
 
 func (*testRepo) LocaleEnabled(context.Context, string) (bool, error) { return true, nil }
@@ -91,7 +93,12 @@ func (*testRepo) CreateTag(context.Context, *domainCMS.Tag, *domainCMS.TagTransl
 	return nil
 }
 func (*testRepo) FindTag(_ context.Context, id uint) (*domainCMS.Tag, error) {
-	return &domainCMS.Tag{ID: id}, nil
+	return &domainCMS.Tag{ID: id, Enabled: true}, nil
+}
+func (r *testRepo) UpdateTag(_ context.Context, id uint, enabled bool) error {
+	r.updatedTagID = id
+	r.updatedTagEnabled = enabled
+	return nil
 }
 func (*testRepo) FindTagTranslation(context.Context, uint, string) (*domainCMS.TagTranslation, error) {
 	return nil, shared.ErrNotFound
@@ -241,6 +248,17 @@ func TestListPublishedTagsAndRedirects(t *testing.T) {
 	redirects, redirectPage, err := svc.ListPublicRedirects(context.Background(), ListPublicRedirectsCmd{Locale: "zh-CN", Page: shared.NewPageQuery(1, 10)})
 	if err != nil || len(redirects) != 1 || redirects[0].SourcePath != "/zh-CN/articles/old" || redirectPage.Total != 1 {
 		t.Fatalf("redirects = %#v, page = %#v, err = %v", redirects, redirectPage, err)
+	}
+}
+
+func TestUpdateTagChangesEnabledState(t *testing.T) {
+	repo := &testRepo{}
+	result, err := New(testTx{}, repo).UpdateTag(context.Background(), UpdateTagCmd{TagID: 7, IsEnabled: false})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if repo.updatedTagID != 7 || repo.updatedTagEnabled || result.ID != 7 || result.IsEnabled {
+		t.Fatalf("update result = %#v, repository = %#v", result, repo)
 	}
 }
 

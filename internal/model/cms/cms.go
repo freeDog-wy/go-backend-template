@@ -92,6 +92,7 @@ func (URLRedirect) TableName() string { return "url_redirects" }
 
 type Tag struct {
 	ID        uint `gorm:"primaryKey"`
+	IsEnabled bool
 	CreatedAt time.Time
 	UpdatedAt time.Time
 }

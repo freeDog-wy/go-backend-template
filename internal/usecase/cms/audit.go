@@ -15,5 +15,6 @@ const (
 	auditActionLocaleUpdated            = "cms_locale_updated"
 	auditActionSlugChanged              = "cms_slug_changed"
 	auditActionTagCreated               = "cms_tag_created"
+	auditActionTagUpdated               = "cms_tag_updated"
 	auditActionArticleTagsChanged       = "cms_article_tags_changed"
 )

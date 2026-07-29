@@ -144,6 +144,12 @@ type UpsertTagTranslationCmd struct {
 	ActorUserID        uint
 	IP, UserAgent      string
 }
+type UpdateTagCmd struct {
+	TagID         uint
+	IsEnabled     bool
+	ActorUserID   uint
+	IP, UserAgent string
+}
 type ListTagsCmd struct {
 	Locale string
 	Page   shared.PageQuery

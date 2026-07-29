@@ -23,6 +23,7 @@ type Repository interface {
 	CountEnabledLocales(ctx context.Context) (int64, error)
 	CreateTag(ctx context.Context, tag *Tag, translation *TagTranslation) error
 	FindTag(ctx context.Context, id uint) (*Tag, error)
+	UpdateTag(ctx context.Context, id uint, enabled bool) error
 	FindTagTranslation(ctx context.Context, tagID uint, locale string) (*TagTranslation, error)
 	UpsertTagTranslation(ctx context.Context, translation *TagTranslation) error
 	ListTags(ctx context.Context, locale string, page shared.PageQuery) ([]*TagListItem, int64, error)
@@ -86,6 +87,7 @@ type LocaleRepository interface {
 type TagRepository interface {
 	CreateTag(context.Context, *Tag, *TagTranslation) error
 	FindTag(context.Context, uint) (*Tag, error)
+	UpdateTag(context.Context, uint, bool) error
 	FindTagTranslation(context.Context, uint, string) (*TagTranslation, error)
 	UpsertTagTranslation(context.Context, *TagTranslation) error
 	ListTags(context.Context, string, shared.PageQuery) ([]*TagListItem, int64, error)

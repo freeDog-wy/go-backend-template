@@ -22,16 +22,17 @@ func (r *Repository) ListArticleCategories(ctx context.Context, articleID uint) 
 func (r *Repository) ListArticleTags(ctx context.Context, articleID uint, locale string) ([]*domainCMS.TagListItem, error) {
 	type row struct {
 		TagID      uint
+		IsEnabled  bool
 		Name, Slug string
 	}
 	var rows []row
-	err := r.conn(ctx).Table("article_tags").Joins("JOIN tags ON tags.id = article_tags.tag_id").Joins("JOIN tag_translations ON tag_translations.tag_id = tags.id").Where("article_tags.article_id = ? AND tag_translations.locale = ?", articleID, locale).Order("tag_translations.name, tags.id").Select("tags.id AS tag_id, tag_translations.name, tag_translations.slug").Scan(&rows).Error
+	err := r.conn(ctx).Table("article_tags").Joins("JOIN tags ON tags.id = article_tags.tag_id").Joins("JOIN tag_translations ON tag_translations.tag_id = tags.id").Where("article_tags.article_id = ? AND tag_translations.locale = ?", articleID, locale).Order("tag_translations.name, tags.id").Select("tags.id AS tag_id, tags.is_enabled, tag_translations.name, tag_translations.slug").Scan(&rows).Error
 	if err != nil {
 		return nil, err
 	}
 	result := make([]*domainCMS.TagListItem, 0, len(rows))
 	for _, row := range rows {
-		result = append(result, &domainCMS.TagListItem{Tag: domainCMS.Tag{ID: row.TagID}, TagTranslation: domainCMS.TagTranslation{TagID: row.TagID, Locale: locale, Name: row.Name, Slug: row.Slug}})
+		result = append(result, &domainCMS.TagListItem{Tag: domainCMS.Tag{ID: row.TagID, Enabled: row.IsEnabled}, TagTranslation: domainCMS.TagTranslation{TagID: row.TagID, Locale: locale, Name: row.Name, Slug: row.Slug}})
 	}
 	return result, nil
 }
