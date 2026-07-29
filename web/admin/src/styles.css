@@ -9,6 +9,9 @@ html[data-theme="dark"] { color-scheme: dark; --canvas:#11191e; --surface:#19242
 .category-tree-toggle { padding:4px; border-color:transparent; background:transparent; color:var(--muted); }
 .category-tree-toggle:hover { border-color:var(--line); background:var(--canvas); color:var(--ink); }
 .category-tree-icon { flex:0 0 auto; color:var(--brand); }
+.category-enabled-control { display:flex; align-items:center; gap:7px; font-weight:400; color:var(--muted); }
+.category-enabled-control input { width:32px; min-height:18px; margin:0; accent-color:var(--brand); }
+.category-enabled-control input:disabled { cursor:wait; }
 .editor-heading { position:sticky; top:0; z-index:10; margin:-28px -24px 22px; padding:18px 24px; background:color-mix(in srgb,var(--canvas) 92%,transparent); border-bottom:1px solid var(--line); backdrop-filter:blur(10px); }
 .editor-actions { display:flex; gap:8px; }
 .article-editor-form { display:grid; gap:18px; }
@@ -64,4 +67,4 @@ html[data-theme="dark"] { color-scheme: dark; --canvas:#11191e; --surface:#19242
 .media-card span { overflow:hidden; width:100%; white-space:nowrap; text-overflow:ellipsis; }
 .media-card small { color:var(--muted); }
 @media (max-width:900px) { .markdown-columns { grid-template-columns:1fr; } .markdown-editor-pane { border-right:0; border-bottom:1px solid var(--line); } .markdown-preview-pane { max-height:none; } .media-grid { grid-template-columns:repeat(2,minmax(0,1fr)); } }
-@media (max-width:700px) { .editor-heading { position:static; margin:-20px -14px 18px; padding:16px 14px; } .editor-heading,.editor-actions { align-items:stretch; flex-direction:column; } .article-meta-grid { grid-template-columns:1fr; padding:14px; } .article-meta-grid .wide { grid-column:auto; } .markdown-editor-pane .cm-editor { height:440px!important; } .media-grid { grid-template-columns:1fr; } .editor-status { flex-direction:column; } .check { grid-template-columns:1fr; } }
+@media (max-width:700px) { .editor-heading { position:static; margin:-20px -14px 18px; padding:16px 14px; } .editor-heading,.editor-actions { align-items:stretch; flex-direction:column; } .article-meta-grid { grid-template-columns:1fr; padding:14px; } .article-meta-grid .wide { grid-column:auto; } .markdown-editor-pane .cm-editor { height:440px!important; } .media-grid { grid-template-columns:1fr; } .editor-status { flex-direction:column; } .check { grid-template-columns:1fr; } .categories-table th:nth-child(4),.categories-table td:nth-child(4) { display:table-cell; } }

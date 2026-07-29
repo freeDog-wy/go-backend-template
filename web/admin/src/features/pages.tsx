@@ -53,7 +53,7 @@ function flattenCategories(categories: Category[], depth = 0): CategoryOption[] 
   return categories.flatMap((category) => [{ category, depth }, ...flattenCategories(category.children, depth + 1)]);
 }
 
-function CategoryTreeRows({ categories, expanded, onToggle, depth = 0 }: { categories: Category[]; expanded: Set<number>; onToggle(id: number): void; depth?: number }) {
+function CategoryTreeRows({ categories, expanded, onToggle, onEnabledChange, updatingID, depth = 0 }: { categories: Category[]; expanded: Set<number>; onToggle(id: number): void; onEnabledChange(category: Category): void; updatingID?: number; depth?: number }) {
   return <>{categories.map((category) => {
     const hasChildren = category.children.length > 0;
     const isExpanded = expanded.has(category.id);
@@ -68,8 +68,9 @@ function CategoryTreeRows({ categories, expanded, onToggle, depth = 0 }: { categ
         </td>
         <td>{category.slug}</td>
         <td>{category.sort_order}</td>
+        <td><label className="category-enabled-control"><input type="checkbox" role="switch" checked={category.is_enabled} disabled={updatingID === category.id} onChange={() => onEnabledChange(category)} /><span>{category.is_enabled ? "Enabled" : "Disabled"}</span></label></td>
       </tr>
-      {hasChildren && isExpanded && <CategoryTreeRows categories={category.children} expanded={expanded} onToggle={onToggle} depth={depth + 1} />}
+      {hasChildren && isExpanded && <CategoryTreeRows categories={category.children} expanded={expanded} onToggle={onToggle} onEnabledChange={onEnabledChange} updatingID={updatingID} depth={depth + 1} />}
     </Fragment>;
   })}</>;
 }
@@ -88,6 +89,10 @@ export function CategoriesPage() {
     mutationFn: (value: CategoryForm) => cms.createCategory({ ...value, locale: selected, parent_id: value.parent_id ? Number(value.parent_id) : null, sort_order: 0 }),
     onSuccess: () => { form.reset(); client.invalidateQueries({ queryKey: ["categories", selected] }); },
   });
+  const update = useMutation({
+    mutationFn: (category: Category) => cms.updateCategory(category.id, { is_enabled: !category.is_enabled, sort_order: category.sort_order }),
+    onSuccess: () => client.invalidateQueries({ queryKey: ["categories", selected] }),
+  });
 
   useEffect(() => { setExpanded(new Set(options.map(({ category }) => category.id))); }, [selected, categoryIDs]);
   const toggleCategory = (id: number) => setExpanded((current) => {
@@ -96,7 +101,7 @@ export function CategoriesPage() {
     return next;
   });
 
-  return <section className="page"><PageTitle title="Categories" description="Maintain localized taxonomy." /><div className="filters"><LocaleSelect value={selected} onChange={(value) => setParams({ locale: value })} /></div><form className="inline-form category-create-form" onSubmit={form.handleSubmit((value) => create.mutate(value))}><input placeholder="Name" required {...form.register("name")} /><input placeholder="slug" required {...form.register("slug")} /><input placeholder="Description" {...form.register("description")} /><select aria-label="Parent category" {...form.register("parent_id")}><option value="">Root category</option>{options.map(({ category, depth }) => <option key={category.id} value={category.id}>{`${"-- ".repeat(depth)}${category.name}`}</option>)}</select><button disabled={create.isPending}><Plus size={16} />Add</button></form>{create.error && <ErrorNotice error={create.error} />}{categories.error && <ErrorNotice error={categories.error} />}{categories.isLoading ? <p>Loading categories...</p> : <table><thead><tr><th>Name</th><th>Slug</th><th>Order</th></tr></thead><tbody><CategoryTreeRows categories={categories.data ?? []} expanded={expanded} onToggle={toggleCategory} /></tbody></table>}</section>;
+  return <section className="page"><PageTitle title="Categories" description="Maintain localized taxonomy." /><div className="filters"><LocaleSelect value={selected} onChange={(value) => setParams({ locale: value })} /></div><form className="inline-form category-create-form" onSubmit={form.handleSubmit((value) => create.mutate(value))}><input placeholder="Name" required {...form.register("name")} /><input placeholder="slug" required {...form.register("slug")} /><input placeholder="Description" {...form.register("description")} /><select aria-label="Parent category" {...form.register("parent_id")}><option value="">Root category</option>{options.map(({ category, depth }) => <option key={category.id} value={category.id}>{`${"-- ".repeat(depth)}${category.name}`}</option>)}</select><button disabled={create.isPending}><Plus size={16} />Add</button></form>{create.error && <ErrorNotice error={create.error} />}{update.error && <ErrorNotice error={update.error} />}{categories.error && <ErrorNotice error={categories.error} />}{categories.isLoading ? <p>Loading categories...</p> : <table className="categories-table"><thead><tr><th>Name</th><th>Slug</th><th>Order</th><th>Status</th></tr></thead><tbody><CategoryTreeRows categories={categories.data ?? []} expanded={expanded} onToggle={toggleCategory} onEnabledChange={(category) => update.mutate(category)} updatingID={update.isPending ? update.variables?.id : undefined} /></tbody></table>}</section>;
 }
 export function TagsPage() {
   const locales = useQuery({ queryKey: ["locales"], queryFn: cms.locales }); const [params, setParams] = useSearchParams(); const selected = params.get("locale") || locales.data?.find((item) => item.is_default)?.code || "";
