@@ -5,7 +5,7 @@ import (
 	"errors"
 	"strconv"
 	"strings"
-	
+
 	domainCMS "github.com/freeDog-wy/go-backend-template/internal/domain/cms"
 	"github.com/freeDog-wy/go-backend-template/internal/domain/shared"
 	platformAudit "github.com/freeDog-wy/go-backend-template/internal/platform/audit"
@@ -105,8 +105,8 @@ func auditMetadata(metadata map[string]any, correlationID string) map[string]any
 	return metadata
 }
 
-func tagResult(id uint, tr *domainCMS.TagTranslation) *TagResult {
-	return &TagResult{ID: id, Locale: tr.Locale, Name: tr.Name, Slug: tr.Slug}
+func tagResult(tag *domainCMS.Tag, tr *domainCMS.TagTranslation) *TagResult {
+	return &TagResult{ID: tag.ID, IsEnabled: tag.Enabled, Locale: tr.Locale, Name: tr.Name, Slug: tr.Slug}
 }
 func localeResult(locale *domainCMS.Locale) *LocaleResult {
 	return &LocaleResult{Code: locale.Code, Name: locale.Name, IsDefault: locale.IsDefault, IsEnabled: locale.IsEnabled, SortOrder: locale.SortOrder}
@@ -121,4 +121,3 @@ func translationFromCreate(articleID uint, cmd CreateArticleCmd) *domainCMS.Arti
 func articleResult(id uint, tr *domainCMS.ArticleTranslation) *ArticleResult {
 	return &ArticleResult{ID: id, Locale: tr.Locale, Title: tr.Title, Slug: tr.Slug, Status: string(tr.Status), PublishedAt: tr.PublishedAt}
 }
-

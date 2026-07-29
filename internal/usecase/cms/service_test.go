@@ -41,21 +41,24 @@ func (f *testPublicMediaFinder) ListPublic(_ context.Context, _ string, ids []ui
 }
 
 type testRepo struct {
-	descendant        bool
-	tr                *domainCMS.ArticleTranslation
-	public            *domainCMS.PublicArticle
-	tree              []*domainCMS.CategoryTreeItem
-	replaced          []uint
-	publicList        []*domainCMS.PublicArticleListItem
-	locale            *domainCMS.Locale
-	createdLocale     *domainCMS.Locale
-	enabledCount      int64
-	article           *domainCMS.Article
-	locales           []*domainCMS.Locale
-	publicTags        []*domainCMS.TagListItem
-	redirects         []domainCMS.URLRedirect
-	articleListStatus domainCMS.TranslationStatus
-	articleListCalls  int
+	descendant             bool
+	tr                     *domainCMS.ArticleTranslation
+	public                 *domainCMS.PublicArticle
+	tree                   []*domainCMS.CategoryTreeItem
+	replaced               []uint
+	publicList             []*domainCMS.PublicArticleListItem
+	locale                 *domainCMS.Locale
+	createdLocale          *domainCMS.Locale
+	enabledCount           int64
+	article                *domainCMS.Article
+	locales                []*domainCMS.Locale
+	publicTags             []*domainCMS.TagListItem
+	redirects              []domainCMS.URLRedirect
+	articleListStatus      domainCMS.TranslationStatus
+	articleListDeletedOnly bool
+	articleListCalls       int
+	updatedTagID           uint
+	updatedTagEnabled      bool
 }
 
 func (*testRepo) LocaleEnabled(context.Context, string) (bool, error) { return true, nil }
@@ -90,7 +93,12 @@ func (*testRepo) CreateTag(context.Context, *domainCMS.Tag, *domainCMS.TagTransl
 	return nil
 }
 func (*testRepo) FindTag(_ context.Context, id uint) (*domainCMS.Tag, error) {
-	return &domainCMS.Tag{ID: id}, nil
+	return &domainCMS.Tag{ID: id, Enabled: true}, nil
+}
+func (r *testRepo) UpdateTag(_ context.Context, id uint, enabled bool) error {
+	r.updatedTagID = id
+	r.updatedTagEnabled = enabled
+	return nil
 }
 func (*testRepo) FindTagTranslation(context.Context, uint, string) (*domainCMS.TagTranslation, error) {
 	return nil, shared.ErrNotFound
@@ -168,10 +176,22 @@ func (r *testRepo) ReplaceArticleCategories(_ context.Context, _ uint, ids []uin
 	r.replaced = ids
 	return nil
 }
-func (r *testRepo) ListArticleTranslations(_ context.Context, _ string, status domainCMS.TranslationStatus, _ bool, _ shared.PageQuery) ([]*domainCMS.ArticleListItem, int64, error) {
+func (r *testRepo) ListArticleTranslations(_ context.Context, _ string, status domainCMS.TranslationStatus, _ bool, deletedOnly bool, _ shared.PageQuery) ([]*domainCMS.ArticleListItem, int64, error) {
 	r.articleListStatus = status
+	r.articleListDeletedOnly = deletedOnly
 	r.articleListCalls++
 	return nil, 0, nil
+}
+
+func TestListArticlesPassesDeletedOnlyToRepository(t *testing.T) {
+	repo := &testRepo{}
+	_, _, err := New(testTx{}, repo).ListArticles(context.Background(), ListArticlesCmd{Locale: "zh-CN", DeletedOnly: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !repo.articleListDeletedOnly {
+		t.Fatal("deleted-only filter was not passed to repository")
+	}
 }
 func (r *testRepo) FindPublicArticle(context.Context, string, string) (*domainCMS.PublicArticle, error) {
 	if r.public == nil {
@@ -228,6 +248,17 @@ func TestListPublishedTagsAndRedirects(t *testing.T) {
 	redirects, redirectPage, err := svc.ListPublicRedirects(context.Background(), ListPublicRedirectsCmd{Locale: "zh-CN", Page: shared.NewPageQuery(1, 10)})
 	if err != nil || len(redirects) != 1 || redirects[0].SourcePath != "/zh-CN/articles/old" || redirectPage.Total != 1 {
 		t.Fatalf("redirects = %#v, page = %#v, err = %v", redirects, redirectPage, err)
+	}
+}
+
+func TestUpdateTagChangesEnabledState(t *testing.T) {
+	repo := &testRepo{}
+	result, err := New(testTx{}, repo).UpdateTag(context.Background(), UpdateTagCmd{TagID: 7, IsEnabled: false})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if repo.updatedTagID != 7 || repo.updatedTagEnabled || result.ID != 7 || result.IsEnabled {
+		t.Fatalf("update result = %#v, repository = %#v", result, repo)
 	}
 }
 
@@ -362,14 +393,14 @@ func TestGetPublishedArticleIncludesPublicCover(t *testing.T) {
 func TestListCategoriesBuildsTree(t *testing.T) {
 	rootID := uint(1)
 	repo := &testRepo{tree: []*domainCMS.CategoryTreeItem{
-		{Category: domainCMS.Category{ID: rootID}, CategoryTranslation: domainCMS.CategoryTranslation{Name: "Root", Slug: "root"}},
-		{Category: domainCMS.Category{ID: 2, ParentID: &rootID}, CategoryTranslation: domainCMS.CategoryTranslation{Name: "Child", Slug: "child"}},
+		{Category: domainCMS.Category{ID: rootID, Enabled: true}, CategoryTranslation: domainCMS.CategoryTranslation{Name: "Root", Slug: "root"}},
+		{Category: domainCMS.Category{ID: 2, ParentID: &rootID, Enabled: false}, CategoryTranslation: domainCMS.CategoryTranslation{Name: "Child", Slug: "child"}},
 	}}
 	result, err := New(testTx{}, repo).ListCategories(context.Background(), ListCategoriesCmd{Locale: "zh-CN"})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(result) != 1 || len(result[0].Children) != 1 || result[0].Children[0].ID != 2 {
+	if len(result) != 1 || !result[0].IsEnabled || len(result[0].Children) != 1 || result[0].Children[0].ID != 2 || result[0].Children[0].IsEnabled {
 		t.Fatalf("tree = %#v", result)
 	}
 }

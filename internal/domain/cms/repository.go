@@ -23,6 +23,7 @@ type Repository interface {
 	CountEnabledLocales(ctx context.Context) (int64, error)
 	CreateTag(ctx context.Context, tag *Tag, translation *TagTranslation) error
 	FindTag(ctx context.Context, id uint) (*Tag, error)
+	UpdateTag(ctx context.Context, id uint, enabled bool) error
 	FindTagTranslation(ctx context.Context, tagID uint, locale string) (*TagTranslation, error)
 	UpsertTagTranslation(ctx context.Context, translation *TagTranslation) error
 	ListTags(ctx context.Context, locale string, page shared.PageQuery) ([]*TagListItem, int64, error)
@@ -56,7 +57,7 @@ type Repository interface {
 	SaveArticleTranslation(ctx context.Context, translation *ArticleTranslation) error
 	// ReplaceArticleCategories 以完整输入替换分类关系，并要求主分类属于输入集合。
 	ReplaceArticleCategories(ctx context.Context, articleID uint, categoryIDs []uint, primaryCategoryID *uint) error
-	ListArticleTranslations(ctx context.Context, locale string, status TranslationStatus, includeDeleted bool, page shared.PageQuery) ([]*ArticleListItem, int64, error)
+	ListArticleTranslations(ctx context.Context, locale string, status TranslationStatus, includeDeleted, deletedOnly bool, page shared.PageQuery) ([]*ArticleListItem, int64, error)
 	// 以下 Public 方法仅返回满足公开可见条件的内容，不能作为后台管理读取的替代。
 	FindPublicArticle(ctx context.Context, locale, slug string) (*PublicArticle, error)
 	ListPublishedArticleLocales(ctx context.Context, articleID uint) ([]PublishedLocale, error)
@@ -86,6 +87,7 @@ type LocaleRepository interface {
 type TagRepository interface {
 	CreateTag(context.Context, *Tag, *TagTranslation) error
 	FindTag(context.Context, uint) (*Tag, error)
+	UpdateTag(context.Context, uint, bool) error
 	FindTagTranslation(context.Context, uint, string) (*TagTranslation, error)
 	UpsertTagTranslation(context.Context, *TagTranslation) error
 	ListTags(context.Context, string, shared.PageQuery) ([]*TagListItem, int64, error)
@@ -114,7 +116,7 @@ type ArticleRepository interface {
 	CreateArticleTranslation(context.Context, *ArticleTranslation) error
 	FindArticleTranslation(context.Context, uint, string) (*ArticleTranslation, error)
 	SaveArticleTranslation(context.Context, *ArticleTranslation) error
-	ListArticleTranslations(context.Context, string, TranslationStatus, bool, shared.PageQuery) ([]*ArticleListItem, int64, error)
+	ListArticleTranslations(context.Context, string, TranslationStatus, bool, bool, shared.PageQuery) ([]*ArticleListItem, int64, error)
 }
 
 type ArticleRelationRepository interface {

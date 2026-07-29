@@ -42,6 +42,18 @@ func TestPublicContentRepositoryIntegrationVisibilityAndTaxonomy(t *testing.T) {
 	if tags, total, err := fixture.repo.ListPublicTags(fixture.ctx, "zh-CN", shared.NewPageQuery(1, 20)); err != nil || total != 1 || len(tags) != 1 || tags[0].Slug != "go" {
 		t.Fatalf("public tags=%#v total=%d err=%v", tags, total, err)
 	}
+	if err := fixture.repo.UpdateTag(fixture.ctx, tag.ID, false); err != nil {
+		t.Fatalf("disable tag: %v", err)
+	}
+	if exists, err := fixture.repo.PublicTagExists(fixture.ctx, "zh-CN", "go"); err != nil || exists {
+		t.Fatalf("disabled tag exists=%t err=%v", exists, err)
+	}
+	if tags, total, err := fixture.repo.ListPublicTags(fixture.ctx, "zh-CN", shared.NewPageQuery(1, 20)); err != nil || total != 0 || len(tags) != 0 {
+		t.Fatalf("disabled public tags=%#v total=%d err=%v", tags, total, err)
+	}
+	if tagged, total, err := fixture.repo.ListPublicTagArticles(fixture.ctx, "zh-CN", "go", shared.NewPageQuery(1, 20)); err != nil || total != 0 || len(tagged) != 0 {
+		t.Fatalf("disabled tag articles=%#v total=%d err=%v", tagged, total, err)
+	}
 	if entries, total, err := fixture.repo.ListPublicSitemapEntries(fixture.ctx, "zh-CN", shared.NewPageQuery(1, 20)); err != nil || total != 2 || len(entries) != 2 {
 		t.Fatalf("sitemap entries=%#v total=%d err=%v", entries, total, err)
 	}

@@ -14,6 +14,7 @@ type CategoryResult struct {
 	ID        uint   `json:"id"`
 	ParentID  *uint  `json:"parent_id,omitempty"`
 	SortOrder int    `json:"sort_order"`
+	IsEnabled bool   `json:"is_enabled"`
 	Locale    string `json:"locale"`
 	Name      string `json:"name"`
 	Slug      string `json:"slug"`
@@ -22,6 +23,7 @@ type CategoryTreeResult struct {
 	ID          uint                  `json:"id"`
 	ParentID    *uint                 `json:"parent_id,omitempty"`
 	SortOrder   int                   `json:"sort_order"`
+	IsEnabled   bool                  `json:"is_enabled"`
 	Name        string                `json:"name"`
 	Slug        string                `json:"slug"`
 	Description string                `json:"description"`
@@ -34,6 +36,7 @@ type ArticleResult struct {
 	Slug        string     `json:"slug"`
 	Status      string     `json:"status"`
 	PublishedAt *time.Time `json:"published_at,omitempty"`
+	DeletedAt   *time.Time `json:"deleted_at,omitempty"`
 }
 type ArticleDetailResult struct {
 	ID             uint                    `json:"id"`
@@ -64,10 +67,11 @@ type PublishCheck struct {
 	Message  string `json:"message,omitempty"`
 }
 type TagResult struct {
-	ID     uint   `json:"id"`
-	Locale string `json:"locale"`
-	Name   string `json:"name"`
-	Slug   string `json:"slug"`
+	ID        uint   `json:"id"`
+	IsEnabled bool   `json:"is_enabled"`
+	Locale    string `json:"locale"`
+	Name      string `json:"name"`
+	Slug      string `json:"slug"`
 }
 type ArticleCategoryResult struct {
 	CategoryID uint `json:"category_id"`

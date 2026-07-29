@@ -4,7 +4,7 @@ import (
 	"context"
 	"errors"
 	"strings"
-	
+
 	domainCMS "github.com/freeDog-wy/go-backend-template/internal/domain/cms"
 	"github.com/freeDog-wy/go-backend-template/internal/domain/shared"
 )
@@ -16,7 +16,7 @@ func (s *Service) CreateTag(ctx context.Context, cmd CreateTagCmd) (*TagResult, 
 	if err := s.requireLocale(ctx, cmd.Locale); err != nil {
 		return nil, err
 	}
-	tag := &domainCMS.Tag{}
+	tag := &domainCMS.Tag{Enabled: true}
 	tr := &domainCMS.TagTranslation{Locale: strings.TrimSpace(cmd.Locale), Name: strings.TrimSpace(cmd.Name), Slug: strings.TrimSpace(cmd.Slug)}
 	if err := s.tx.Do(ctx, func(ctx context.Context) error {
 		if err := s.ensureSlugAvailable(ctx, tr.Locale, tagPath(tr.Locale, tr.Slug)); err != nil {
@@ -29,7 +29,7 @@ func (s *Service) CreateTag(ctx context.Context, cmd CreateTagCmd) (*TagResult, 
 	}); err != nil {
 		return nil, err
 	}
-	return tagResult(tag.ID, tr), nil
+	return tagResult(tag, tr), nil
 }
 func (s *Service) ListTags(ctx context.Context, cmd ListTagsCmd) ([]*TagResult, shared.PageResult, error) {
 	if err := s.requireExistingLocale(ctx, cmd.Locale); err != nil {
@@ -42,7 +42,7 @@ func (s *Service) ListTags(ctx context.Context, cmd ListTagsCmd) ([]*TagResult, 
 	}
 	out := make([]*TagResult, 0, len(items))
 	for _, v := range items {
-		out = append(out, tagResult(v.ID, &v.TagTranslation))
+		out = append(out, tagResult(&v.Tag, &v.TagTranslation))
 	}
 	return out, shared.PageResult{Page: page.Page, PerPage: page.PerPage, Total: total}, nil
 }
@@ -57,7 +57,8 @@ func (s *Service) UpsertTagTranslation(ctx context.Context, cmd UpsertTagTransla
 	if err := s.requireExistingLocale(ctx, cmd.Locale); err != nil {
 		return nil, err
 	}
-	if _, err := s.repo.FindTag(ctx, cmd.TagID); err != nil {
+	tag, err := s.repo.FindTag(ctx, cmd.TagID)
+	if err != nil {
 		return nil, mapTag(err)
 	}
 	tr := &domainCMS.TagTranslation{TagID: cmd.TagID, Locale: strings.TrimSpace(cmd.Locale), Name: strings.TrimSpace(cmd.Name), Slug: strings.TrimSpace(cmd.Slug)}
@@ -93,7 +94,27 @@ func (s *Service) UpsertTagTranslation(ctx context.Context, cmd UpsertTagTransla
 	}); err != nil {
 		return nil, err
 	}
-	return tagResult(cmd.TagID, tr), nil
+	return tagResult(tag, tr), nil
+}
+
+func (s *Service) UpdateTag(ctx context.Context, cmd UpdateTagCmd) (*TagResult, error) {
+	if cmd.TagID == 0 {
+		return nil, domainCMS.ErrInvalidInput
+	}
+	tag, err := s.repo.FindTag(ctx, cmd.TagID)
+	if err != nil {
+		return nil, mapTag(err)
+	}
+	if err := s.tx.Do(ctx, func(ctx context.Context) error {
+		if err := s.repo.UpdateTag(ctx, cmd.TagID, cmd.IsEnabled); err != nil {
+			return err
+		}
+		return s.publishAudit(ctx, cmd.ActorUserID, "tag", cmd.TagID, auditActionTagUpdated, cmd.IP, cmd.UserAgent, map[string]any{"old_enabled": tag.Enabled, "new_enabled": cmd.IsEnabled})
+	}); err != nil {
+		return nil, err
+	}
+	tag.Enabled = cmd.IsEnabled
+	return &TagResult{ID: tag.ID, IsEnabled: tag.Enabled}, nil
 }
 
 func (s *Service) ListPublishedTags(ctx context.Context, cmd ListPublicTagsCmd) ([]*TagResult, shared.PageResult, error) {
@@ -107,8 +128,7 @@ func (s *Service) ListPublishedTags(ctx context.Context, cmd ListPublicTagsCmd) 
 	}
 	result := make([]*TagResult, 0, len(items))
 	for _, item := range items {
-		result = append(result, tagResult(item.ID, &item.TagTranslation))
+		result = append(result, tagResult(&item.Tag, &item.TagTranslation))
 	}
 	return result, shared.PageResult{Page: page.Page, PerPage: page.PerPage, Total: total}, nil
 }
-

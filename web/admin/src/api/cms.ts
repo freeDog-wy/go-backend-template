@@ -11,8 +11,9 @@ export const cms = {
   updateCategory: (id: number, input: { is_enabled: boolean; sort_order: number }) => write<Category>("PATCH", `/api/v1/admin/cms/categories/${id}`, input),
   tags: (locale: string, page = 1) => request<Tag[]>(`/api/v1/admin/cms/tags${query({ locale, page, per_page: 100 })}`),
   createTag: (input: { locale: string; name: string; slug: string }) => write<Tag>("POST", "/api/v1/admin/cms/tags", input),
-  articles: (locale: string, status?: string, page = 1) => {
-    const path = `/api/v1/admin/cms/articles${query({ locale, status, page, per_page: 20 })}`;
+  updateTag: (id: number, input: { is_enabled: boolean }) => write<{ id: number; is_enabled: boolean }>("PATCH", `/api/v1/admin/cms/tags/${id}`, input),
+  articles: (locale: string, status?: string, page = 1, options: { includeDeleted?: boolean; deletedOnly?: boolean } = {}) => {
+    const path = `/api/v1/admin/cms/articles${query({ locale, status, page, per_page: 20, include_deleted: options.includeDeleted, deleted_only: options.deletedOnly })}`;
     return request<Article[]>(path);
   },
   article: (id: number, locale: string) => request<ArticleDetail>(`/api/v1/admin/cms/articles/${id}/translations/${encodeURIComponent(locale)}`),
@@ -22,7 +23,8 @@ export const cms = {
   updateArticle: (id: number, locale: string, input: ArticleInput) => write<Article>("PUT", `/api/v1/admin/cms/articles/${id}/translations/${encodeURIComponent(locale)}`, input),
   publish: (id: number, locale: string) => write<Article>("POST", `/api/v1/admin/cms/articles/${id}/translations/${encodeURIComponent(locale)}/publish`),
   archive: (id: number, locale: string) => write<Article>("POST", `/api/v1/admin/cms/articles/${id}/translations/${encodeURIComponent(locale)}/archive`),
-  restore: (id: number) => write<Article>("POST", `/api/v1/admin/cms/articles/${id}/restore`),
+  deleteArticle: (id: number) => write<{ id: number }>("DELETE", `/api/v1/admin/cms/articles/${id}`),
+  restore: (id: number) => write<{ id: number }>("POST", `/api/v1/admin/cms/articles/${id}/restore`),
   media: (page = 1) => request<MediaList>(`/api/v1/admin/cms/media${query({ page, per_page: 40 })}`),
   requestMediaUpload: (file: File) => write<MediaUpload>("POST", "/api/v1/admin/cms/media/upload-requests", { filename: file.name, content_type: file.type, size_bytes: file.size }),
   uploadMediaObject: async (upload: MediaUpload, file: File) => {

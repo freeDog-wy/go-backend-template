@@ -36,7 +36,7 @@ func TestMigrationsApplyInitialSchema(t *testing.T) {
 	if err != nil {
 		t.Fatalf("migration version: %v", err)
 	}
-	if version != 14 || dirty {
+	if version != 15 || dirty {
 		t.Fatalf("migration version = (%d, dirty=%t), want (14, false)", version, dirty)
 	}
 

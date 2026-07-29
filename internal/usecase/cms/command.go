@@ -60,6 +60,7 @@ type ListArticlesCmd struct {
 	Locale         string
 	Status         domainCMS.TranslationStatus
 	IncludeDeleted bool
+	DeletedOnly    bool
 	Page           shared.PageQuery
 }
 type ListPublicArticlesCmd struct {
@@ -142,6 +143,12 @@ type UpsertTagTranslationCmd struct {
 	Locale, Name, Slug string
 	ActorUserID        uint
 	IP, UserAgent      string
+}
+type UpdateTagCmd struct {
+	TagID         uint
+	IsEnabled     bool
+	ActorUserID   uint
+	IP, UserAgent string
 }
 type ListTagsCmd struct {
 	Locale string

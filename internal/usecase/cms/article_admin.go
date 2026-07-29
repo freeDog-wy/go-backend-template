@@ -227,13 +227,15 @@ func (s *Service) ListArticles(ctx context.Context, cmd ListArticlesCmd) ([]*Art
 		return nil, shared.PageResult{}, domainCMS.ErrInvalidInput
 	}
 	page := shared.NewPageQuery(cmd.Page.Page, cmd.Page.PerPage)
-	items, total, err := s.repo.ListArticleTranslations(ctx, cmd.Locale, cmd.Status, cmd.IncludeDeleted, page)
+	items, total, err := s.repo.ListArticleTranslations(ctx, cmd.Locale, cmd.Status, cmd.IncludeDeleted, cmd.DeletedOnly, page)
 	if err != nil {
 		return nil, shared.PageResult{}, err
 	}
 	results := make([]*ArticleResult, 0, len(items))
 	for _, item := range items {
-		results = append(results, articleResult(item.Article.ID, &item.ArticleTranslation))
+		result := articleResult(item.Article.ID, &item.ArticleTranslation)
+		result.DeletedAt = item.Article.DeletedAt
+		results = append(results, result)
 	}
 	return results, shared.PageResult{Page: page.Page, PerPage: page.PerPage, Total: total}, nil
 }
@@ -265,7 +267,7 @@ func (s *Service) GetArticleTranslation(ctx context.Context, cmd GetArticleTrans
 		result.Categories = append(result.Categories, ArticleCategoryResult{CategoryID: category.CategoryID, IsPrimary: category.IsPrimary})
 	}
 	for _, tag := range tags {
-		result.Tags = append(result.Tags, *tagResult(tag.ID, &tag.TagTranslation))
+		result.Tags = append(result.Tags, *tagResult(&tag.Tag, &tag.TagTranslation))
 	}
 	return result, nil
 }

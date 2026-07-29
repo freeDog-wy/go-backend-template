@@ -4,7 +4,7 @@ import (
 	"context"
 	"errors"
 	"strings"
-	
+
 	domainCMS "github.com/freeDog-wy/go-backend-template/internal/domain/cms"
 	"github.com/freeDog-wy/go-backend-template/internal/domain/shared"
 )
@@ -26,7 +26,7 @@ func (s *Service) CreateCategory(ctx context.Context, cmd CreateCategoryCmd) (*C
 	if err := s.repo.CreateCategory(ctx, c, tr); err != nil {
 		return nil, err
 	}
-	return &CategoryResult{ID: c.ID, ParentID: c.ParentID, SortOrder: c.SortOrder, Locale: tr.Locale, Name: tr.Name, Slug: tr.Slug}, nil
+	return &CategoryResult{ID: c.ID, ParentID: c.ParentID, SortOrder: c.SortOrder, IsEnabled: c.Enabled, Locale: tr.Locale, Name: tr.Name, Slug: tr.Slug}, nil
 }
 
 // UpsertCategoryTranslation 更新分类翻译。已启用分类的 slug 变化会在同一事务中校验新
@@ -83,7 +83,7 @@ func (s *Service) UpsertCategoryTranslation(ctx context.Context, cmd UpsertCateg
 	}); err != nil {
 		return nil, err
 	}
-	return &CategoryResult{ID: category.ID, ParentID: category.ParentID, SortOrder: category.SortOrder, Locale: translation.Locale, Name: translation.Name, Slug: translation.Slug}, nil
+	return &CategoryResult{ID: category.ID, ParentID: category.ParentID, SortOrder: category.SortOrder, IsEnabled: category.Enabled, Locale: translation.Locale, Name: translation.Name, Slug: translation.Slug}, nil
 }
 
 func (s *Service) MoveCategory(ctx context.Context, cmd MoveCategoryCmd) error {
@@ -132,7 +132,7 @@ func (s *Service) UpdateCategory(ctx context.Context, cmd UpdateCategoryCmd) (*C
 		return nil, err
 	}
 	category.Enabled, category.SortOrder = cmd.IsEnabled, cmd.SortOrder
-	return &CategoryResult{ID: category.ID, ParentID: category.ParentID, SortOrder: category.SortOrder}, nil
+	return &CategoryResult{ID: category.ID, ParentID: category.ParentID, SortOrder: category.SortOrder, IsEnabled: category.Enabled}, nil
 }
 
 func (s *Service) ListCategories(ctx context.Context, cmd ListCategoriesCmd) ([]*CategoryTreeResult, error) {
@@ -158,7 +158,7 @@ func (s *Service) ListPublishedCategories(ctx context.Context, locale string) ([
 func categoryTree(items []*domainCMS.CategoryTreeItem) []*CategoryTreeResult {
 	byID := make(map[uint]*CategoryTreeResult, len(items))
 	for _, item := range items {
-		byID[item.ID] = &CategoryTreeResult{ID: item.ID, ParentID: item.ParentID, SortOrder: item.SortOrder, Name: item.Name, Slug: item.Slug, Description: item.Description, Children: make([]*CategoryTreeResult, 0)}
+		byID[item.ID] = &CategoryTreeResult{ID: item.ID, ParentID: item.ParentID, SortOrder: item.SortOrder, IsEnabled: item.Enabled, Name: item.Name, Slug: item.Slug, Description: item.Description, Children: make([]*CategoryTreeResult, 0)}
 	}
 	roots := make([]*CategoryTreeResult, 0)
 	for _, item := range items {
@@ -173,4 +173,3 @@ func categoryTree(items []*domainCMS.CategoryTreeItem) []*CategoryTreeResult {
 	}
 	return roots
 }
-

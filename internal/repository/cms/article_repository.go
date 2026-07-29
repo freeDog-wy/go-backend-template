@@ -101,12 +101,14 @@ func (r *Repository) SaveArticleTranslation(ctx context.Context, tr *domainCMS.A
 	return nil
 }
 
-func (r *Repository) ListArticleTranslations(ctx context.Context, locale string, status domainCMS.TranslationStatus, includeDeleted bool, page shared.PageQuery) ([]*domainCMS.ArticleListItem, int64, error) {
+func (r *Repository) ListArticleTranslations(ctx context.Context, locale string, status domainCMS.TranslationStatus, includeDeleted, deletedOnly bool, page shared.PageQuery) ([]*domainCMS.ArticleListItem, int64, error) {
 	db := r.conn(ctx).Table("article_translations").Joins("JOIN articles ON articles.id = article_translations.article_id").Where("article_translations.locale = ?", locale)
 	if status != "" {
 		db = db.Where("article_translations.status = ?", status)
 	}
-	if !includeDeleted {
+	if deletedOnly {
+		db = db.Where("articles.deleted_at IS NOT NULL")
+	} else if !includeDeleted {
 		db = db.Where("articles.deleted_at IS NULL")
 	}
 	var total int64
@@ -118,19 +120,20 @@ func (r *Repository) ListArticleTranslations(ctx context.Context, locale string,
 		AuthorUserID                                                                                 uint
 		CoverMediaID                                                                                 *uint
 		ArticleCreatedAt, ArticleUpdatedAt                                                           time.Time
+		ArticleDeletedAt                                                                             *time.Time
 		TranslationID                                                                                uint
 		Title, Slug, Summary, Content, ContentFormat, Status, SEOTitle, SEODescription, CanonicalURL string
 		PublishedAt                                                                                  *time.Time
 		TranslationCreatedAt, TranslationUpdatedAt                                                   time.Time
 	}
 	var rows []row
-	err := db.Select("articles.id AS article_id, articles.author_user_id, articles.cover_media_id, articles.created_at AS article_created_at, articles.updated_at AS article_updated_at, article_translations.id AS translation_id, article_translations.title, article_translations.slug, article_translations.summary, article_translations.content, article_translations.content_format, article_translations.status, article_translations.published_at, article_translations.seo_title, article_translations.seo_description, article_translations.canonical_url, article_translations.created_at AS translation_created_at, article_translations.updated_at AS translation_updated_at").Order("article_translations.updated_at DESC, article_translations.id DESC").Limit(page.PerPage).Offset(page.Offset()).Scan(&rows).Error
+	err := db.Select("articles.id AS article_id, articles.author_user_id, articles.cover_media_id, articles.created_at AS article_created_at, articles.updated_at AS article_updated_at, articles.deleted_at AS article_deleted_at, article_translations.id AS translation_id, article_translations.title, article_translations.slug, article_translations.summary, article_translations.content, article_translations.status, article_translations.published_at, article_translations.seo_title, article_translations.seo_description, article_translations.canonical_url, article_translations.created_at AS translation_created_at, article_translations.updated_at AS translation_updated_at").Order("article_translations.updated_at DESC, article_translations.id DESC").Limit(page.PerPage).Offset(page.Offset()).Scan(&rows).Error
 	if err != nil {
 		return nil, 0, err
 	}
 	items := make([]*domainCMS.ArticleListItem, 0, len(rows))
 	for _, row := range rows {
-		items = append(items, &domainCMS.ArticleListItem{Article: domainCMS.Article{ID: row.ArticleID, AuthorUserID: row.AuthorUserID, CoverMediaID: row.CoverMediaID, CreatedAt: row.ArticleCreatedAt, UpdatedAt: row.ArticleUpdatedAt}, ArticleTranslation: domainCMS.ArticleTranslation{ID: row.TranslationID, ArticleID: row.ArticleID, Locale: locale, Title: row.Title, Slug: row.Slug, Summary: row.Summary, Content: row.Content, ContentFormat: row.ContentFormat, Status: domainCMS.TranslationStatus(row.Status), PublishedAt: row.PublishedAt, SEOTitle: row.SEOTitle, SEODescription: row.SEODescription, CanonicalURL: row.CanonicalURL, CreatedAt: row.TranslationCreatedAt, UpdatedAt: row.TranslationUpdatedAt}})
+		items = append(items, &domainCMS.ArticleListItem{Article: domainCMS.Article{ID: row.ArticleID, AuthorUserID: row.AuthorUserID, CoverMediaID: row.CoverMediaID, CreatedAt: row.ArticleCreatedAt, UpdatedAt: row.ArticleUpdatedAt, DeletedAt: row.ArticleDeletedAt}, ArticleTranslation: domainCMS.ArticleTranslation{ID: row.TranslationID, ArticleID: row.ArticleID, Locale: locale, Title: row.Title, Slug: row.Slug, Summary: row.Summary, Content: row.Content, ContentFormat: row.ContentFormat, Status: domainCMS.TranslationStatus(row.Status), PublishedAt: row.PublishedAt, SEOTitle: row.SEOTitle, SEODescription: row.SEODescription, CanonicalURL: row.CanonicalURL, CreatedAt: row.TranslationCreatedAt, UpdatedAt: row.TranslationUpdatedAt}})
 	}
 	return items, total, nil
 }
@@ -271,7 +274,7 @@ func (r *Repository) ListPublicArticles(ctx context.Context, locale string, cate
 
 func (r *Repository) PublicTagExists(ctx context.Context, locale, slug string) (bool, error) {
 	var count int64
-	err := r.conn(ctx).Table("tag_translations").Joins("JOIN locales ON locales.code = tag_translations.locale").Where("tag_translations.locale = ? AND tag_translations.slug = ? AND locales.is_enabled", locale, slug).Count(&count).Error
+	err := r.conn(ctx).Table("tag_translations").Joins("JOIN tags ON tags.id = tag_translations.tag_id").Joins("JOIN locales ON locales.code = tag_translations.locale").Where("tag_translations.locale = ? AND tag_translations.slug = ? AND tags.is_enabled AND locales.is_enabled", locale, slug).Count(&count).Error
 	return count == 1, err
 }
 func (r *Repository) ListPublicTags(ctx context.Context, locale string, page shared.PageQuery) ([]*domainCMS.TagListItem, int64, error) {
@@ -280,7 +283,7 @@ func (r *Repository) ListPublicTags(ctx context.Context, locale string, page sha
 		Joins("JOIN article_tags ON article_tags.tag_id = tags.id").
 		Joins("JOIN articles ON articles.id = article_tags.article_id").
 		Joins("JOIN article_translations ON article_translations.article_id = articles.id AND article_translations.locale = tag_translations.locale").
-		Where("tag_translations.locale = ? AND articles.deleted_at IS NULL AND article_translations.status = ? AND article_translations.published_at <= CURRENT_TIMESTAMP", locale, domainCMS.TranslationPublished)
+		Where("tag_translations.locale = ? AND tags.is_enabled AND articles.deleted_at IS NULL AND article_translations.status = ? AND article_translations.published_at <= CURRENT_TIMESTAMP", locale, domainCMS.TranslationPublished)
 	var total int64
 	if err := base.Distinct("tags.id").Count(&total).Error; err != nil {
 		return nil, 0, err
@@ -295,12 +298,12 @@ func (r *Repository) ListPublicTags(ctx context.Context, locale string, page sha
 	}
 	result := make([]*domainCMS.TagListItem, 0, len(rows))
 	for _, row := range rows {
-		result = append(result, &domainCMS.TagListItem{Tag: domainCMS.Tag{ID: row.TagID}, TagTranslation: domainCMS.TagTranslation{TagID: row.TagID, Locale: locale, Name: row.Name, Slug: row.Slug}})
+		result = append(result, &domainCMS.TagListItem{Tag: domainCMS.Tag{ID: row.TagID, Enabled: true}, TagTranslation: domainCMS.TagTranslation{TagID: row.TagID, Locale: locale, Name: row.Name, Slug: row.Slug}})
 	}
 	return result, total, nil
 }
 func (r *Repository) ListPublicTagArticles(ctx context.Context, locale, tagSlug string, page shared.PageQuery) ([]*domainCMS.PublicArticleListItem, int64, error) {
-	db := r.conn(ctx).Table("article_translations").Joins("JOIN articles ON articles.id = article_translations.article_id").Joins("LEFT JOIN article_categories primary_ac ON primary_ac.article_id = articles.id AND primary_ac.is_primary").Joins("LEFT JOIN categories primary_c ON primary_c.id = primary_ac.category_id AND primary_c.is_enabled").Joins("LEFT JOIN category_translations primary_ct ON primary_ct.category_id = primary_c.id AND primary_ct.locale = article_translations.locale").Joins("JOIN article_tags filter_at ON filter_at.article_id = articles.id").Joins("JOIN tag_translations filter_tt ON filter_tt.tag_id = filter_at.tag_id AND filter_tt.locale = article_translations.locale").Where("articles.deleted_at IS NULL AND article_translations.locale = ? AND article_translations.status = 'published' AND article_translations.published_at <= NOW() AND filter_tt.slug = ?", locale, tagSlug)
+	db := r.conn(ctx).Table("article_translations").Joins("JOIN articles ON articles.id = article_translations.article_id").Joins("LEFT JOIN article_categories primary_ac ON primary_ac.article_id = articles.id AND primary_ac.is_primary").Joins("LEFT JOIN categories primary_c ON primary_c.id = primary_ac.category_id AND primary_c.is_enabled").Joins("LEFT JOIN category_translations primary_ct ON primary_ct.category_id = primary_c.id AND primary_ct.locale = article_translations.locale").Joins("JOIN article_tags filter_at ON filter_at.article_id = articles.id").Joins("JOIN tags filter_t ON filter_t.id = filter_at.tag_id AND filter_t.is_enabled").Joins("JOIN tag_translations filter_tt ON filter_tt.tag_id = filter_t.id AND filter_tt.locale = article_translations.locale").Where("articles.deleted_at IS NULL AND article_translations.locale = ? AND article_translations.status = 'published' AND article_translations.published_at <= NOW() AND filter_tt.slug = ?", locale, tagSlug)
 	var total int64
 	if err := db.Count(&total).Error; err != nil {
 		return nil, 0, err
