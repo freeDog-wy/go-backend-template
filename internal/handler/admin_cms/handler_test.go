@@ -88,6 +88,15 @@ func TestListArticlesPassesStatusFilter(t *testing.T) {
 	}
 }
 
+func TestListArticlesPassesDeletedOnlyFilter(t *testing.T) {
+	service := &cmsServiceFake{}
+	w := serveCMSMethod(t, http.MethodGet, true, service, "/api/v1/admin/cms/articles?locale=zh-CN&deleted_only=true", "")
+	assertCMSResponse(t, w, true, "")
+	if !service.listArticles.DeletedOnly {
+		t.Fatalf("list articles command = %#v", service.listArticles)
+	}
+}
+
 func TestListArticlesRejectsUnknownStatus(t *testing.T) {
 	w := serveCMSMethod(t, http.MethodGet, true, &cmsServiceFake{listArticlesErr: domainCMS.ErrInvalidInput}, "/api/v1/admin/cms/articles?locale=zh-CN&status=unknown", "")
 	assertCMSResponse(t, w, false, "INVALID_INPUT")

@@ -60,6 +60,7 @@ type ListArticlesCmd struct {
 	Locale         string
 	Status         domainCMS.TranslationStatus
 	IncludeDeleted bool
+	DeletedOnly    bool
 	Page           shared.PageQuery
 }
 type ListPublicArticlesCmd struct {

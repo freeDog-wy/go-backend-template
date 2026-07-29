@@ -34,6 +34,7 @@ type ArticleResult struct {
 	Slug        string     `json:"slug"`
 	Status      string     `json:"status"`
 	PublishedAt *time.Time `json:"published_at,omitempty"`
+	DeletedAt   *time.Time `json:"deleted_at,omitempty"`
 }
 type ArticleDetailResult struct {
 	ID             uint                    `json:"id"`

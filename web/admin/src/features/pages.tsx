@@ -1,11 +1,11 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Fragment, useEffect, useState } from "react";
-import { AlertTriangle, ChevronDown, ChevronRight, Folder, FolderOpen, Plus } from "lucide-react";
+import { AlertTriangle, Archive, ChevronDown, ChevronRight, Folder, FolderOpen, Plus, RotateCcw, Trash2, X } from "lucide-react";
 import { useForm } from "react-hook-form";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { ApiError } from "../api/http";
 import { cms } from "../api/cms";
-import type { Category, Locale } from "../api/types";
+import type { Article, Category, Locale } from "../api/types";
 import { useAuth } from "../app/auth";
 
 const message = (error: unknown) => error instanceof ApiError ? `${error.code}: ${error.message}` : "Request failed";
@@ -18,10 +18,32 @@ export function LoginPage() {
 
 function LocaleSelect({ value, onChange }: { value: string; onChange(value: string): void }) { const query = useQuery({ queryKey: ["locales"], queryFn: cms.locales }); return <select value={value} onChange={(e) => onChange(e.target.value)}>{query.data?.filter((item) => item.is_enabled).map((item) => <option key={item.code} value={item.code}>{item.name}</option>)}</select>; }
 export function ArticlesPage() {
-  const [params, setParams] = useSearchParams(); const locale = params.get("locale") ?? ""; const status = params.get("status") ?? "";
-  const locales = useQuery({ queryKey: ["locales"], queryFn: cms.locales }); const selected = locale || locales.data?.find((item) => item.is_default)?.code || "";
-  const articles = useQuery({ queryKey: ["articles", selected, status], queryFn: () => cms.articles(selected, status || undefined), enabled: Boolean(selected) });
-  return <section className="page"><div className="page-heading"><div><h1>Articles</h1><p>Drafts and published translations.</p></div><Link className="button" to="/articles/new"><Plus size={16} />New article</Link></div><div className="filters"><LocaleSelect value={selected} onChange={(value) => setParams({ locale: value, status })} /><select value={status} onChange={(e) => setParams({ locale: selected, status: e.target.value })}><option value="">All statuses</option><option value="draft">Draft</option><option value="published">Published</option><option value="archived">Archived</option></select></div>{articles.error && <ErrorNotice error={articles.error} />}{articles.isLoading ? <p>Loading articles...</p> : <table><thead><tr><th>Title</th><th>Locale</th><th>Status</th><th>Published</th></tr></thead><tbody>{articles.data?.map((item) => <tr key={`${item.id}-${item.locale}`}><td><Link to={`/articles/${item.id}/${item.locale}`}>{item.title}</Link></td><td>{item.locale}</td><td><span className={`status ${item.status}`}>{item.status}</span></td><td>{item.published_at ? new Date(item.published_at).toLocaleDateString() : "-"}</td></tr>)}</tbody></table>}</section>;
+  const [params, setParams] = useSearchParams();
+  const locale = params.get("locale") ?? "";
+  const status = params.get("status") ?? "";
+  const lifecycle = params.get("lifecycle") ?? "active";
+  const isDeletedView = lifecycle === "deleted";
+  const [action, setAction] = useState<ArticleAction>(null);
+  const locales = useQuery({ queryKey: ["locales"], queryFn: cms.locales });
+  const selected = locale || locales.data?.find((item) => item.is_default)?.code || "";
+  const articles = useQuery({ queryKey: ["articles", selected, status, lifecycle], queryFn: () => cms.articles(selected, status || undefined, 1, { deletedOnly: isDeletedView || undefined }), enabled: Boolean(selected) });
+  const client = useQueryClient();
+  const onActionSuccess = () => { setAction(null); client.invalidateQueries({ queryKey: ["articles"] }); client.invalidateQueries({ queryKey: ["article"] }); };
+  const archive = useMutation({ mutationFn: (article: Article) => cms.archive(article.id, article.locale), onSuccess: onActionSuccess });
+  const remove = useMutation({ mutationFn: (article: Article) => cms.deleteArticle(article.id), onSuccess: onActionSuccess });
+  const restore = useMutation({ mutationFn: (article: Article) => cms.restore(article.id), onSuccess: onActionSuccess });
+  const pending = archive.isPending || remove.isPending || restore.isPending;
+  const actionError = action?.kind === "archive" ? archive.error : action?.kind === "delete" ? remove.error : restore.error;
+  const setFilters = (next: { locale?: string; status?: string; lifecycle?: string }) => setParams({ locale: next.locale ?? selected, status: next.status ?? status, lifecycle: next.lifecycle ?? lifecycle });
+  const confirmAction = () => { if (!action) return; if (action.kind === "archive") archive.mutate(action.article); else if (action.kind === "delete") remove.mutate(action.article); else restore.mutate(action.article); };
+  return <section className="page"><div className="page-heading"><div><h1>Articles</h1><p>Manage translations and recoverable article lifecycle changes.</p></div><Link className="button" to="/articles/new"><Plus size={16} />New article</Link></div><div className="filters"><LocaleSelect value={selected} onChange={(value) => setFilters({ locale: value })} /><select value={status} onChange={(e) => setFilters({ status: e.target.value })}><option value="">All statuses</option><option value="draft">Draft</option><option value="published">Published</option><option value="archived">Archived</option></select><select aria-label="Article lifecycle" value={lifecycle} onChange={(e) => setFilters({ lifecycle: e.target.value })}><option value="active">Active articles</option><option value="deleted">Deleted articles</option></select></div>{articles.error && <ErrorNotice error={articles.error} />}{articles.isLoading ? <p>Loading articles...</p> : <table className="articles-table"><thead><tr><th>Title</th><th>Locale</th><th>Status</th><th>Published</th><th>Actions</th></tr></thead><tbody>{articles.data?.map((item) => <tr key={`${item.id}-${item.locale}`}><td>{isDeletedView ? item.title : <Link to={`/articles/${item.id}/${item.locale}`}>{item.title}</Link>}</td><td>{item.locale}</td><td><span className={`status ${item.status}`}>{item.status}</span></td><td>{item.published_at ? new Date(item.published_at).toLocaleDateString() : "-"}</td><td><div className="article-actions">{isDeletedView ? <button className="icon-button" type="button" title="Restore article" aria-label={`Restore ${item.title}`} disabled={pending} onClick={() => setAction({ kind: "restore", article: item })}><RotateCcw size={16} /></button> : <><button className="icon-button" type="button" title="Archive translation" aria-label={`Archive ${item.title} translation`} disabled={pending || item.status === "archived"} onClick={() => setAction({ kind: "archive", article: item })}><Archive size={16} /></button><button className="icon-button article-delete-button" type="button" title="Delete article" aria-label={`Delete ${item.title}`} disabled={pending} onClick={() => setAction({ kind: "delete", article: item })}><Trash2 size={16} /></button></>}</div></td></tr>)}</tbody></table>}{action && <ArticleActionDialog action={action} pending={pending} error={actionError} onCancel={() => setAction(null)} onConfirm={confirmAction} />}</section>;
+}
+
+type ArticleAction = { kind: "archive" | "delete" | "restore"; article: Article } | null;
+
+function ArticleActionDialog({ action, pending, error, onCancel, onConfirm }: { action: Exclude<ArticleAction, null>; pending: boolean; error: unknown; onCancel(): void; onConfirm(): void }) {
+  const copy = action.kind === "archive" ? { title: "Archive translation", description: `Archive the ${action.article.locale} translation of \"${action.article.title}\"? Other language versions remain unchanged.`, confirm: "Archive" } : action.kind === "delete" ? { title: "Delete article", description: `Soft-delete \"${action.article.title}\" and all of its language versions? It can be restored later.`, confirm: "Delete" } : { title: "Restore article", description: `Restore \"${action.article.title}\" and make all of its language versions available to manage again?`, confirm: "Restore" };
+  return <div className="dialog-backdrop" role="presentation"><section className="confirmation-dialog" role="dialog" aria-modal="true" aria-labelledby="article-action-title"><div className="dialog-heading"><div><h2 id="article-action-title">{copy.title}</h2><p>{copy.description}</p></div><button className="icon-button" type="button" title="Close" aria-label="Close" disabled={pending} onClick={onCancel}><X size={18} /></button></div>{Boolean(error) && <ErrorNotice error={error} />}<div className="dialog-actions"><button className="secondary" type="button" disabled={pending} onClick={onCancel}>Cancel</button><button className={action.kind === "delete" ? "danger-button" : ""} type="button" disabled={pending} onClick={onConfirm}>{pending ? "Working..." : copy.confirm}</button></div></section></div>;
 }
 
 type CategoryForm = { name: string; slug: string; description: string; parent_id: string };

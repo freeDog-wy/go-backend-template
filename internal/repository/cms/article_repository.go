@@ -101,12 +101,14 @@ func (r *Repository) SaveArticleTranslation(ctx context.Context, tr *domainCMS.A
 	return nil
 }
 
-func (r *Repository) ListArticleTranslations(ctx context.Context, locale string, status domainCMS.TranslationStatus, includeDeleted bool, page shared.PageQuery) ([]*domainCMS.ArticleListItem, int64, error) {
+func (r *Repository) ListArticleTranslations(ctx context.Context, locale string, status domainCMS.TranslationStatus, includeDeleted, deletedOnly bool, page shared.PageQuery) ([]*domainCMS.ArticleListItem, int64, error) {
 	db := r.conn(ctx).Table("article_translations").Joins("JOIN articles ON articles.id = article_translations.article_id").Where("article_translations.locale = ?", locale)
 	if status != "" {
 		db = db.Where("article_translations.status = ?", status)
 	}
-	if !includeDeleted {
+	if deletedOnly {
+		db = db.Where("articles.deleted_at IS NOT NULL")
+	} else if !includeDeleted {
 		db = db.Where("articles.deleted_at IS NULL")
 	}
 	var total int64
@@ -118,19 +120,20 @@ func (r *Repository) ListArticleTranslations(ctx context.Context, locale string,
 		AuthorUserID                                                                                 uint
 		CoverMediaID                                                                                 *uint
 		ArticleCreatedAt, ArticleUpdatedAt                                                           time.Time
+		ArticleDeletedAt                                                                             *time.Time
 		TranslationID                                                                                uint
 		Title, Slug, Summary, Content, ContentFormat, Status, SEOTitle, SEODescription, CanonicalURL string
 		PublishedAt                                                                                  *time.Time
 		TranslationCreatedAt, TranslationUpdatedAt                                                   time.Time
 	}
 	var rows []row
-	err := db.Select("articles.id AS article_id, articles.author_user_id, articles.cover_media_id, articles.created_at AS article_created_at, articles.updated_at AS article_updated_at, article_translations.id AS translation_id, article_translations.title, article_translations.slug, article_translations.summary, article_translations.content, article_translations.content_format, article_translations.status, article_translations.published_at, article_translations.seo_title, article_translations.seo_description, article_translations.canonical_url, article_translations.created_at AS translation_created_at, article_translations.updated_at AS translation_updated_at").Order("article_translations.updated_at DESC, article_translations.id DESC").Limit(page.PerPage).Offset(page.Offset()).Scan(&rows).Error
+	err := db.Select("articles.id AS article_id, articles.author_user_id, articles.cover_media_id, articles.created_at AS article_created_at, articles.updated_at AS article_updated_at, articles.deleted_at AS article_deleted_at, article_translations.id AS translation_id, article_translations.title, article_translations.slug, article_translations.summary, article_translations.content, article_translations.status, article_translations.published_at, article_translations.seo_title, article_translations.seo_description, article_translations.canonical_url, article_translations.created_at AS translation_created_at, article_translations.updated_at AS translation_updated_at").Order("article_translations.updated_at DESC, article_translations.id DESC").Limit(page.PerPage).Offset(page.Offset()).Scan(&rows).Error
 	if err != nil {
 		return nil, 0, err
 	}
 	items := make([]*domainCMS.ArticleListItem, 0, len(rows))
 	for _, row := range rows {
-		items = append(items, &domainCMS.ArticleListItem{Article: domainCMS.Article{ID: row.ArticleID, AuthorUserID: row.AuthorUserID, CoverMediaID: row.CoverMediaID, CreatedAt: row.ArticleCreatedAt, UpdatedAt: row.ArticleUpdatedAt}, ArticleTranslation: domainCMS.ArticleTranslation{ID: row.TranslationID, ArticleID: row.ArticleID, Locale: locale, Title: row.Title, Slug: row.Slug, Summary: row.Summary, Content: row.Content, ContentFormat: row.ContentFormat, Status: domainCMS.TranslationStatus(row.Status), PublishedAt: row.PublishedAt, SEOTitle: row.SEOTitle, SEODescription: row.SEODescription, CanonicalURL: row.CanonicalURL, CreatedAt: row.TranslationCreatedAt, UpdatedAt: row.TranslationUpdatedAt}})
+		items = append(items, &domainCMS.ArticleListItem{Article: domainCMS.Article{ID: row.ArticleID, AuthorUserID: row.AuthorUserID, CoverMediaID: row.CoverMediaID, CreatedAt: row.ArticleCreatedAt, UpdatedAt: row.ArticleUpdatedAt, DeletedAt: row.ArticleDeletedAt}, ArticleTranslation: domainCMS.ArticleTranslation{ID: row.TranslationID, ArticleID: row.ArticleID, Locale: locale, Title: row.Title, Slug: row.Slug, Summary: row.Summary, Content: row.Content, ContentFormat: row.ContentFormat, Status: domainCMS.TranslationStatus(row.Status), PublishedAt: row.PublishedAt, SEOTitle: row.SEOTitle, SEODescription: row.SEODescription, CanonicalURL: row.CanonicalURL, CreatedAt: row.TranslationCreatedAt, UpdatedAt: row.TranslationUpdatedAt}})
 	}
 	return items, total, nil
 }

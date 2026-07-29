@@ -51,6 +51,11 @@ html[data-theme="dark"] { color-scheme: dark; --canvas:#11191e; --surface:#19242
 .media-dialog { width:min(920px,100%); max-height:min(760px,90vh); overflow:auto; display:grid; gap:16px; padding:22px; border:1px solid var(--line); border-radius:10px; background:var(--surface); box-shadow:0 24px 80px rgba(0,0,0,.3); }
 .dialog-heading { display:flex; justify-content:space-between; gap:16px; }
 .dialog-heading h2,.dialog-heading p { margin:0 0 5px; }
+.confirmation-dialog { width:min(480px,100%); display:grid; gap:18px; padding:22px; border:1px solid var(--line); border-radius:8px; background:var(--surface); box-shadow:0 24px 80px rgba(0,0,0,.3); }
+.dialog-actions,.article-actions { display:flex; align-items:center; gap:8px; }
+.dialog-actions { justify-content:flex-end; }
+.article-delete-button,.danger-button { border-color:var(--danger); color:var(--danger); }
+.danger-button { background:var(--danger); color:#fff; }
 .media-upload { display:flex; grid-auto-flow:column; justify-content:center; align-items:center; gap:8px; min-height:44px; padding:9px 14px; border:1px dashed var(--brand); border-radius:6px; color:var(--brand); cursor:pointer; }
 .media-upload input { display:none; }
 .media-grid { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:12px; }

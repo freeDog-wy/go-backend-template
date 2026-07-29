@@ -41,21 +41,22 @@ func (f *testPublicMediaFinder) ListPublic(_ context.Context, _ string, ids []ui
 }
 
 type testRepo struct {
-	descendant        bool
-	tr                *domainCMS.ArticleTranslation
-	public            *domainCMS.PublicArticle
-	tree              []*domainCMS.CategoryTreeItem
-	replaced          []uint
-	publicList        []*domainCMS.PublicArticleListItem
-	locale            *domainCMS.Locale
-	createdLocale     *domainCMS.Locale
-	enabledCount      int64
-	article           *domainCMS.Article
-	locales           []*domainCMS.Locale
-	publicTags        []*domainCMS.TagListItem
-	redirects         []domainCMS.URLRedirect
-	articleListStatus domainCMS.TranslationStatus
-	articleListCalls  int
+	descendant             bool
+	tr                     *domainCMS.ArticleTranslation
+	public                 *domainCMS.PublicArticle
+	tree                   []*domainCMS.CategoryTreeItem
+	replaced               []uint
+	publicList             []*domainCMS.PublicArticleListItem
+	locale                 *domainCMS.Locale
+	createdLocale          *domainCMS.Locale
+	enabledCount           int64
+	article                *domainCMS.Article
+	locales                []*domainCMS.Locale
+	publicTags             []*domainCMS.TagListItem
+	redirects              []domainCMS.URLRedirect
+	articleListStatus      domainCMS.TranslationStatus
+	articleListDeletedOnly bool
+	articleListCalls       int
 }
 
 func (*testRepo) LocaleEnabled(context.Context, string) (bool, error) { return true, nil }
@@ -168,10 +169,22 @@ func (r *testRepo) ReplaceArticleCategories(_ context.Context, _ uint, ids []uin
 	r.replaced = ids
 	return nil
 }
-func (r *testRepo) ListArticleTranslations(_ context.Context, _ string, status domainCMS.TranslationStatus, _ bool, _ shared.PageQuery) ([]*domainCMS.ArticleListItem, int64, error) {
+func (r *testRepo) ListArticleTranslations(_ context.Context, _ string, status domainCMS.TranslationStatus, _ bool, deletedOnly bool, _ shared.PageQuery) ([]*domainCMS.ArticleListItem, int64, error) {
 	r.articleListStatus = status
+	r.articleListDeletedOnly = deletedOnly
 	r.articleListCalls++
 	return nil, 0, nil
+}
+
+func TestListArticlesPassesDeletedOnlyToRepository(t *testing.T) {
+	repo := &testRepo{}
+	_, _, err := New(testTx{}, repo).ListArticles(context.Background(), ListArticlesCmd{Locale: "zh-CN", DeletedOnly: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !repo.articleListDeletedOnly {
+		t.Fatal("deleted-only filter was not passed to repository")
+	}
 }
 func (r *testRepo) FindPublicArticle(context.Context, string, string) (*domainCMS.PublicArticle, error) {
 	if r.public == nil {
