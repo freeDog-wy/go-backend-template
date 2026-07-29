@@ -42,6 +42,9 @@ func TestBuildGeneratesMultilingualStaticSite(t *testing.T) {
 	if !strings.Contains(enHome, "<title>Docs</title>") || strings.Contains(enHome, "<h1>") {
 		t.Fatalf("English home page should have only the site name document title and no content heading:\n%s", enHome)
 	}
+	if !strings.Contains(enHome, `<nav class="category-tree"`) || !strings.Contains(enHome, `href="/en-US/categories/backend/"`) || !strings.Contains(enHome, `href="/en-US/categories/go/"`) {
+		t.Fatalf("English home page is missing the category tree:\n%s", enHome)
+	}
 
 	zhArticle := readOutput(t, outputDir, "zh-CN/articles/go-jing-tai-zhan/index.html")
 	if !strings.Contains(zhArticle, `googletagmanager.com/gtag/js?id=G-TEYF1MDSD6`) ||
@@ -143,10 +146,10 @@ func fixtureCMSHandler(t *testing.T) http.Handler {
 		}
 		locale := parts[0]
 		items := zhList
-		category := Category{ID: 10, Name: "后端", Slug: "backend", Description: "后端工程文章"}
+		category := Category{ID: 10, Name: "后端", Slug: "backend", Description: "后端工程文章", Children: []Category{{ID: 11, Name: "Go", Slug: "go"}}}
 		if locale == "en-US" {
 			items = enList
-			category = Category{ID: 10, Name: "Backend", Slug: "backend", Description: "Backend engineering articles"}
+			category = Category{ID: 10, Name: "Backend", Slug: "backend", Description: "Backend engineering articles", Children: []Category{{ID: 11, Name: "Go", Slug: "go"}}}
 		}
 		path := strings.Join(parts[1:], "/")
 		switch path {
@@ -158,7 +161,7 @@ func fixtureCMSHandler(t *testing.T) http.Handler {
 			writeAPI(t, w, items, pageMetaFor(1))
 		case "articles/go-jing-tai-zhan", "articles/go-static-site":
 			writeAPI(t, w, article(locale), nil)
-		case "categories/backend/articles", "tags/go/articles":
+		case "categories/backend/articles", "categories/go/articles", "tags/go/articles":
 			writeAPI(t, w, items, pageMetaFor(1))
 		case "sitemap-entries":
 			writeAPI(t, w, []SitemapEntry{{URL: "/" + locale + "/articles/" + items[0].Slug, LastModified: now}}, pageMetaFor(1))

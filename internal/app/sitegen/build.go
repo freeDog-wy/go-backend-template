@@ -270,7 +270,7 @@ func (a *App) renderLocale(writer *stagingWriter, snapshot *localeSnapshot, loca
 	latest := limitCards(a.cards(snapshot.Locale.Code, snapshot.Articles), 6)
 	home := homeView{
 		pageBaseView: base(a.standardHead(snapshot.Locale, "", "", localeRoute(snapshot.Locale.Code))),
-		Categories:   a.categoryNavs(snapshot.Locale.Code, snapshot.Categories), Articles: latest,
+		Categories:   a.categoryTree(snapshot.Locale.Code, snapshot.Categories), Articles: latest,
 	}
 	if err := a.writeTemplate(writer, "home.html", outputPath(localeRoute(snapshot.Locale.Code)), home); err != nil {
 		return 0, 0, err
@@ -460,6 +460,18 @@ func (a *App) categoryNavs(locale string, categories []Category) []categoryNavVi
 	result := make([]categoryNavView, 0, len(categories))
 	for _, category := range categories {
 		result = append(result, categoryNavView{Name: category.Name, URL: categoryRoute(locale, category.Slug, 1)})
+	}
+	return result
+}
+
+func (a *App) categoryTree(locale string, categories []Category) []categoryTreeView {
+	result := make([]categoryTreeView, 0, len(categories))
+	for _, category := range categories {
+		result = append(result, categoryTreeView{
+			Name:     category.Name,
+			URL:      categoryRoute(locale, category.Slug, 1),
+			Children: a.categoryTree(locale, category.Children),
+		})
 	}
 	return result
 }
