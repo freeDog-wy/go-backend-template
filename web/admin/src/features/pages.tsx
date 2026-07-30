@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Fragment, useEffect, useState } from "react";
-import { AlertTriangle, Archive, ChevronDown, ChevronRight, Folder, FolderOpen, Plus, RotateCcw, Trash2, X } from "lucide-react";
+import { AlertTriangle, Archive, ChevronDown, ChevronRight, Folder, FolderInput, FolderOpen, Pencil, Plus, RotateCcw, Trash2, X } from "lucide-react";
 import { useForm } from "react-hook-form";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { ApiError } from "../api/http";
@@ -48,12 +48,13 @@ function ArticleActionDialog({ action, pending, error, onCancel, onConfirm }: { 
 
 type CategoryForm = { name: string; slug: string; description: string; parent_id: string };
 type CategoryOption = { category: Category; depth: number };
+type CategoryAction = { kind: "rename" | "move" | "delete"; category: Category } | null;
 
 function flattenCategories(categories: Category[], depth = 0): CategoryOption[] {
   return categories.flatMap((category) => [{ category, depth }, ...flattenCategories(category.children, depth + 1)]);
 }
 
-function CategoryTreeRows({ categories, expanded, onToggle, onEnabledChange, updatingID, depth = 0 }: { categories: Category[]; expanded: Set<number>; onToggle(id: number): void; onEnabledChange(category: Category): void; updatingID?: number; depth?: number }) {
+function CategoryTreeRows({ categories, expanded, onToggle, onEnabledChange, onAction, updatingID, depth = 0 }: { categories: Category[]; expanded: Set<number>; onToggle(id: number): void; onEnabledChange(category: Category): void; onAction(action: Exclude<CategoryAction, null>): void; updatingID?: number; depth?: number }) {
   return <>{categories.map((category) => {
     const hasChildren = category.children.length > 0;
     const isExpanded = expanded.has(category.id);
@@ -69,8 +70,9 @@ function CategoryTreeRows({ categories, expanded, onToggle, onEnabledChange, upd
         <td>{category.slug}</td>
         <td>{category.sort_order}</td>
         <td><label className="category-enabled-control"><input type="checkbox" role="switch" checked={category.is_enabled} disabled={updatingID === category.id} onChange={() => onEnabledChange(category)} /><span>{category.is_enabled ? "Enabled" : "Disabled"}</span></label></td>
+        <td><div className="article-actions"><button className="icon-button" type="button" title="Rename category" aria-label={`Rename ${category.name}`} onClick={() => onAction({ kind: "rename", category })}><Pencil size={16} /></button><button className="icon-button" type="button" title="Move category" aria-label={`Move ${category.name}`} onClick={() => onAction({ kind: "move", category })}><FolderInput size={16} /></button><button className="icon-button article-delete-button" type="button" title="Delete category" aria-label={`Delete ${category.name}`} onClick={() => onAction({ kind: "delete", category })}><Trash2 size={16} /></button></div></td>
       </tr>
-      {hasChildren && isExpanded && <CategoryTreeRows categories={category.children} expanded={expanded} onToggle={onToggle} onEnabledChange={onEnabledChange} updatingID={updatingID} depth={depth + 1} />}
+      {hasChildren && isExpanded && <CategoryTreeRows categories={category.children} expanded={expanded} onToggle={onToggle} onEnabledChange={onEnabledChange} onAction={onAction} updatingID={updatingID} depth={depth + 1} />}
     </Fragment>;
   })}</>;
 }
@@ -83,6 +85,7 @@ export function CategoriesPage() {
   const options = flattenCategories(categories.data ?? []);
   const categoryIDs = options.map(({ category }) => category.id).join(",");
   const [expanded, setExpanded] = useState<Set<number>>(new Set());
+  const [action, setAction] = useState<CategoryAction>(null);
   const form = useForm<CategoryForm>({ defaultValues: { name: "", slug: "", description: "", parent_id: "" } });
   const client = useQueryClient();
   const create = useMutation({
@@ -93,6 +96,9 @@ export function CategoriesPage() {
     mutationFn: (category: Category) => cms.updateCategory(category.id, { is_enabled: !category.is_enabled, sort_order: category.sort_order }),
     onSuccess: () => client.invalidateQueries({ queryKey: ["categories", selected] }),
   });
+  const rename = useMutation({ mutationFn: ({ category, name }: { category: Category; name: string }) => cms.renameCategory(category.id, selected, { name }), onSuccess: () => { setAction(null); client.invalidateQueries({ queryKey: ["categories", selected] }); } });
+  const move = useMutation({ mutationFn: ({ category, parentID, sortOrder }: { category: Category; parentID: number | null; sortOrder: number }) => cms.moveCategory(category.id, { parent_id: parentID, sort_order: sortOrder }), onSuccess: () => { setAction(null); client.invalidateQueries({ queryKey: ["categories", selected] }); } });
+  const remove = useMutation({ mutationFn: (category: Category) => cms.deleteCategory(category.id), onSuccess: () => { setAction(null); client.invalidateQueries({ queryKey: ["categories", selected] }); } });
 
   useEffect(() => { setExpanded(new Set(options.map(({ category }) => category.id))); }, [selected, categoryIDs]);
   const toggleCategory = (id: number) => setExpanded((current) => {
@@ -101,18 +107,39 @@ export function CategoriesPage() {
     return next;
   });
 
-  return <section className="page"><PageTitle title="Categories" description="Maintain localized taxonomy." /><div className="filters"><LocaleSelect value={selected} onChange={(value) => setParams({ locale: value })} /></div><form className="inline-form category-create-form" onSubmit={form.handleSubmit((value) => create.mutate(value))}><input placeholder="Name" required {...form.register("name")} /><input placeholder="slug" required {...form.register("slug")} /><input placeholder="Description" {...form.register("description")} /><select aria-label="Parent category" {...form.register("parent_id")}><option value="">Root category</option>{options.map(({ category, depth }) => <option key={category.id} value={category.id}>{`${"-- ".repeat(depth)}${category.name}`}</option>)}</select><button disabled={create.isPending}><Plus size={16} />Add</button></form>{create.error && <ErrorNotice error={create.error} />}{update.error && <ErrorNotice error={update.error} />}{categories.error && <ErrorNotice error={categories.error} />}{categories.isLoading ? <p>Loading categories...</p> : <table className="categories-table"><thead><tr><th>Name</th><th>Slug</th><th>Order</th><th>Status</th></tr></thead><tbody><CategoryTreeRows categories={categories.data ?? []} expanded={expanded} onToggle={toggleCategory} onEnabledChange={(category) => update.mutate(category)} updatingID={update.isPending ? update.variables?.id : undefined} /></tbody></table>}</section>;
+  const actionError = action?.kind === "rename" ? rename.error : action?.kind === "move" ? move.error : remove.error;
+  const pending = rename.isPending || move.isPending || remove.isPending;
+  return <section className="page"><PageTitle title="Categories" description="Maintain localized taxonomy." /><div className="filters"><LocaleSelect value={selected} onChange={(value) => setParams({ locale: value })} /></div><form className="inline-form category-create-form" onSubmit={form.handleSubmit((value) => create.mutate(value))}><input placeholder="Name" required {...form.register("name")} /><input placeholder="slug" required {...form.register("slug")} /><input placeholder="Description" {...form.register("description")} /><select aria-label="Parent category" {...form.register("parent_id")}><option value="">Root category</option>{options.map(({ category, depth }) => <option key={category.id} value={category.id}>{`${"-- ".repeat(depth)}${category.name}`}</option>)}</select><button disabled={create.isPending}><Plus size={16} />Add</button></form>{create.error && <ErrorNotice error={create.error} />}{update.error && <ErrorNotice error={update.error} />}{categories.error && <ErrorNotice error={categories.error} />}{categories.isLoading ? <p>Loading categories...</p> : <table className="categories-table"><thead><tr><th>Name</th><th>Slug</th><th>Order</th><th>Status</th><th>Actions</th></tr></thead><tbody><CategoryTreeRows categories={categories.data ?? []} expanded={expanded} onToggle={toggleCategory} onEnabledChange={(category) => update.mutate(category)} onAction={setAction} updatingID={update.isPending ? update.variables?.id : undefined} /></tbody></table>}{action && <CategoryActionDialog action={action} options={options} pending={pending} error={actionError} onCancel={() => setAction(null)} onRename={(name) => rename.mutate({ category: action.category, name })} onMove={(parentID, sortOrder) => move.mutate({ category: action.category, parentID, sortOrder })} onDelete={() => remove.mutate(action.category)} />}</section>;
 }
+
+function CategoryActionDialog({ action, options, pending, error, onCancel, onRename, onMove, onDelete }: { action: Exclude<CategoryAction, null>; options: CategoryOption[]; pending: boolean; error: unknown; onCancel(): void; onRename(name: string): void; onMove(parentID: number | null, sortOrder: number): void; onDelete(): void }) {
+  const form = useForm({ defaultValues: { name: action.category.name, parent_id: action.category.parent_id?.toString() ?? "", sort_order: action.category.sort_order } });
+  useEffect(() => form.reset({ name: action.category.name, parent_id: action.category.parent_id?.toString() ?? "", sort_order: action.category.sort_order }), [action, form]);
+  const blockedParents = new Set(flattenCategories([action.category]).map(({ category }) => category.id));
+  const title = action.kind === "rename" ? "Rename category" : action.kind === "move" ? "Move category" : "Delete category";
+  const confirm = action.kind === "rename" ? "Save" : action.kind === "move" ? "Move" : "Delete";
+  const submit = form.handleSubmit((value) => { if (action.kind === "rename") onRename(value.name); else if (action.kind === "move") onMove(value.parent_id ? Number(value.parent_id) : null, value.sort_order); else onDelete(); });
+  return <div className="dialog-backdrop" role="presentation"><section className="confirmation-dialog" role="dialog" aria-modal="true" aria-labelledby="category-action-title"><div className="dialog-heading"><div><h2 id="category-action-title">{title}</h2><p>{action.kind === "rename" ? `The URL slug remains ${action.category.slug}.` : action.kind === "move" ? "Moving changes the taxonomy and article breadcrumbs, but not category URLs or article assignments." : `Delete ${action.category.name} permanently. Categories with articles or child categories cannot be deleted.`}</p></div><button className="icon-button" type="button" title="Close" aria-label="Close" disabled={pending} onClick={onCancel}><X size={18} /></button></div><form onSubmit={submit}>{action.kind === "rename" && <label>Name<input required {...form.register("name")} /></label>}{action.kind === "move" && <><label>Parent category<select {...form.register("parent_id")}><option value="">Root category</option>{options.filter(({ category }) => !blockedParents.has(category.id)).map(({ category, depth }) => <option key={category.id} value={category.id}>{`${"-- ".repeat(depth)}${category.name}`}</option>)}</select></label><label>Sort order<input type="number" {...form.register("sort_order", { valueAsNumber: true })} /></label></>}{Boolean(error) && <ErrorNotice error={error} />}<div className="dialog-actions"><button className="secondary" type="button" disabled={pending} onClick={onCancel}>Cancel</button><button className={action.kind === "delete" ? "danger-button" : ""} disabled={pending}>{pending ? "Working..." : confirm}</button></div></form></section></div>;
+}
+
 export function TagsPage() {
   const locales = useQuery({ queryKey: ["locales"], queryFn: cms.locales });
   const [params, setParams] = useSearchParams();
   const selected = params.get("locale") || locales.data?.find((item) => item.is_default)?.code || "";
   const tags = useQuery({ queryKey: ["tags", selected], queryFn: () => cms.tags(selected), enabled: Boolean(selected) });
   const form = useForm({ defaultValues: { name: "", slug: "" } });
+  const [renaming, setRenaming] = useState<Tag | null>(null);
   const client = useQueryClient();
   const create = useMutation({ mutationFn: (v: { name: string; slug: string }) => cms.createTag({ ...v, locale: selected }), onSuccess: () => { form.reset(); client.invalidateQueries({ queryKey: ["tags", selected] }); } });
   const update = useMutation({ mutationFn: (tag: Tag) => cms.updateTag(tag.id, { is_enabled: !tag.is_enabled }), onSuccess: () => client.invalidateQueries({ queryKey: ["tags", selected] }) });
-  return <section className="page"><PageTitle title="Tags" description="Maintain localized tags." /><div className="filters"><LocaleSelect value={selected} onChange={(value) => setParams({ locale: value })} /></div><form className="inline-form" onSubmit={form.handleSubmit((v) => create.mutate(v))}><input placeholder="Name" required {...form.register("name")} /><input placeholder="slug" required {...form.register("slug")} /><button disabled={create.isPending}><Plus size={16} />Add</button></form>{create.error && <ErrorNotice error={create.error} />}{update.error && <ErrorNotice error={update.error} />}{tags.error && <ErrorNotice error={tags.error} />}<table className="tags-table"><thead><tr><th>Name</th><th>Slug</th><th>Status</th></tr></thead><tbody>{tags.data?.map((item) => <tr key={item.id}><td>{item.name}</td><td>{item.slug}</td><td><label className="tag-enabled-control"><input type="checkbox" role="switch" checked={item.is_enabled} disabled={update.isPending && update.variables?.id === item.id} onChange={() => update.mutate(item)} /><span>{item.is_enabled ? "Enabled" : "Disabled"}</span></label></td></tr>)}</tbody></table></section>;
+  const rename = useMutation({ mutationFn: ({ tag, name }: { tag: Tag; name: string }) => cms.renameTag(tag.id, selected, { name }), onSuccess: () => { setRenaming(null); client.invalidateQueries({ queryKey: ["tags", selected] }); } });
+  return <section className="page"><PageTitle title="Tags" description="Maintain localized tags." /><div className="filters"><LocaleSelect value={selected} onChange={(value) => setParams({ locale: value })} /></div><form className="inline-form" onSubmit={form.handleSubmit((v) => create.mutate(v))}><input placeholder="Name" required {...form.register("name")} /><input placeholder="slug" required {...form.register("slug")} /><button disabled={create.isPending}><Plus size={16} />Add</button></form>{create.error && <ErrorNotice error={create.error} />}{update.error && <ErrorNotice error={update.error} />}{tags.error && <ErrorNotice error={tags.error} />}<table className="tags-table"><thead><tr><th>Name</th><th>Slug</th><th>Status</th><th>Actions</th></tr></thead><tbody>{tags.data?.map((item) => <tr key={item.id}><td>{item.name}</td><td>{item.slug}</td><td><label className="tag-enabled-control"><input type="checkbox" role="switch" checked={item.is_enabled} disabled={update.isPending && update.variables?.id === item.id} onChange={() => update.mutate(item)} /><span>{item.is_enabled ? "Enabled" : "Disabled"}</span></label></td><td><button className="icon-button" type="button" title="Rename tag" aria-label={`Rename ${item.name}`} onClick={() => setRenaming(item)}><Pencil size={16} /></button></td></tr>)}</tbody></table>{renaming && <TagRenameDialog tag={renaming} pending={rename.isPending} error={rename.error} onCancel={() => setRenaming(null)} onRename={(name) => rename.mutate({ tag: renaming, name })} />}</section>;
+}
+
+function TagRenameDialog({ tag, pending, error, onCancel, onRename }: { tag: Tag; pending: boolean; error: unknown; onCancel(): void; onRename(name: string): void }) {
+  const form = useForm({ defaultValues: { name: tag.name } });
+  useEffect(() => form.reset({ name: tag.name }), [tag, form]);
+  return <div className="dialog-backdrop" role="presentation"><section className="confirmation-dialog" role="dialog" aria-modal="true" aria-labelledby="tag-rename-title"><div className="dialog-heading"><div><h2 id="tag-rename-title">Rename tag</h2><p>The URL slug remains {tag.slug}.</p></div><button className="icon-button" type="button" title="Close" aria-label="Close" disabled={pending} onClick={onCancel}><X size={18} /></button></div><form onSubmit={form.handleSubmit((value) => onRename(value.name))}><label>Name<input required {...form.register("name")} /></label>{Boolean(error) && <ErrorNotice error={error} />}<div className="dialog-actions"><button className="secondary" type="button" disabled={pending} onClick={onCancel}>Cancel</button><button disabled={pending}>{pending ? "Working..." : "Save"}</button></div></form></section></div>;
 }
 function PageTitle({ title, description }: { title: string; description: string }) { return <div className="page-heading"><div><h1>{title}</h1><p>{description}</p></div></div>; }
 

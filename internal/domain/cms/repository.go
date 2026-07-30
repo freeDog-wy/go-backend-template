@@ -34,6 +34,9 @@ type Repository interface {
 	IsCategoryDescendant(ctx context.Context, ancestorID, candidateID uint) (bool, error)
 	MoveCategory(ctx context.Context, id uint, parentID *uint, sortOrder int) error
 	UpdateCategory(ctx context.Context, id uint, enabled bool, sortOrder int) error
+	CountCategoryArticleReferences(ctx context.Context, id uint) (int64, error)
+	CountCategoryChildren(ctx context.Context, id uint) (int64, error)
+	DeleteCategory(ctx context.Context, id uint) error
 	ListCategories(ctx context.Context) ([]*Category, error)
 	ListCategoryTreeItems(ctx context.Context, locale string) ([]*CategoryTreeItem, error)
 	CreateArticle(ctx context.Context, article *Article, translation *ArticleTranslation) error
@@ -101,6 +104,9 @@ type CategoryRepository interface {
 	IsCategoryDescendant(context.Context, uint, uint) (bool, error)
 	MoveCategory(context.Context, uint, *uint, int) error
 	UpdateCategory(context.Context, uint, bool, int) error
+	CountCategoryArticleReferences(context.Context, uint) (int64, error)
+	CountCategoryChildren(context.Context, uint) (int64, error)
+	DeleteCategory(context.Context, uint) error
 	ListCategories(context.Context) ([]*Category, error)
 	ListCategoryTreeItems(context.Context, string) ([]*CategoryTreeItem, error)
 	ListPublicCategoryTreeItems(context.Context, string) ([]*CategoryTreeItem, error)

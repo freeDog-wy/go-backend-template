@@ -18,6 +18,9 @@ type AdminService interface {
 	UpsertCategoryTranslation(context.Context, UpsertCategoryTranslationCmd) (*CategoryResult, error)
 	MoveCategory(context.Context, MoveCategoryCmd) error
 	UpdateCategory(context.Context, UpdateCategoryCmd) (*CategoryResult, error)
+	RenameCategory(context.Context, RenameCategoryCmd) (*CategoryResult, error)
+	DeleteCategory(context.Context, DeleteCategoryCmd) error
+	RenameTag(context.Context, RenameTagCmd) (*TagResult, error)
 	CreateArticle(context.Context, CreateArticleCmd) (*ArticleResult, error)
 	CreateTranslation(context.Context, CreateTranslationCmd) (*ArticleResult, error)
 	UpdateTranslation(context.Context, UpdateTranslationCmd) (*ArticleResult, error)

@@ -9,9 +9,13 @@ export const cms = {
   categories: (locale: string) => request<Category[]>(`/api/v1/admin/cms/categories${query({ locale })}`),
   createCategory: (input: { locale: string; name: string; slug: string; description: string; parent_id?: number | null; sort_order: number }) => write<Category>("POST", "/api/v1/admin/cms/categories", input),
   updateCategory: (id: number, input: { is_enabled: boolean; sort_order: number }) => write<Category>("PATCH", `/api/v1/admin/cms/categories/${id}`, input),
+  renameCategory: (id: number, locale: string, input: { name: string }) => write<Category>("PATCH", `/api/v1/admin/cms/categories/${id}/translations/${encodeURIComponent(locale)}`, input),
+  moveCategory: (id: number, input: { parent_id: number | null; sort_order: number }) => write<{ id: number }>("PATCH", `/api/v1/admin/cms/categories/${id}/move`, input),
+  deleteCategory: (id: number) => write<{ id: number }>("DELETE", `/api/v1/admin/cms/categories/${id}`),
   tags: (locale: string, page = 1) => request<Tag[]>(`/api/v1/admin/cms/tags${query({ locale, page, per_page: 100 })}`),
   createTag: (input: { locale: string; name: string; slug: string }) => write<Tag>("POST", "/api/v1/admin/cms/tags", input),
   updateTag: (id: number, input: { is_enabled: boolean }) => write<{ id: number; is_enabled: boolean }>("PATCH", `/api/v1/admin/cms/tags/${id}`, input),
+  renameTag: (id: number, locale: string, input: { name: string }) => write<Tag>("PATCH", `/api/v1/admin/cms/tags/${id}/translations/${encodeURIComponent(locale)}`, input),
   articles: (locale: string, status?: string, page = 1, options: { includeDeleted?: boolean; deletedOnly?: boolean } = {}) => {
     const path = `/api/v1/admin/cms/articles${query({ locale, status, page, per_page: 20, include_deleted: options.includeDeleted, deleted_only: options.deletedOnly })}`;
     return request<Article[]>(path);

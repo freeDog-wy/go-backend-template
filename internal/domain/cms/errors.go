@@ -8,6 +8,8 @@ var (
 	ErrArticleNotFound     = errors.New("article not found")
 	ErrTranslationAbsent   = errors.New("content translation not found")
 	ErrCategoryCycle       = errors.New("category move would create a cycle")
+	ErrCategoryInUse       = errors.New("category is assigned to articles")
+	ErrCategoryHasChildren = errors.New("category has child categories")
 	ErrLocaleNotFound      = errors.New("locale not found")
 	ErrLocaleDefault       = errors.New("default locale cannot be disabled")
 	ErrLastEnabledLocale   = errors.New("at least one locale must remain enabled")

@@ -11,10 +11,13 @@ const (
 	auditActionArticleCoverChanged      = "cms_article_cover_changed"
 	auditActionCategoryMoved            = "cms_category_moved"
 	auditActionCategoryUpdated          = "cms_category_updated"
+	auditActionCategoryRenamed          = "cms_category_renamed"
+	auditActionCategoryDeleted          = "cms_category_deleted"
 	auditActionLocaleCreated            = "cms_locale_created"
 	auditActionLocaleUpdated            = "cms_locale_updated"
 	auditActionSlugChanged              = "cms_slug_changed"
 	auditActionTagCreated               = "cms_tag_created"
 	auditActionTagUpdated               = "cms_tag_updated"
+	auditActionTagRenamed               = "cms_tag_renamed"
 	auditActionArticleTagsChanged       = "cms_article_tags_changed"
 )

@@ -117,6 +117,34 @@ func (s *Service) UpdateTag(ctx context.Context, cmd UpdateTagCmd) (*TagResult, 
 	return &TagResult{ID: tag.ID, IsEnabled: tag.Enabled}, nil
 }
 
+// RenameTag changes the localized label while retaining its slug and public URL.
+func (s *Service) RenameTag(ctx context.Context, cmd RenameTagCmd) (*TagResult, error) {
+	if cmd.TagID == 0 || strings.TrimSpace(cmd.Name) == "" {
+		return nil, domainCMS.ErrInvalidInput
+	}
+	tag, err := s.repo.FindTag(ctx, cmd.TagID)
+	if err != nil {
+		return nil, mapTag(err)
+	}
+	current, err := s.repo.FindTagTranslation(ctx, cmd.TagID, cmd.Locale)
+	if err != nil {
+		return nil, mapTag(err)
+	}
+	translation := &domainCMS.TagTranslation{TagID: cmd.TagID, Locale: current.Locale, Name: strings.TrimSpace(cmd.Name), Slug: current.Slug}
+	if err := validNameSlug(translation.Name, translation.Slug); err != nil {
+		return nil, err
+	}
+	if err := s.tx.Do(ctx, func(ctx context.Context) error {
+		if err := s.repo.UpsertTagTranslation(ctx, translation); err != nil {
+			return err
+		}
+		return s.publishAudit(ctx, cmd.ActorUserID, "tag", cmd.TagID, auditActionTagRenamed, cmd.IP, cmd.UserAgent, map[string]any{"locale": translation.Locale, "old_name": current.Name, "new_name": translation.Name, "slug": translation.Slug})
+	}); err != nil {
+		return nil, err
+	}
+	return tagResult(tag, translation), nil
+}
+
 func (s *Service) ListPublishedTags(ctx context.Context, cmd ListPublicTagsCmd) ([]*TagResult, shared.PageResult, error) {
 	if err := s.requireLocale(ctx, cmd.Locale); err != nil {
 		return nil, shared.PageResult{}, err

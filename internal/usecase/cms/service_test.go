@@ -59,6 +59,13 @@ type testRepo struct {
 	articleListCalls       int
 	updatedTagID           uint
 	updatedTagEnabled      bool
+	tagTranslation         *domainCMS.TagTranslation
+	categoryTranslation    *domainCMS.CategoryTranslation
+	upsertedTag            *domainCMS.TagTranslation
+	upsertedCategory       *domainCMS.CategoryTranslation
+	categoryArticleRefs    int64
+	categoryChildren       int64
+	deletedCategoryID      uint
 }
 
 func (*testRepo) LocaleEnabled(context.Context, string) (bool, error) { return true, nil }
@@ -100,20 +107,30 @@ func (r *testRepo) UpdateTag(_ context.Context, id uint, enabled bool) error {
 	r.updatedTagEnabled = enabled
 	return nil
 }
-func (*testRepo) FindTagTranslation(context.Context, uint, string) (*domainCMS.TagTranslation, error) {
+func (r *testRepo) FindTagTranslation(context.Context, uint, string) (*domainCMS.TagTranslation, error) {
+	if r.tagTranslation != nil {
+		return r.tagTranslation, nil
+	}
 	return nil, shared.ErrNotFound
 }
-func (*testRepo) UpsertTagTranslation(context.Context, *domainCMS.TagTranslation) error { return nil }
+func (r *testRepo) UpsertTagTranslation(_ context.Context, translation *domainCMS.TagTranslation) error {
+	r.upsertedTag = translation
+	return nil
+}
 func (*testRepo) ListTags(context.Context, string, shared.PageQuery) ([]*domainCMS.TagListItem, int64, error) {
 	return nil, 0, nil
 }
 func (*testRepo) CreateCategory(context.Context, *domainCMS.Category, *domainCMS.CategoryTranslation) error {
 	return nil
 }
-func (*testRepo) UpsertCategoryTranslation(context.Context, *domainCMS.CategoryTranslation) error {
+func (r *testRepo) UpsertCategoryTranslation(_ context.Context, translation *domainCMS.CategoryTranslation) error {
+	r.upsertedCategory = translation
 	return nil
 }
-func (*testRepo) FindCategoryTranslation(context.Context, uint, string) (*domainCMS.CategoryTranslation, error) {
+func (r *testRepo) FindCategoryTranslation(context.Context, uint, string) (*domainCMS.CategoryTranslation, error) {
+	if r.categoryTranslation != nil {
+		return r.categoryTranslation, nil
+	}
 	return nil, shared.ErrNotFound
 }
 func (*testRepo) FindCategory(_ context.Context, id uint) (*domainCMS.Category, error) {
@@ -122,8 +139,18 @@ func (*testRepo) FindCategory(_ context.Context, id uint) (*domainCMS.Category, 
 func (r *testRepo) IsCategoryDescendant(context.Context, uint, uint) (bool, error) {
 	return r.descendant, nil
 }
-func (*testRepo) MoveCategory(context.Context, uint, *uint, int) error          { return nil }
-func (*testRepo) UpdateCategory(context.Context, uint, bool, int) error         { return nil }
+func (*testRepo) MoveCategory(context.Context, uint, *uint, int) error  { return nil }
+func (*testRepo) UpdateCategory(context.Context, uint, bool, int) error { return nil }
+func (r *testRepo) CountCategoryArticleReferences(context.Context, uint) (int64, error) {
+	return r.categoryArticleRefs, nil
+}
+func (r *testRepo) CountCategoryChildren(context.Context, uint) (int64, error) {
+	return r.categoryChildren, nil
+}
+func (r *testRepo) DeleteCategory(_ context.Context, id uint) error {
+	r.deletedCategoryID = id
+	return nil
+}
 func (*testRepo) ListCategories(context.Context) ([]*domainCMS.Category, error) { return nil, nil }
 func (r *testRepo) ListCategoryTreeItems(context.Context, string) ([]*domainCMS.CategoryTreeItem, error) {
 	return r.tree, nil
@@ -487,5 +514,50 @@ func TestRestoreArticleRequiresDeletedArticle(t *testing.T) {
 	err := New(testTx{}, &testRepo{article: &domainCMS.Article{ID: 7}}).RestoreArticle(context.Background(), RestoreArticleCmd{ArticleID: 7})
 	if !errors.Is(err, domainCMS.ErrArticleActive) {
 		t.Fatalf("error = %v", err)
+	}
+}
+
+func TestRenameCategoryKeepsSlug(t *testing.T) {
+	repo := &testRepo{categoryTranslation: &domainCMS.CategoryTranslation{CategoryID: 4, Locale: "zh-CN", Name: "Old", Slug: "stable-url", Description: "description", SEOTitle: "SEO", SEODescription: "summary"}}
+	result, err := New(testTx{}, repo).RenameCategory(context.Background(), RenameCategoryCmd{CategoryID: 4, Locale: "zh-CN", Name: "New"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.Name != "New" || result.Slug != "stable-url" || repo.upsertedCategory == nil || repo.upsertedCategory.Slug != "stable-url" || repo.upsertedCategory.Description != "description" {
+		t.Fatalf("result = %#v, translation = %#v", result, repo.upsertedCategory)
+	}
+}
+
+func TestRenameTagKeepsSlug(t *testing.T) {
+	repo := &testRepo{tagTranslation: &domainCMS.TagTranslation{TagID: 4, Locale: "zh-CN", Name: "Old", Slug: "stable-url"}}
+	result, err := New(testTx{}, repo).RenameTag(context.Background(), RenameTagCmd{TagID: 4, Locale: "zh-CN", Name: "New"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.Name != "New" || result.Slug != "stable-url" || repo.upsertedTag == nil || repo.upsertedTag.Slug != "stable-url" {
+		t.Fatalf("result = %#v, translation = %#v", result, repo.upsertedTag)
+	}
+}
+
+func TestDeleteCategoryRequiresNoArticleReferencesOrChildren(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		repo *testRepo
+		want error
+	}{
+		{name: "article reference", repo: &testRepo{categoryArticleRefs: 1}, want: domainCMS.ErrCategoryInUse},
+		{name: "child category", repo: &testRepo{categoryChildren: 1}, want: domainCMS.ErrCategoryHasChildren},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			err := New(testTx{}, tc.repo).DeleteCategory(context.Background(), DeleteCategoryCmd{CategoryID: 4})
+			if !errors.Is(err, tc.want) || tc.repo.deletedCategoryID != 0 {
+				t.Fatalf("error = %v, deleted ID = %d", err, tc.repo.deletedCategoryID)
+			}
+		})
+	}
+
+	repo := &testRepo{}
+	if err := New(testTx{}, repo).DeleteCategory(context.Background(), DeleteCategoryCmd{CategoryID: 4}); err != nil || repo.deletedCategoryID != 4 {
+		t.Fatalf("error = %v, deleted ID = %d", err, repo.deletedCategoryID)
 	}
 }

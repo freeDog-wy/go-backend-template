@@ -135,6 +135,64 @@ func (s *Service) UpdateCategory(ctx context.Context, cmd UpdateCategoryCmd) (*C
 	return &CategoryResult{ID: category.ID, ParentID: category.ParentID, SortOrder: category.SortOrder, IsEnabled: category.Enabled}, nil
 }
 
+// RenameCategory changes localized presentation fields while deliberately retaining
+// the existing slug, so category URLs remain stable.
+func (s *Service) RenameCategory(ctx context.Context, cmd RenameCategoryCmd) (*CategoryResult, error) {
+	if cmd.CategoryID == 0 || strings.TrimSpace(cmd.Name) == "" {
+		return nil, domainCMS.ErrInvalidInput
+	}
+	category, err := s.repo.FindCategory(ctx, cmd.CategoryID)
+	if err != nil {
+		return nil, mapCategory(err)
+	}
+	current, err := s.repo.FindCategoryTranslation(ctx, cmd.CategoryID, cmd.Locale)
+	if err != nil {
+		return nil, mapCategory(err)
+	}
+	translation := &domainCMS.CategoryTranslation{CategoryID: cmd.CategoryID, Locale: current.Locale, Name: strings.TrimSpace(cmd.Name), Slug: current.Slug, Description: current.Description, SEOTitle: current.SEOTitle, SEODescription: current.SEODescription}
+	if err := validNameSlug(translation.Name, translation.Slug); err != nil {
+		return nil, err
+	}
+	if err := s.tx.Do(ctx, func(ctx context.Context) error {
+		if err := s.repo.UpsertCategoryTranslation(ctx, translation); err != nil {
+			return err
+		}
+		return s.publishAudit(ctx, cmd.ActorUserID, "category", cmd.CategoryID, auditActionCategoryRenamed, cmd.IP, cmd.UserAgent, map[string]any{"locale": translation.Locale, "old_name": current.Name, "new_name": translation.Name, "slug": translation.Slug})
+	}); err != nil {
+		return nil, err
+	}
+	return &CategoryResult{ID: category.ID, ParentID: category.ParentID, SortOrder: category.SortOrder, IsEnabled: category.Enabled, Locale: translation.Locale, Name: translation.Name, Slug: translation.Slug}, nil
+}
+
+func (s *Service) DeleteCategory(ctx context.Context, cmd DeleteCategoryCmd) error {
+	if cmd.CategoryID == 0 {
+		return domainCMS.ErrInvalidInput
+	}
+	if _, err := s.repo.FindCategory(ctx, cmd.CategoryID); err != nil {
+		return mapCategory(err)
+	}
+	return s.tx.Do(ctx, func(ctx context.Context) error {
+		articleCount, err := s.repo.CountCategoryArticleReferences(ctx, cmd.CategoryID)
+		if err != nil {
+			return err
+		}
+		if articleCount > 0 {
+			return domainCMS.ErrCategoryInUse
+		}
+		childCount, err := s.repo.CountCategoryChildren(ctx, cmd.CategoryID)
+		if err != nil {
+			return err
+		}
+		if childCount > 0 {
+			return domainCMS.ErrCategoryHasChildren
+		}
+		if err := s.repo.DeleteCategory(ctx, cmd.CategoryID); err != nil {
+			return mapCategory(err)
+		}
+		return s.publishAudit(ctx, cmd.ActorUserID, "category", cmd.CategoryID, auditActionCategoryDeleted, cmd.IP, cmd.UserAgent, nil)
+	})
+}
+
 func (s *Service) ListCategories(ctx context.Context, cmd ListCategoriesCmd) ([]*CategoryTreeResult, error) {
 	if err := s.requireLocale(ctx, cmd.Locale); err != nil {
 		return nil, err
