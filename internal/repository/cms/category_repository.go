@@ -71,6 +71,29 @@ func (r *Repository) UpdateCategory(ctx context.Context, id uint, enabled bool, 
 	return nil
 }
 
+func (r *Repository) CountCategoryArticleReferences(ctx context.Context, id uint) (int64, error) {
+	var count int64
+	err := r.conn(ctx).Table("article_categories").Where("category_id = ?", id).Count(&count).Error
+	return count, err
+}
+
+func (r *Repository) CountCategoryChildren(ctx context.Context, id uint) (int64, error) {
+	var count int64
+	err := r.conn(ctx).Model(&modelCMS.Category{}).Where("parent_id = ?", id).Count(&count).Error
+	return count, err
+}
+
+func (r *Repository) DeleteCategory(ctx context.Context, id uint) error {
+	result := r.conn(ctx).Delete(&modelCMS.Category{}, id)
+	if result.Error != nil {
+		return result.Error
+	}
+	if result.RowsAffected == 0 {
+		return shared.ErrNotFound
+	}
+	return nil
+}
+
 func (r *Repository) ListCategories(ctx context.Context) ([]*domainCMS.Category, error) {
 	var models []modelCMS.Category
 	if err := r.conn(ctx).Order("parent_id NULLS FIRST, sort_order, id").Find(&models).Error; err != nil {

@@ -69,6 +69,31 @@ func TestUpdateTagPassesEnabledState(t *testing.T) {
 	}
 }
 
+func TestRenameTaxonomyPassesLocalizedName(t *testing.T) {
+	categoryService := &cmsServiceFake{}
+	w := serveCMSMethod(t, http.MethodPatch, true, categoryService, "/api/v1/admin/cms/categories/9/translations/zh-CN", `{"name":"Renamed category"}`)
+	assertCMSResponse(t, w, true, "")
+	if categoryService.renameCategory.CategoryID != 9 || categoryService.renameCategory.Locale != "zh-CN" || categoryService.renameCategory.Name != "Renamed category" || categoryService.renameCategory.ActorUserID != 1 {
+		t.Fatalf("category command = %#v", categoryService.renameCategory)
+	}
+
+	tagService := &cmsServiceFake{}
+	w = serveCMSMethod(t, http.MethodPatch, true, tagService, "/api/v1/admin/cms/tags/7/translations/zh-CN", `{"name":"Renamed tag"}`)
+	assertCMSResponse(t, w, true, "")
+	if tagService.renameTag.TagID != 7 || tagService.renameTag.Locale != "zh-CN" || tagService.renameTag.Name != "Renamed tag" || tagService.renameTag.ActorUserID != 1 {
+		t.Fatalf("tag command = %#v", tagService.renameTag)
+	}
+}
+
+func TestDeleteCategoryPassesAuditContext(t *testing.T) {
+	service := &cmsServiceFake{}
+	w := serveCMSMethod(t, http.MethodDelete, true, service, "/api/v1/admin/cms/categories/9", "")
+	assertCMSResponse(t, w, true, "")
+	if service.deleteCategory.CategoryID != 9 || service.deleteCategory.ActorUserID != 1 {
+		t.Fatalf("delete command = %#v", service.deleteCategory)
+	}
+}
+
 func TestPublishTranslationRejectsContentThatFailsPublicationChecks(t *testing.T) {
 	service := &cmsServiceFake{publishErr: domainCMS.ErrPublicationNotReady}
 	w := serveCMSMethod(t, http.MethodPost, true, service, "/api/v1/admin/cms/articles/7/translations/zh-CN/publish", "")
@@ -163,6 +188,9 @@ type cmsServiceFake struct {
 	setCover        svcCMS.SetArticleCoverCmd
 	createLocale    svcCMS.CreateLocaleCmd
 	updateTag       svcCMS.UpdateTagCmd
+	renameTag       svcCMS.RenameTagCmd
+	renameCategory  svcCMS.RenameCategoryCmd
+	deleteCategory  svcCMS.DeleteCategoryCmd
 	publishErr      error
 	listArticles    svcCMS.ListArticlesCmd
 	listArticlesErr error
@@ -197,6 +225,18 @@ func (*cmsServiceFake) UpsertCategoryTranslation(context.Context, svcCMS.UpsertC
 }
 func (*cmsServiceFake) MoveCategory(context.Context, svcCMS.MoveCategoryCmd) error { return nil }
 func (*cmsServiceFake) UpdateCategory(context.Context, svcCMS.UpdateCategoryCmd) (*svcCMS.CategoryResult, error) {
+	return nil, nil
+}
+func (f *cmsServiceFake) RenameCategory(_ context.Context, cmd svcCMS.RenameCategoryCmd) (*svcCMS.CategoryResult, error) {
+	f.renameCategory = cmd
+	return nil, nil
+}
+func (f *cmsServiceFake) DeleteCategory(_ context.Context, cmd svcCMS.DeleteCategoryCmd) error {
+	f.deleteCategory = cmd
+	return nil
+}
+func (f *cmsServiceFake) RenameTag(_ context.Context, cmd svcCMS.RenameTagCmd) (*svcCMS.TagResult, error) {
+	f.renameTag = cmd
 	return nil, nil
 }
 func (*cmsServiceFake) CreateArticle(context.Context, svcCMS.CreateArticleCmd) (*svcCMS.ArticleResult, error) {

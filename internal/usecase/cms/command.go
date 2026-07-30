@@ -117,6 +117,23 @@ type UpdateCategoryCmd struct {
 	ActorUserID   uint
 	IP, UserAgent string
 }
+type RenameCategoryCmd struct {
+	CategoryID    uint
+	Locale, Name  string
+	ActorUserID   uint
+	IP, UserAgent string
+}
+type DeleteCategoryCmd struct {
+	CategoryID    uint
+	ActorUserID   uint
+	IP, UserAgent string
+}
+type RenameTagCmd struct {
+	TagID         uint
+	Locale, Name  string
+	ActorUserID   uint
+	IP, UserAgent string
+}
 type DeleteArticleCmd struct {
 	ArticleID     uint
 	ActorUserID   uint

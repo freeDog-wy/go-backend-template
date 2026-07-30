@@ -41,12 +41,15 @@ func (h *Handler) RegisterRoutes(r *gin.Engine) {
 	g.GET("/tags", handlerMiddleware.RequirePermission(h.auth, h.authorizer, "cms.tag.manage"), h.ListTags)
 	g.POST("/tags", h.writeHandlers("cms.tag.manage", h.CreateTag)...)
 	g.PATCH("/tags/:id", h.writeHandlers("cms.tag.manage", h.UpdateTag)...)
+	g.PATCH("/tags/:id/translations/:locale", h.writeHandlers("cms.tag.manage", h.RenameTag)...)
 	g.PUT("/tags/:id/translations/:locale", h.writeHandlers("cms.tag.manage", h.UpsertTagTranslation)...)
 	g.PATCH("/locales/:code", h.writeHandlers("cms.locale.manage", h.UpdateLocale)...)
 	g.POST("/categories", h.writeHandlers("cms.category.manage", h.CreateCategory)...)
 	g.GET("/categories", handlerMiddleware.RequirePermission(h.auth, h.authorizer, "cms.category.manage"), h.ListCategories)
 	g.PATCH("/categories/:id/move", h.writeHandlers("cms.category.manage", h.MoveCategory)...)
 	g.PATCH("/categories/:id", h.writeHandlers("cms.category.manage", h.UpdateCategory)...)
+	g.PATCH("/categories/:id/translations/:locale", h.writeHandlers("cms.category.manage", h.RenameCategory)...)
+	g.DELETE("/categories/:id", h.writeHandlers("cms.category.manage", h.DeleteCategory)...)
 	g.PUT("/categories/:id/translations/:locale", h.writeHandlers("cms.category.manage", h.UpsertCategoryTranslation)...)
 	g.POST("/articles", h.writeHandlers("cms.article.create", h.CreateArticle)...)
 	g.POST("/markdown/preview", handlerMiddleware.RequirePermission(h.auth, h.authorizer, "cms.article.update"), h.PreviewMarkdown)
@@ -81,6 +84,12 @@ type moveReq struct {
 type updateCategoryReq struct {
 	IsEnabled bool `json:"is_enabled"`
 	SortOrder int  `json:"sort_order"`
+}
+type renameCategoryReq struct {
+	Name string `json:"name" binding:"required"`
+}
+type renameTagReq struct {
+	Name string `json:"name" binding:"required"`
 }
 type replaceArticleCategoriesReq struct {
 	CategoryIDs       []uint `json:"category_ids"`
@@ -310,6 +319,36 @@ func (h *Handler) UpdateCategory(c *gin.Context) {
 	}
 	handler.OK(c, result)
 }
+func (h *Handler) RenameCategory(c *gin.Context) {
+	id, ok := idParam(c)
+	if !ok {
+		return
+	}
+	var req renameCategoryReq
+	if err := c.ShouldBindJSON(&req); err != nil {
+		invalid(c)
+		return
+	}
+	meta := handler.AuditMetaFromRequest(c)
+	result, err := h.cms.RenameCategory(c, svcCMS.RenameCategoryCmd{CategoryID: id, Locale: c.Param("locale"), Name: req.Name, ActorUserID: handlerMiddleware.CurrentUserID(c), IP: meta.IP, UserAgent: meta.UserAgent})
+	if err != nil {
+		fail(c, err)
+		return
+	}
+	handler.OK(c, result)
+}
+func (h *Handler) DeleteCategory(c *gin.Context) {
+	id, ok := idParam(c)
+	if !ok {
+		return
+	}
+	meta := handler.AuditMetaFromRequest(c)
+	if err := h.cms.DeleteCategory(c, svcCMS.DeleteCategoryCmd{CategoryID: id, ActorUserID: handlerMiddleware.CurrentUserID(c), IP: meta.IP, UserAgent: meta.UserAgent}); err != nil {
+		fail(c, err)
+		return
+	}
+	handler.OK(c, gin.H{"id": id})
+}
 func (h *Handler) UpsertCategoryTranslation(c *gin.Context) {
 	id, ok := idParam(c)
 	if !ok {
@@ -322,6 +361,24 @@ func (h *Handler) UpsertCategoryTranslation(c *gin.Context) {
 	}
 	meta := handler.AuditMetaFromRequest(c)
 	result, err := h.cms.UpsertCategoryTranslation(c, svcCMS.UpsertCategoryTranslationCmd{CategoryID: id, Locale: c.Param("locale"), Name: req.Name, Slug: req.Slug, Description: req.Description, SEOTitle: req.SEOTitle, SEODescription: req.SEODescription, ActorUserID: handlerMiddleware.CurrentUserID(c), IP: meta.IP, UserAgent: meta.UserAgent})
+	if err != nil {
+		fail(c, err)
+		return
+	}
+	handler.OK(c, result)
+}
+func (h *Handler) RenameTag(c *gin.Context) {
+	id, ok := idParam(c)
+	if !ok {
+		return
+	}
+	var req renameTagReq
+	if err := c.ShouldBindJSON(&req); err != nil {
+		invalid(c)
+		return
+	}
+	meta := handler.AuditMetaFromRequest(c)
+	result, err := h.cms.RenameTag(c, svcCMS.RenameTagCmd{TagID: id, Locale: c.Param("locale"), Name: req.Name, ActorUserID: handlerMiddleware.CurrentUserID(c), IP: meta.IP, UserAgent: meta.UserAgent})
 	if err != nil {
 		fail(c, err)
 		return
@@ -530,6 +587,10 @@ func fail(c *gin.Context, err error) {
 		handler.Fail(c, "CATEGORY_NOT_FOUND", "category not found")
 	case errors.Is(err, domainCMS.ErrCategoryCycle):
 		handler.Fail(c, "CATEGORY_CYCLE", "category hierarchy cannot contain a cycle")
+	case errors.Is(err, domainCMS.ErrCategoryInUse):
+		handler.Fail(c, "CATEGORY_IN_USE", "remove category assignments from articles before deleting it")
+	case errors.Is(err, domainCMS.ErrCategoryHasChildren):
+		handler.Fail(c, "CATEGORY_HAS_CHILDREN", "move or delete child categories before deleting it")
 	case errors.Is(err, domainCMS.ErrTranslationAbsent):
 		handler.Fail(c, "CONTENT_TRANSLATION_NOT_FOUND", "content translation not found")
 	case errors.Is(err, domainCMS.ErrArticleNotFound):
