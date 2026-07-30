@@ -146,7 +146,34 @@ function insertIntoActiveEditor(text: string) {
 
 function MarkdownWorkspace({ value, onChange, onSave, onMedia, previewHTML, previewPending, previewError, readingMinutes }: { value: string; onChange(value: string): void; onSave(): void; onMedia(): void; previewHTML: string; previewPending: boolean; previewError: unknown; readingMinutes?: number }) {
   const editorRef = useRef<ReactCodeMirrorRef>(null);
+  const previewRef = useRef<HTMLDivElement>(null);
+  const scrollFrame = useRef<number | null>(null);
   const extensions = useMemo(() => [markdown({ base: markdownLanguage }), keymap.of([{ key: "Mod-s", run: () => { onSave(); return true; } }])], [onSave]);
+
+  useEffect(() => {
+    const editor = editorRef.current?.view?.scrollDOM;
+    const preview = previewRef.current;
+    const desktop = window.matchMedia("(min-width: 901px)");
+    if (!editor || !preview) return;
+    const sync = () => {
+      if (!desktop.matches) return;
+      if (scrollFrame.current !== null) window.cancelAnimationFrame(scrollFrame.current);
+      scrollFrame.current = window.requestAnimationFrame(() => {
+        const editorRange = editor.scrollHeight - editor.clientHeight;
+        const previewRange = preview.scrollHeight - preview.clientHeight;
+        preview.scrollTop = editorRange > 0 ? (editor.scrollTop / editorRange) * previewRange : 0;
+        scrollFrame.current = null;
+      });
+    };
+    editor.addEventListener("scroll", sync, { passive: true });
+    desktop.addEventListener("change", sync);
+    sync();
+    return () => {
+      editor.removeEventListener("scroll", sync);
+      desktop.removeEventListener("change", sync);
+      if (scrollFrame.current !== null) window.cancelAnimationFrame(scrollFrame.current);
+    };
+  }, [previewHTML]);
   const command = (prefix: string, suffix = prefix, placeholder = "text") => {
     const view = editorRef.current?.view;
     if (!view) return;
@@ -160,7 +187,7 @@ function MarkdownWorkspace({ value, onChange, onSave, onMedia, previewHTML, prev
     <div className="markdown-toolbar" role="toolbar" aria-label="Markdown formatting">
       <button type="button" title="Heading" onClick={() => command("## ", "", "Heading")}><Heading2 size={16} /></button><button type="button" title="Bold" onClick={() => command("**", "**")}><Bold size={16} /></button><button type="button" title="Italic" onClick={() => command("_", "_")}><Italic size={16} /></button><button type="button" title="Quote" onClick={() => command("> ", "", "Quote")}><Quote size={16} /></button><button type="button" title="Bulleted list" onClick={() => command("- ", "", "List item")}><List size={16} /></button><button type="button" title="Numbered list" onClick={() => command("1. ", "", "List item")}><ListOrdered size={16} /></button><button type="button" title="Link" onClick={() => command("[", "](https://example.com)", "link text")}><LinkIcon size={16} /></button><button type="button" title="Code block" onClick={() => command("```\n", "\n```", "code")}><Code2 size={16} /></button><button type="button" title="Table" onClick={() => command("| Column | Column |\n| --- | --- |\n| Value | Value |\n", "", "")}><Table2 size={16} /></button><button type="button" title="Choose image" onClick={onMedia}><Image size={16} /></button>
     </div>
-    <div className="markdown-columns"><div className="markdown-editor-pane"><div className="pane-title">Markdown</div><CodeMirror ref={(instance) => { editorRef.current = instance; activeEditor = instance; }} value={value} height="560px" extensions={extensions} onChange={onChange} basicSetup={{ lineNumbers: true, foldGutter: true, highlightActiveLine: true }} /></div><div className="markdown-preview-pane"><div className="pane-title">Preview {readingMinutes ? `· ${readingMinutes} min read` : ""}{previewPending ? " · updating" : ""}</div>{previewError ? <ErrorNotice error={previewError} /> : previewHTML ? <article className="markdown-preview" dangerouslySetInnerHTML={{ __html: previewHTML }} /> : <p className="preview-empty">Start writing to see the final rendered article.</p>}</div></div>
+    <div className="markdown-columns"><div className="markdown-editor-pane"><div className="pane-title">Markdown</div><CodeMirror ref={(instance) => { editorRef.current = instance; activeEditor = instance; }} value={value} height="560px" extensions={extensions} onChange={onChange} basicSetup={{ lineNumbers: true, foldGutter: true, highlightActiveLine: true }} /></div><div className="markdown-preview-pane" ref={previewRef}><div className="pane-title">Preview {readingMinutes ? `· ${readingMinutes} min read` : ""}{previewPending ? " · updating" : ""}</div>{previewError ? <ErrorNotice error={previewError} /> : previewHTML ? <article className="markdown-preview" dangerouslySetInnerHTML={{ __html: previewHTML }} /> : <p className="preview-empty">Start writing to see the final rendered article.</p>}</div></div>
     <div className="editor-status"><span>{value.length} characters</span><span>Ctrl/Cmd+S to save</span></div>
   </div>;
 }
