@@ -10,6 +10,7 @@ export const cms = {
   createCategory: (input: { locale: string; name: string; slug: string; description: string; parent_id?: number | null; sort_order: number }) => write<Category>("POST", "/api/v1/admin/cms/categories", input),
   updateCategory: (id: number, input: { is_enabled: boolean; sort_order: number }) => write<Category>("PATCH", `/api/v1/admin/cms/categories/${id}`, input),
   renameCategory: (id: number, locale: string, input: { name: string }) => write<Category>("PATCH", `/api/v1/admin/cms/categories/${id}/translations/${encodeURIComponent(locale)}`, input),
+  upsertCategoryTranslation: (id: number, locale: string, input: { name: string; slug: string; description: string; seo_title: string; seo_description: string }) => write<Category>("PUT", `/api/v1/admin/cms/categories/${id}/translations/${encodeURIComponent(locale)}`, input),
   moveCategory: (id: number, input: { parent_id: number | null; sort_order: number }) => write<{ id: number }>("PATCH", `/api/v1/admin/cms/categories/${id}/move`, input),
   deleteCategory: (id: number) => write<{ id: number }>("DELETE", `/api/v1/admin/cms/categories/${id}`),
   tags: (locale: string, page = 1) => request<Tag[]>(`/api/v1/admin/cms/tags${query({ locale, page, per_page: 100 })}`),

@@ -74,6 +74,8 @@ type PublicArticle struct {
 type CategoryTreeItem struct {
 	Category
 	CategoryTranslation
+	HasTranslation bool
+	SourceName     string
 }
 
 type ArticleListItem struct {

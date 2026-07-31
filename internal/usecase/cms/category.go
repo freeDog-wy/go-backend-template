@@ -216,7 +216,7 @@ func (s *Service) ListPublishedCategories(ctx context.Context, locale string) ([
 func categoryTree(items []*domainCMS.CategoryTreeItem) []*CategoryTreeResult {
 	byID := make(map[uint]*CategoryTreeResult, len(items))
 	for _, item := range items {
-		byID[item.ID] = &CategoryTreeResult{ID: item.ID, ParentID: item.ParentID, SortOrder: item.SortOrder, IsEnabled: item.Enabled, Name: item.Name, Slug: item.Slug, Description: item.Description, Children: make([]*CategoryTreeResult, 0)}
+		byID[item.ID] = &CategoryTreeResult{ID: item.ID, ParentID: item.ParentID, SortOrder: item.SortOrder, IsEnabled: item.Enabled, HasTranslation: item.HasTranslation, SourceName: item.SourceName, Name: item.Name, Slug: item.Slug, Description: item.Description, Children: make([]*CategoryTreeResult, 0)}
 	}
 	roots := make([]*CategoryTreeResult, 0)
 	for _, item := range items {
