@@ -26,7 +26,7 @@ func (r *Repository) ListArticleTags(ctx context.Context, articleID uint, locale
 		Name, Slug string
 	}
 	var rows []row
-	err := r.conn(ctx).Table("article_tags").Joins("JOIN tags ON tags.id = article_tags.tag_id").Joins("JOIN tag_translations ON tag_translations.tag_id = tags.id").Where("article_tags.article_id = ? AND tag_translations.locale = ?", articleID, locale).Order("tag_translations.name, tags.id").Select("tags.id AS tag_id, tags.is_enabled, tag_translations.name, tag_translations.slug").Scan(&rows).Error
+	err := r.conn(ctx).Table("article_tags").Joins("JOIN tags ON tags.id = article_tags.tag_id").Joins("LEFT JOIN tag_translations ON tag_translations.tag_id = tags.id AND tag_translations.locale = ?", locale).Where("article_tags.article_id = ?", articleID).Order("tag_translations.name NULLS LAST, tags.id").Select("tags.id AS tag_id, tags.is_enabled, tag_translations.name, tag_translations.slug").Scan(&rows).Error
 	if err != nil {
 		return nil, err
 	}

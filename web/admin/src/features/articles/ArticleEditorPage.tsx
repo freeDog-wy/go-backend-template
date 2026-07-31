@@ -10,7 +10,7 @@ import { useNavigate, useParams } from "react-router-dom";
 import { z } from "zod";
 import { cms } from "../../api/cms";
 import { ApiError } from "../../api/http";
-import type { Article, ArticleInput, MediaItem, PublishCheck } from "../../api/types";
+import type { Article, ArticleInput, Category, MediaItem, PublishCheck, Tag } from "../../api/types";
 
 const articleSchema = z.object({
   locale: z.string().min(1, "Locale is required"),
@@ -23,6 +23,11 @@ type ArticleForm = z.infer<typeof articleSchema>;
 const emptyArticle: ArticleForm = { locale: "", title: "", slug: "", summary: "", content: "", content_format: "markdown", seo_title: "", seo_description: "", canonical_url: "" };
 const errorMessage = (error: unknown) => error instanceof ApiError ? `${error.code}: ${error.message}` : error instanceof Error ? error.message : "Request failed";
 
+type CategoryOption = { category: Category; depth: number };
+function flattenCategories(categories: Category[], depth = 0): CategoryOption[] {
+  return categories.flatMap((category) => [{ category, depth }, ...flattenCategories(category.children, depth + 1)]);
+}
+
 export function ArticleEditorPage() {
   const { id, locale: routeLocale } = useParams();
   const articleID = id ? Number(id) : null;
@@ -30,12 +35,25 @@ export function ArticleEditorPage() {
   const client = useQueryClient();
   const [publishChecks, setPublishChecks] = useState<PublishCheck[]>([]);
   const [mediaOpen, setMediaOpen] = useState(false);
+  const [categoryIDs, setCategoryIDs] = useState<number[]>([]);
+  const [primaryCategoryID, setPrimaryCategoryID] = useState<number | null>(null);
+  const [tagIDs, setTagIDs] = useState<number[]>([]);
   const locales = useQuery({ queryKey: ["locales"], queryFn: cms.locales });
   const detail = useQuery({ queryKey: ["article", articleID, routeLocale], queryFn: () => cms.article(articleID!, routeLocale!), enabled: Boolean(articleID && routeLocale) });
   const form = useForm<ArticleForm>({ resolver: zodResolver(articleSchema), defaultValues: { ...emptyArticle, locale: routeLocale ?? "" } });
+  const selectedLocale = form.watch("locale");
+  const categories = useQuery({ queryKey: ["categories", selectedLocale], queryFn: () => cms.categories(selectedLocale), enabled: Boolean(articleID && selectedLocale) });
+  const tags = useQuery({ queryKey: ["tags", selectedLocale], queryFn: () => cms.tags(selectedLocale), enabled: Boolean(articleID && selectedLocale) });
+  const categoryOptions = flattenCategories(categories.data ?? []);
 
   useEffect(() => {
-    if (detail.data) form.reset({ locale: detail.data.locale, title: detail.data.title, slug: detail.data.slug, summary: detail.data.summary, content: detail.data.content, content_format: "markdown", seo_title: detail.data.seo_title, seo_description: detail.data.seo_description, canonical_url: detail.data.canonical_url });
+    if (detail.data) {
+      form.reset({ locale: detail.data.locale, title: detail.data.title, slug: detail.data.slug, summary: detail.data.summary, content: detail.data.content, content_format: "markdown", seo_title: detail.data.seo_title, seo_description: detail.data.seo_description, canonical_url: detail.data.canonical_url });
+      const selectedCategories = detail.data.categories.map((item) => item.category_id);
+      setCategoryIDs(selectedCategories);
+      setPrimaryCategoryID(detail.data.categories.find((item) => item.is_primary)?.category_id ?? null);
+      setTagIDs(detail.data.tags.map((item) => item.id));
+    }
   }, [detail.data, form]);
 
   useEffect(() => {
@@ -52,8 +70,17 @@ export function ArticleEditorPage() {
   }, [form.formState.isDirty]);
 
   const saveMutation = useMutation({ mutationFn: async (input: ArticleInput) => articleID ? cms.updateArticle(articleID, routeLocale!, input) : cms.createArticle(input) });
+  const taxonomyMutation = useMutation({ mutationFn: async ({ id, categories: nextCategories, primaryCategory, tags: nextTags }: { id: number; categories: number[]; primaryCategory: number | null; tags: number[] }) => {
+    await cms.replaceArticleCategories(id, nextCategories, primaryCategory);
+    await cms.replaceArticleTags(id, nextTags);
+  } });
+  const saveArticle = async (values: ArticleForm) => {
+    const article = await saveMutation.mutateAsync(values);
+    if (articleID) await taxonomyMutation.mutateAsync({ id: article.id, categories: categoryIDs, primaryCategory: primaryCategoryID, tags: tagIDs });
+    return article;
+  };
   const publishMutation = useMutation({ mutationFn: async (values: ArticleForm) => {
-    const saved = await saveMutation.mutateAsync(values);
+    const saved = await saveArticle(values);
     const preview = await cms.previewPublish(saved.id, saved.locale);
     setPublishChecks(preview.checks);
     if (!preview.publishable) return { saved, published: false };
@@ -70,7 +97,7 @@ export function ArticleEditorPage() {
   }
 
   const save = form.handleSubmit(async (values) => {
-    const article = await saveMutation.mutateAsync(values);
+    const article = await saveArticle(values);
     await afterSave(article, values);
   });
   const publish = form.handleSubmit(async (values) => {
@@ -84,7 +111,7 @@ export function ArticleEditorPage() {
 
   if (detail.error) return <section className="page"><ErrorNotice error={detail.error} /></section>;
   return <section className="page article-editor-page">
-    <div className="page-heading editor-heading"><div><h1>{articleID ? "Edit article" : "New article"}</h1><p>{form.formState.isDirty ? "Unsaved changes" : detail.data ? `Saved · ${detail.data.status}` : "Create a Markdown article"}</p></div><div className="editor-actions"><button className="secondary" type="button" onClick={() => void save()} disabled={saveMutation.isPending}><Save size={16} />Save draft</button><button type="button" onClick={() => void publish()} disabled={publishMutation.isPending}><Send size={16} />{publishMutation.isPending ? "Checking..." : "Publish"}</button></div></div>
+    <div className="page-heading editor-heading"><div><h1>{articleID ? "Edit article" : "New article"}</h1><p>{form.formState.isDirty ? "Unsaved changes" : detail.data ? `Saved · ${detail.data.status}` : "Create a Markdown article"}</p></div><div className="editor-actions"><button className="secondary" type="button" onClick={() => void save()} disabled={saveMutation.isPending || taxonomyMutation.isPending}><Save size={16} />Save draft</button><button type="button" onClick={() => void publish()} disabled={publishMutation.isPending || taxonomyMutation.isPending}><Send size={16} />{publishMutation.isPending ? "Checking..." : "Publish"}</button></div></div>
     <form className="article-editor-form" onSubmit={(event) => event.preventDefault()}>
       <div className="article-meta-grid">
         <label>Locale{articleID ? <input readOnly {...form.register("locale")} /> : <select {...form.register("locale")}>{locales.data?.filter((item) => item.is_enabled).map((item) => <option key={item.code} value={item.code}>{item.name}</option>)}</select>}</label>
@@ -92,14 +119,20 @@ export function ArticleEditorPage() {
         <label className="wide">Title<input {...form.register("title")} /></label>
         <label className="wide">Summary<textarea rows={3} {...form.register("summary")} /></label>
       </div>
+      {articleID && <ArticleTaxonomy categories={categoryOptions} tags={tags.data ?? []} categoryIDs={categoryIDs} primaryCategoryID={primaryCategoryID} tagIDs={tagIDs} onCategoriesChange={(ids) => { setCategoryIDs(ids); if (primaryCategoryID !== null && !ids.includes(primaryCategoryID)) setPrimaryCategoryID(null); }} onPrimaryCategoryChange={setPrimaryCategoryID} onTagsChange={setTagIDs} />}
       <Controller name="content" control={form.control} render={({ field }) => <MarkdownWorkspace value={field.value} onChange={field.onChange} onSave={() => void save()} onMedia={() => setMediaOpen(true)} previewHTML={preview.data?.html ?? ""} previewPending={preview.isFetching} previewError={preview.error} readingMinutes={preview.data?.reading_minutes} />} />
       <details className="seo-fields"><summary>SEO settings</summary><div className="article-meta-grid"><label>SEO title<input {...form.register("seo_title")} /></label><label>Canonical URL<input {...form.register("canonical_url")} /></label><label className="wide">SEO description<textarea rows={3} {...form.register("seo_description")} /></label></div></details>
       {Object.values(form.formState.errors).map((error) => <p className="error" key={error.message}>{error.message}</p>)}
-      {(saveMutation.error || publishMutation.error) && <ErrorNotice error={saveMutation.error ?? publishMutation.error} />}
+      {(saveMutation.error || taxonomyMutation.error || publishMutation.error || categories.error || tags.error) && <ErrorNotice error={saveMutation.error ?? taxonomyMutation.error ?? publishMutation.error ?? categories.error ?? tags.error} />}
       {publishChecks.length > 0 && <PublishChecklist checks={publishChecks} />}
     </form>
     {mediaOpen && <MediaPicker onClose={() => setMediaOpen(false)} onSelect={(item, alt) => { insertIntoActiveEditor(`![${alt}](${item.public_url})`); setMediaOpen(false); }} />}
   </section>;
+}
+
+function ArticleTaxonomy({ categories, tags, categoryIDs, primaryCategoryID, tagIDs, onCategoriesChange, onPrimaryCategoryChange, onTagsChange }: { categories: CategoryOption[]; tags: Tag[]; categoryIDs: number[]; primaryCategoryID: number | null; tagIDs: number[]; onCategoriesChange(ids: number[]): void; onPrimaryCategoryChange(id: number | null): void; onTagsChange(ids: number[]): void }) {
+  const selectedIDs = (event: React.ChangeEvent<HTMLSelectElement>) => Array.from(event.currentTarget.selectedOptions, (option) => Number(option.value));
+  return <div className="article-meta-grid taxonomy-fields"><label>Categories<select multiple value={categoryIDs.map(String)} onChange={(event) => onCategoriesChange(selectedIDs(event))}>{categories.map(({ category, depth }) => <option key={category.id} value={category.id}>{`${"-- ".repeat(depth)}${category.name}`}</option>)}</select></label><label>Primary category<select value={primaryCategoryID?.toString() ?? ""} onChange={(event) => onPrimaryCategoryChange(event.target.value ? Number(event.target.value) : null)}><option value="">No primary category</option>{categories.filter(({ category }) => categoryIDs.includes(category.id)).map(({ category }) => <option key={category.id} value={category.id}>{category.name}</option>)}</select></label><label className="wide">Tags<select multiple value={tagIDs.map(String)} onChange={(event) => onTagsChange(selectedIDs(event))}>{tags.map((tag) => <option key={tag.id} value={tag.id}>{tag.name}</option>)}</select></label></div>;
 }
 
 let activeEditor: ReactCodeMirrorRef | null = null;
@@ -113,7 +146,34 @@ function insertIntoActiveEditor(text: string) {
 
 function MarkdownWorkspace({ value, onChange, onSave, onMedia, previewHTML, previewPending, previewError, readingMinutes }: { value: string; onChange(value: string): void; onSave(): void; onMedia(): void; previewHTML: string; previewPending: boolean; previewError: unknown; readingMinutes?: number }) {
   const editorRef = useRef<ReactCodeMirrorRef>(null);
+  const previewRef = useRef<HTMLDivElement>(null);
+  const scrollFrame = useRef<number | null>(null);
   const extensions = useMemo(() => [markdown({ base: markdownLanguage }), keymap.of([{ key: "Mod-s", run: () => { onSave(); return true; } }])], [onSave]);
+
+  useEffect(() => {
+    const editor = editorRef.current?.view?.scrollDOM;
+    const preview = previewRef.current;
+    const desktop = window.matchMedia("(min-width: 901px)");
+    if (!editor || !preview) return;
+    const sync = () => {
+      if (!desktop.matches) return;
+      if (scrollFrame.current !== null) window.cancelAnimationFrame(scrollFrame.current);
+      scrollFrame.current = window.requestAnimationFrame(() => {
+        const editorRange = editor.scrollHeight - editor.clientHeight;
+        const previewRange = preview.scrollHeight - preview.clientHeight;
+        preview.scrollTop = editorRange > 0 ? (editor.scrollTop / editorRange) * previewRange : 0;
+        scrollFrame.current = null;
+      });
+    };
+    editor.addEventListener("scroll", sync, { passive: true });
+    desktop.addEventListener("change", sync);
+    sync();
+    return () => {
+      editor.removeEventListener("scroll", sync);
+      desktop.removeEventListener("change", sync);
+      if (scrollFrame.current !== null) window.cancelAnimationFrame(scrollFrame.current);
+    };
+  }, [previewHTML]);
   const command = (prefix: string, suffix = prefix, placeholder = "text") => {
     const view = editorRef.current?.view;
     if (!view) return;
@@ -127,7 +187,7 @@ function MarkdownWorkspace({ value, onChange, onSave, onMedia, previewHTML, prev
     <div className="markdown-toolbar" role="toolbar" aria-label="Markdown formatting">
       <button type="button" title="Heading" onClick={() => command("## ", "", "Heading")}><Heading2 size={16} /></button><button type="button" title="Bold" onClick={() => command("**", "**")}><Bold size={16} /></button><button type="button" title="Italic" onClick={() => command("_", "_")}><Italic size={16} /></button><button type="button" title="Quote" onClick={() => command("> ", "", "Quote")}><Quote size={16} /></button><button type="button" title="Bulleted list" onClick={() => command("- ", "", "List item")}><List size={16} /></button><button type="button" title="Numbered list" onClick={() => command("1. ", "", "List item")}><ListOrdered size={16} /></button><button type="button" title="Link" onClick={() => command("[", "](https://example.com)", "link text")}><LinkIcon size={16} /></button><button type="button" title="Code block" onClick={() => command("```\n", "\n```", "code")}><Code2 size={16} /></button><button type="button" title="Table" onClick={() => command("| Column | Column |\n| --- | --- |\n| Value | Value |\n", "", "")}><Table2 size={16} /></button><button type="button" title="Choose image" onClick={onMedia}><Image size={16} /></button>
     </div>
-    <div className="markdown-columns"><div className="markdown-editor-pane"><div className="pane-title">Markdown</div><CodeMirror ref={(instance) => { editorRef.current = instance; activeEditor = instance; }} value={value} height="560px" extensions={extensions} onChange={onChange} basicSetup={{ lineNumbers: true, foldGutter: true, highlightActiveLine: true }} /></div><div className="markdown-preview-pane"><div className="pane-title">Preview {readingMinutes ? `· ${readingMinutes} min read` : ""}{previewPending ? " · updating" : ""}</div>{previewError ? <ErrorNotice error={previewError} /> : previewHTML ? <article className="markdown-preview" dangerouslySetInnerHTML={{ __html: previewHTML }} /> : <p className="preview-empty">Start writing to see the final rendered article.</p>}</div></div>
+    <div className="markdown-columns"><div className="markdown-editor-pane"><div className="pane-title">Markdown</div><CodeMirror ref={(instance) => { editorRef.current = instance; activeEditor = instance; }} value={value} height="560px" extensions={extensions} onChange={onChange} basicSetup={{ lineNumbers: true, foldGutter: true, highlightActiveLine: true }} /></div><div className="markdown-preview-pane" ref={previewRef}><div className="pane-title">Preview {readingMinutes ? `· ${readingMinutes} min read` : ""}{previewPending ? " · updating" : ""}</div>{previewError ? <ErrorNotice error={previewError} /> : previewHTML ? <article className="markdown-preview" dangerouslySetInnerHTML={{ __html: previewHTML }} /> : <p className="preview-empty">Start writing to see the final rendered article.</p>}</div></div>
     <div className="editor-status"><span>{value.length} characters</span><span>Ctrl/Cmd+S to save</span></div>
   </div>;
 }

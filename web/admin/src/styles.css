@@ -17,6 +17,7 @@ html[data-theme="dark"] { color-scheme: dark; --canvas:#11191e; --surface:#19242
 .article-editor-form { display:grid; gap:18px; }
 .article-meta-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:14px; padding:18px; border:1px solid var(--line); border-radius:8px; background:var(--surface); }
 .article-meta-grid .wide { grid-column:1/-1; }
+.taxonomy-fields select[multiple] { min-height:132px; }
 .markdown-workspace { overflow:hidden; border:1px solid var(--line); border-radius:8px; background:var(--surface); }
 .markdown-toolbar { display:flex; flex-wrap:wrap; gap:4px; padding:8px; border-bottom:1px solid var(--line); background:var(--canvas); }
 .markdown-toolbar button { min-width:34px; min-height:32px; padding:5px; border-color:var(--line); background:var(--surface); color:var(--ink); }
