@@ -10,6 +10,9 @@ import (
 
 func TestListCategoryTreeItemsKeepsUntranslatedCategories(t *testing.T) {
 	fixture := newCMSIntegrationFixture(t)
+	if err := fixture.repo.CreateLocale(fixture.ctx, &domainCMS.Locale{Code: "en-US", Name: "English", IsEnabled: true, SortOrder: 1}); err != nil {
+		t.Fatal(err)
+	}
 	root := fixture.createCategory(t, "root")
 	child := &domainCMS.Category{ParentID: &root.ID, Enabled: true}
 	childTranslation := &domainCMS.CategoryTranslation{Locale: "zh-CN", Name: "child", Slug: "child"}
