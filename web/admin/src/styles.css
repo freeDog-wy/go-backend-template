@@ -12,6 +12,7 @@ html[data-theme="dark"] { color-scheme: dark; --canvas:#11191e; --surface:#19242
 .category-enabled-control,.tag-enabled-control,.locale-enabled-control { display:flex; align-items:center; gap:7px; font-weight:400; color:var(--muted); }
 .category-enabled-control input,.tag-enabled-control input,.locale-enabled-control input { width:32px; min-height:18px; margin:0; accent-color:var(--brand); }
 .category-enabled-control input:disabled,.tag-enabled-control input:disabled,.locale-enabled-control input:disabled { cursor:wait; }
+.translation-missing { color:var(--danger); }
 .default-locale { color:var(--brand); font-weight:600; }
 .editor-heading { position:sticky; top:0; z-index:10; margin:-28px -24px 22px; padding:18px 24px; background:color-mix(in srgb,var(--canvas) 92%,transparent); border-bottom:1px solid var(--line); backdrop-filter:blur(10px); }
 .editor-actions { display:flex; gap:8px; }

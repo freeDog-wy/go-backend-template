@@ -107,7 +107,36 @@ func (r *Repository) ListCategories(ctx context.Context) ([]*domainCMS.Category,
 }
 
 func (r *Repository) ListCategoryTreeItems(ctx context.Context, locale string) ([]*domainCMS.CategoryTreeItem, error) {
-	return r.listCategoryTreeItems(ctx, locale, false)
+	type row struct {
+		CategoryID     uint
+		ParentID       *uint
+		SortOrder      int
+		IsEnabled      bool
+		HasTranslation bool
+		SourceName     string
+		Name           string
+		Slug           string
+		Description    string
+		SEOTitle       string
+		SEODescription string
+	}
+	var rows []row
+	db := r.conn(ctx).Table("categories").Select(`categories.id AS category_id, categories.parent_id, categories.sort_order, categories.is_enabled,
+		CASE WHEN current_translation.category_id IS NULL THEN FALSE ELSE TRUE END AS has_translation,
+		COALESCE(default_translation.name, '') AS source_name,
+		COALESCE(current_translation.name, '') AS name, COALESCE(current_translation.slug, '') AS slug,
+		COALESCE(current_translation.description, '') AS description, COALESCE(current_translation.seo_title, '') AS seo_title,
+		COALESCE(current_translation.seo_description, '') AS seo_description`).
+		Joins("LEFT JOIN category_translations AS current_translation ON current_translation.category_id = categories.id AND current_translation.locale = ?", locale).
+		Joins("LEFT JOIN category_translations AS default_translation ON default_translation.category_id = categories.id AND default_translation.locale = (SELECT code FROM locales WHERE is_default LIMIT 1)")
+	if err := db.Order("categories.parent_id NULLS FIRST, categories.sort_order, categories.id").Scan(&rows).Error; err != nil {
+		return nil, err
+	}
+	items := make([]*domainCMS.CategoryTreeItem, 0, len(rows))
+	for _, row := range rows {
+		items = append(items, &domainCMS.CategoryTreeItem{Category: domainCMS.Category{ID: row.CategoryID, ParentID: row.ParentID, SortOrder: row.SortOrder, Enabled: row.IsEnabled}, CategoryTranslation: domainCMS.CategoryTranslation{CategoryID: row.CategoryID, Locale: locale, Name: row.Name, Slug: row.Slug, Description: row.Description, SEOTitle: row.SEOTitle, SEODescription: row.SEODescription}, HasTranslation: row.HasTranslation, SourceName: row.SourceName})
+	}
+	return items, nil
 }
 
 func (r *Repository) ListPublicCategoryTreeItems(ctx context.Context, locale string) ([]*domainCMS.CategoryTreeItem, error) {
@@ -136,7 +165,7 @@ func (r *Repository) listCategoryTreeItems(ctx context.Context, locale string, e
 	}
 	items := make([]*domainCMS.CategoryTreeItem, 0, len(rows))
 	for _, row := range rows {
-		items = append(items, &domainCMS.CategoryTreeItem{Category: domainCMS.Category{ID: row.CategoryID, ParentID: row.ParentID, SortOrder: row.SortOrder, Enabled: row.IsEnabled}, CategoryTranslation: domainCMS.CategoryTranslation{CategoryID: row.CategoryID, Locale: locale, Name: row.Name, Slug: row.Slug, Description: row.Description, SEOTitle: row.SEOTitle, SEODescription: row.SEODescription}})
+		items = append(items, &domainCMS.CategoryTreeItem{Category: domainCMS.Category{ID: row.CategoryID, ParentID: row.ParentID, SortOrder: row.SortOrder, Enabled: row.IsEnabled}, CategoryTranslation: domainCMS.CategoryTranslation{CategoryID: row.CategoryID, Locale: locale, Name: row.Name, Slug: row.Slug, Description: row.Description, SEOTitle: row.SEOTitle, SEODescription: row.SEODescription}, HasTranslation: true})
 	}
 	return items, nil
 }

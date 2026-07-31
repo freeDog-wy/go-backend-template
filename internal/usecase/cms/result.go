@@ -20,14 +20,16 @@ type CategoryResult struct {
 	Slug      string `json:"slug"`
 }
 type CategoryTreeResult struct {
-	ID          uint                  `json:"id"`
-	ParentID    *uint                 `json:"parent_id,omitempty"`
-	SortOrder   int                   `json:"sort_order"`
-	IsEnabled   bool                  `json:"is_enabled"`
-	Name        string                `json:"name"`
-	Slug        string                `json:"slug"`
-	Description string                `json:"description"`
-	Children    []*CategoryTreeResult `json:"children"`
+	ID             uint                  `json:"id"`
+	ParentID       *uint                 `json:"parent_id,omitempty"`
+	SortOrder      int                   `json:"sort_order"`
+	IsEnabled      bool                  `json:"is_enabled"`
+	HasTranslation bool                  `json:"has_translation"`
+	SourceName     string                `json:"source_name,omitempty"`
+	Name           string                `json:"name"`
+	Slug           string                `json:"slug"`
+	Description    string                `json:"description"`
+	Children       []*CategoryTreeResult `json:"children"`
 }
 type ArticleResult struct {
 	ID          uint       `json:"id"`

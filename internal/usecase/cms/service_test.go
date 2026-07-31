@@ -420,14 +420,14 @@ func TestGetPublishedArticleIncludesPublicCover(t *testing.T) {
 func TestListCategoriesBuildsTree(t *testing.T) {
 	rootID := uint(1)
 	repo := &testRepo{tree: []*domainCMS.CategoryTreeItem{
-		{Category: domainCMS.Category{ID: rootID, Enabled: true}, CategoryTranslation: domainCMS.CategoryTranslation{Name: "Root", Slug: "root"}},
-		{Category: domainCMS.Category{ID: 2, ParentID: &rootID, Enabled: false}, CategoryTranslation: domainCMS.CategoryTranslation{Name: "Child", Slug: "child"}},
+		{Category: domainCMS.Category{ID: rootID, Enabled: true}, CategoryTranslation: domainCMS.CategoryTranslation{Name: "Root", Slug: "root"}, HasTranslation: true},
+		{Category: domainCMS.Category{ID: 2, ParentID: &rootID, Enabled: false}, CategoryTranslation: domainCMS.CategoryTranslation{}, HasTranslation: false, SourceName: "Child"},
 	}}
 	result, err := New(testTx{}, repo).ListCategories(context.Background(), ListCategoriesCmd{Locale: "zh-CN"})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(result) != 1 || !result[0].IsEnabled || len(result[0].Children) != 1 || result[0].Children[0].ID != 2 || result[0].Children[0].IsEnabled {
+	if len(result) != 1 || !result[0].IsEnabled || !result[0].HasTranslation || len(result[0].Children) != 1 || result[0].Children[0].ID != 2 || result[0].Children[0].IsEnabled || result[0].Children[0].HasTranslation || result[0].Children[0].SourceName != "Child" {
 		t.Fatalf("tree = %#v", result)
 	}
 }
