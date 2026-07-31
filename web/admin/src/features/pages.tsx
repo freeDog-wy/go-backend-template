@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Fragment, useEffect, useState } from "react";
-import { AlertTriangle, Archive, ChevronDown, ChevronRight, Folder, FolderInput, FolderOpen, Pencil, Plus, RotateCcw, Trash2, X } from "lucide-react";
+import { AlertTriangle, Archive, ChevronDown, ChevronRight, Folder, FolderInput, FolderOpen, Pencil, Plus, RotateCcw, Star, Trash2, X } from "lucide-react";
 import { useForm } from "react-hook-form";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { ApiError } from "../api/http";
@@ -143,5 +143,45 @@ function TagRenameDialog({ tag, pending, error, onCancel, onRename }: { tag: Tag
 }
 function PageTitle({ title, description }: { title: string; description: string }) { return <div className="page-heading"><div><h1>{title}</h1><p>{description}</p></div></div>; }
 
-export function LocalesPage() { const query = useQuery({ queryKey: ["locales"], queryFn: cms.locales }); const form = useForm({ defaultValues: { code: "", name: "", sort_order: 0, is_enabled: true } }); const client = useQueryClient(); const create = useMutation({ mutationFn: (value: { code: string; name: string; sort_order: number; is_enabled: boolean }) => cms.createLocale(value), onSuccess: () => { form.reset(); client.invalidateQueries({ queryKey: ["locales"] }); } }); return <section className="page"><div className="page-heading"><div><h1>Locales</h1><p>Enabled locales are available for CMS translations.</p></div></div><form className="inline-form" onSubmit={form.handleSubmit((v) => create.mutate(v))}><input placeholder="en-US" required {...form.register("code")} /><input placeholder="English" required {...form.register("name")} /><input type="number" aria-label="Sort order" {...form.register("sort_order", { valueAsNumber: true })} /><label className="checkbox"><input type="checkbox" {...form.register("is_enabled")} />Enabled</label><button disabled={create.isPending}><Plus size={16} />Add</button></form>{create.error && <ErrorNotice error={create.error} />}<table><thead><tr><th>Code</th><th>Name</th><th>Enabled</th><th>Default</th></tr></thead><tbody>{query.data?.map((item: Locale) => <tr key={item.code}><td>{item.code}</td><td>{item.name}</td><td>{item.is_enabled ? "Yes" : "No"}</td><td>{item.is_default ? "Yes" : ""}</td></tr>)}</tbody></table></section>; }
+export function LocalesPage() {
+  const query = useQuery({ queryKey: ["locales"], queryFn: cms.locales });
+  const form = useForm({ defaultValues: { code: "", name: "", sort_order: 0, is_enabled: true } });
+  const client = useQueryClient();
+  const refreshLocales = () => client.invalidateQueries({ queryKey: ["locales"] });
+  const create = useMutation({
+    mutationFn: (value: { code: string; name: string; sort_order: number; is_enabled: boolean }) => cms.createLocale(value),
+    onSuccess: () => { form.reset(); refreshLocales(); },
+  });
+  const update = useMutation({
+    mutationFn: ({ locale, isEnabled, isDefault }: { locale: Locale; isEnabled: boolean; isDefault: boolean }) => cms.updateLocale(locale.code, { name: locale.name, is_enabled: isEnabled, sort_order: locale.sort_order, is_default: isDefault }),
+    onSuccess: refreshLocales,
+  });
+
+  return <section className="page">
+    <div className="page-heading"><div><h1>Locales</h1><p>Enabled locales are available for CMS translations.</p></div></div>
+    <form className="inline-form" onSubmit={form.handleSubmit((v) => create.mutate(v))}>
+      <input placeholder="en-US" required {...form.register("code")} />
+      <input placeholder="English" required {...form.register("name")} />
+      <input type="number" aria-label="Sort order" {...form.register("sort_order", { valueAsNumber: true })} />
+      <label className="checkbox"><input type="checkbox" {...form.register("is_enabled")} />Enabled</label>
+      <button disabled={create.isPending}><Plus size={16} />Add</button>
+    </form>
+    {create.error && <ErrorNotice error={create.error} />}
+    {update.error && <ErrorNotice error={update.error} />}
+    {query.error && <ErrorNotice error={query.error} />}
+    <table className="locales-table">
+      <thead><tr><th>Code</th><th>Name</th><th>Status</th><th>Default</th><th>Actions</th></tr></thead>
+      <tbody>{query.data?.map((item) => {
+        const rowPending = update.isPending && update.variables?.locale.code === item.code;
+        return <tr key={item.code}>
+          <td>{item.code}</td>
+          <td>{item.name}</td>
+          <td><label className="locale-enabled-control"><input type="checkbox" role="switch" checked={item.is_enabled} disabled={item.is_default || rowPending} onChange={() => update.mutate({ locale: item, isEnabled: !item.is_enabled, isDefault: item.is_default })} /><span>{item.is_enabled ? "Enabled" : "Disabled"}</span></label></td>
+          <td>{item.is_default ? <span className="default-locale">Default</span> : ""}</td>
+          <td>{!item.is_default && <button className="icon-button" type="button" title={item.is_enabled ? "Set as default locale" : "Enable this locale before setting it as default"} aria-label={`Set ${item.name} as default locale`} disabled={!item.is_enabled || rowPending} onClick={() => update.mutate({ locale: item, isEnabled: item.is_enabled, isDefault: true })}><Star size={16} /></button>}</td>
+        </tr>;
+      })}</tbody>
+    </table>
+  </section>;
+}
 function ErrorNotice({ error }: { error: unknown }) { return <p className="error" role="alert"><AlertTriangle size={16} />{message(error)}</p>; }
