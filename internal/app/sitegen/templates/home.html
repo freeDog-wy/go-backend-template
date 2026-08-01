@@ -1,7 +1,12 @@
 {{define "content"}}
 <section class="site-shell content-section" aria-labelledby="categories-heading">
   <h2 id="categories-heading">{{.Labels.Categories}}</h2>
-  <nav class="category-tree" aria-labelledby="categories-heading">{{template "category-tree-list" .Categories}}</nav>
+  <nav class="category-directory" aria-labelledby="categories-heading">{{range .Categories}}
+    <section class="category-directory-group">
+      <h3><a href="{{.URL}}">{{.Name}}</a></h3>
+      {{if .Children}}{{template "category-directory-list" .Children}}{{end}}
+    </section>{{end}}
+  </nav>
 </section>
 <section class="site-shell content-section" aria-labelledby="latest-heading">
   <div class="section-heading"><h2 id="latest-heading">{{.Labels.LatestArticles}}</h2><a href="{{.CurrentLocale.URL}}articles/">{{.Labels.Articles}}</a></div>
@@ -9,8 +14,8 @@
 </section>
 {{end}}
 
-{{define "category-tree-list"}}
-<ul class="category-tree-list">{{range .}}
-  <li><a class="category-tree-link" href="{{.URL}}">{{.Name}}</a>{{if .Children}}{{template "category-tree-list" .Children}}{{end}}</li>{{end}}
+{{define "category-directory-list"}}
+<ul class="category-directory-list">{{range .}}
+  <li><a href="{{.URL}}">{{.Name}}</a>{{if .Children}}{{template "category-directory-list" .Children}}{{end}}</li>{{end}}
 </ul>
 {{end}}
