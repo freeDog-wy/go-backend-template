@@ -67,9 +67,10 @@ type categoryNavView struct {
 }
 
 type categoryTreeView struct {
-	Name     string
-	URL      string
-	Children []categoryTreeView
+	Name        string
+	Description string
+	URL         string
+	Children    []categoryTreeView
 }
 
 type pageBaseView struct {

@@ -42,7 +42,7 @@ func TestBuildGeneratesMultilingualStaticSite(t *testing.T) {
 	if !strings.Contains(enHome, "<title>Docs</title>") || strings.Contains(enHome, "<h1>") {
 		t.Fatalf("English home page should have only the site name document title and no content heading:\n%s", enHome)
 	}
-	if !strings.Contains(enHome, `<nav class="category-directory"`) || !strings.Contains(enHome, `class="category-directory-group"`) || !strings.Contains(enHome, `href="/en-US/categories/backend/"`) || !strings.Contains(enHome, `href="/en-US/categories/go/"`) {
+	if !strings.Contains(enHome, `<nav class="category-directory"`) || !strings.Contains(enHome, `class="category-directory-group"`) || !strings.Contains(enHome, `Backend engineering articles`) || !strings.Contains(enHome, `href="/en-US/categories/backend/"`) || !strings.Contains(enHome, `href="/en-US/categories/go/"`) {
 		t.Fatalf("English home page is missing the category directory:\n%s", enHome)
 	}
 

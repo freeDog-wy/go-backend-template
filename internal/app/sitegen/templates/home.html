@@ -4,7 +4,8 @@
   <nav class="category-directory" aria-labelledby="categories-heading">{{range .Categories}}
     <section class="category-directory-group">
       <h3><a href="{{.URL}}">{{.Name}}</a></h3>
-      {{if .Children}}{{template "category-directory-list" .Children}}{{end}}
+      {{if .Description}}<p>{{.Description}}</p>{{end}}
+      {{if .Children}}<div class="category-directory-children">{{template "category-directory-list" .Children}}</div>{{end}}
     </section>{{end}}
   </nav>
 </section>

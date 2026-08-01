@@ -468,9 +468,10 @@ func (a *App) categoryTree(locale string, categories []Category) []categoryTreeV
 	result := make([]categoryTreeView, 0, len(categories))
 	for _, category := range categories {
 		result = append(result, categoryTreeView{
-			Name:     category.Name,
-			URL:      categoryRoute(locale, category.Slug, 1),
-			Children: a.categoryTree(locale, category.Children),
+			Name:        category.Name,
+			Description: category.Description,
+			URL:         categoryRoute(locale, category.Slug, 1),
+			Children:    a.categoryTree(locale, category.Children),
 		})
 	}
 	return result
