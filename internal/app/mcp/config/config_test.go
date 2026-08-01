@@ -81,3 +81,15 @@ func TestLoadDoesNotReadDotEnvOrCredentialsFromYAML(t *testing.T) {
 		t.Fatal("Validate() error = nil, want missing environment credentials error")
 	}
 }
+
+func TestValidateRequiresContentRoot(t *testing.T) {
+	cfg := Config{
+		CMSBaseURL:            "https://cms.example.internal",
+		RequestTimeoutSeconds: 10,
+		ClientID:              "mcp-client",
+		ClientSecret:          "mcp-secret",
+	}
+	if err := cfg.Validate(); err == nil || err.Error() != "CMS_CONTENT_ROOT is required" {
+		t.Fatalf("Validate() error = %v", err)
+	}
+}

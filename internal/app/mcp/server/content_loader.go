@@ -92,20 +92,16 @@ func pathWithin(root, path string) bool {
 
 type resolvedArticleWrite struct {
 	input         articleWriteInput
+	content       string
 	contentDigest string
 }
 
 func resolveArticleWrite(input articleWriteInput, loader contentLoader) (resolvedArticleWrite, error) {
-	if strings.TrimSpace(input.ContentFile) == "" {
-		return resolvedArticleWrite{input: input}, nil
-	}
 	content, digest, err := loader.load(input.ContentFile)
 	if err != nil {
 		return resolvedArticleWrite{}, err
 	}
-	input.Content = content
-	input.ContentFile = ""
-	return resolvedArticleWrite{input: input, contentDigest: digest}, nil
+	return resolvedArticleWrite{input: input, content: content, contentDigest: digest}, nil
 }
 
 func (r resolvedArticleWrite) operationInput() any {

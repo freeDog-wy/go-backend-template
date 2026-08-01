@@ -72,6 +72,9 @@ func (c Config) Validate() error {
 	if c.ClientID == "" || strings.TrimSpace(c.ClientSecret) == "" {
 		return fmt.Errorf("%s and %s are required", envCMSMCPClientID, envCMSMCPClientSecret)
 	}
+	if c.ContentRoot == "" {
+		return fmt.Errorf("%s is required", envCMSContentRoot)
+	}
 	if c.GSCEnabled && (c.GSCProperty == "" || c.GSCServiceAccountFile == "") {
 		return fmt.Errorf("%s and %s are required when %s is true", envGSCProperty, envGSCServiceAccountFile, envGSCEnabled)
 	}

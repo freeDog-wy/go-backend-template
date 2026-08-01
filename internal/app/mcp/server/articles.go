@@ -22,8 +22,7 @@ type articleWriteInput struct {
 	Title          string `json:"title" jsonschema:"article title"`
 	Slug           string `json:"slug" jsonschema:"URL slug"`
 	Summary        string `json:"summary,omitempty"`
-	Content        string `json:"content,omitempty"`
-	ContentFile    string `json:"content_file,omitempty" jsonschema:"relative UTF-8 file path below CMS_CONTENT_ROOT; mutually exclusive with content"`
+	ContentFile    string `json:"content_file" jsonschema:"required relative UTF-8 file path below CMS_CONTENT_ROOT"`
 	ContentFormat  string `json:"content_format,omitempty" jsonschema:"markdown or html; defaults to markdown when creating"`
 	SEOTitle       string `json:"seo_title,omitempty"`
 	SEODescription string `json:"seo_description,omitempty"`
@@ -66,7 +65,7 @@ func registerArticleTools(server *mcp.Server, client contract.ArticleService, lo
 		}
 		return nil, output, nil
 	})
-	mcp.AddTool(server, &mcp.Tool{Name: "cms.article.create_draft", Description: "Create one CMS article as a draft. Confirm the draft fields with the user before calling. Provide content or a staged content_file, not both.", Annotations: annotations.write}, func(ctx context.Context, req *mcp.CallToolRequest, input articleWriteInput) (*mcp.CallToolResult, map[string]any, error) {
+	mcp.AddTool(server, &mcp.Tool{Name: "cms.article.create_draft", Description: "Create one CMS article as a draft. Confirm the draft fields with the user before calling. content_file is required and is read by the MCP server.", Annotations: annotations.write}, func(ctx context.Context, req *mcp.CallToolRequest, input articleWriteInput) (*mcp.CallToolResult, map[string]any, error) {
 		if err := validateArticleInput(input, false); err != nil {
 			return toolError("INVALID_INPUT", err.Error()), nil, nil
 		}
@@ -74,9 +73,9 @@ func registerArticleTools(server *mcp.Server, client contract.ArticleService, lo
 		if err != nil {
 			return toolError("INVALID_INPUT", err.Error()), nil, nil
 		}
-		return toolOutput(client.CreateArticleDraft(writeContext(ctx, req, "cms.article.create_draft", resolved.operationInput()), articleInput(resolved.input)))
+		return toolOutput(client.CreateArticleDraft(writeContext(ctx, req, "cms.article.create_draft", resolved.operationInput()), articleInput(resolved)))
 	})
-	mcp.AddTool(server, &mcp.Tool{Name: "cms.article.create_translation", Description: "Create a new draft translation for an existing article. Confirm the translation fields with the user before calling. Provide content or a staged content_file, not both.", Annotations: annotations.write}, func(ctx context.Context, req *mcp.CallToolRequest, input articleWriteInput) (*mcp.CallToolResult, map[string]any, error) {
+	mcp.AddTool(server, &mcp.Tool{Name: "cms.article.create_translation", Description: "Create a new draft translation for an existing article. Confirm the translation fields with the user before calling. content_file is required and is read by the MCP server.", Annotations: annotations.write}, func(ctx context.Context, req *mcp.CallToolRequest, input articleWriteInput) (*mcp.CallToolResult, map[string]any, error) {
 		if err := validateArticleInput(input, true); err != nil {
 			return toolError("INVALID_INPUT", err.Error()), nil, nil
 		}
@@ -84,9 +83,9 @@ func registerArticleTools(server *mcp.Server, client contract.ArticleService, lo
 		if err != nil {
 			return toolError("INVALID_INPUT", err.Error()), nil, nil
 		}
-		return toolOutput(client.CreateArticleTranslation(writeContext(ctx, req, "cms.article.create_translation", resolved.operationInput()), input.ArticleID, articleInput(resolved.input)))
+		return toolOutput(client.CreateArticleTranslation(writeContext(ctx, req, "cms.article.create_translation", resolved.operationInput()), input.ArticleID, articleInput(resolved)))
 	})
-	mcp.AddTool(server, &mcp.Tool{Name: "cms.article.update_translation", Description: "Update one draft or published article translation. Confirm the intended content with the user before calling. Provide content or a staged content_file, not both.", Annotations: annotations.write}, func(ctx context.Context, req *mcp.CallToolRequest, input articleWriteInput) (*mcp.CallToolResult, map[string]any, error) {
+	mcp.AddTool(server, &mcp.Tool{Name: "cms.article.update_translation", Description: "Update one draft or published article translation. Confirm the intended content with the user before calling. content_file is required and is read by the MCP server.", Annotations: annotations.write}, func(ctx context.Context, req *mcp.CallToolRequest, input articleWriteInput) (*mcp.CallToolResult, map[string]any, error) {
 		if err := validateArticleInput(input, true); err != nil {
 			return toolError("INVALID_INPUT", err.Error()), nil, nil
 		}
@@ -94,7 +93,7 @@ func registerArticleTools(server *mcp.Server, client contract.ArticleService, lo
 		if err != nil {
 			return toolError("INVALID_INPUT", err.Error()), nil, nil
 		}
-		return toolOutput(client.UpdateArticleTranslation(writeContext(ctx, req, "cms.article.update_translation", resolved.operationInput()), input.ArticleID, input.Locale, articleInput(resolved.input)))
+		return toolOutput(client.UpdateArticleTranslation(writeContext(ctx, req, "cms.article.update_translation", resolved.operationInput()), input.ArticleID, input.Locale, articleInput(resolved)))
 	})
 	mcp.AddTool(server, &mcp.Tool{Name: "cms.article.set_categories", Description: "Replace an article's categories. Confirm the intended associations with the user before calling.", Annotations: annotations.write}, func(ctx context.Context, req *mcp.CallToolRequest, input articleRelationsInput) (*mcp.CallToolResult, map[string]any, error) {
 		if input.ArticleID == 0 {
@@ -140,8 +139,9 @@ func registerArticleTools(server *mcp.Server, client contract.ArticleService, lo
 	})
 }
 
-func articleInput(input articleWriteInput) contract.ArticleInput {
-	return contract.ArticleInput{Locale: input.Locale, Title: input.Title, Slug: input.Slug, Summary: input.Summary, Content: input.Content, ContentFormat: input.ContentFormat, SEOTitle: input.SEOTitle, SEODescription: input.SEODescription, CanonicalURL: input.CanonicalURL}
+func articleInput(resolved resolvedArticleWrite) contract.ArticleInput {
+	input := resolved.input
+	return contract.ArticleInput{Locale: input.Locale, Title: input.Title, Slug: input.Slug, Summary: input.Summary, Content: resolved.content, ContentFormat: input.ContentFormat, SEOTitle: input.SEOTitle, SEODescription: input.SEODescription, CanonicalURL: input.CanonicalURL}
 }
 
 func validateArticleInput(input articleWriteInput, requireID bool) error {
@@ -154,8 +154,8 @@ func validateArticleInput(input articleWriteInput, requireID bool) error {
 	if input.ContentFormat != "" && input.ContentFormat != "markdown" && input.ContentFormat != "html" {
 		return fmt.Errorf("content_format must be markdown or html")
 	}
-	if input.Content != "" && input.ContentFile != "" {
-		return fmt.Errorf("content and content_file are mutually exclusive")
+	if strings.TrimSpace(input.ContentFile) == "" {
+		return fmt.Errorf("content_file is required")
 	}
 	return nil
 }

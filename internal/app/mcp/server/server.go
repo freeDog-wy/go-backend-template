@@ -17,8 +17,7 @@ type Dependencies struct {
 	Categories    contract.CategoryService
 	Tags          contract.TagService
 	SearchConsole contract.SearchConsoleService
-	// ContentRoot bounds article body files accepted by write tools. An empty
-	// value leaves inline content available and rejects content_file inputs.
+	// ContentRoot bounds article body files required by article write tools.
 	ContentRoot string
 }
 

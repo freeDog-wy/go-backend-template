@@ -71,10 +71,10 @@ func TestResolvedFileContentChangesWriteOperationID(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if first.input.Content != "first" {
-		t.Fatalf("resolved content = %q", first.input.Content)
+	if first.content != "first" {
+		t.Fatalf("resolved content = %q", first.content)
 	}
-	if input := articleInput(first.input); input.Content != "first" {
+	if input := articleInput(first); input.Content != "first" {
 		t.Fatalf("CMS article input content = %q", input.Content)
 	}
 	firstOperationID := operationIDFor("session-1", "", "cms.article.create_draft", first.operationInput())
@@ -124,10 +124,38 @@ func TestArticleCreateDraftLoadsContentFileBeforeCallingCMS(t *testing.T) {
 	}
 }
 
-func TestValidateArticleInputRejectsInlineAndFileContent(t *testing.T) {
-	err := validateArticleInput(articleWriteInput{Locale: "zh-CN", Title: "Draft", Slug: "draft", Content: "inline", ContentFile: "draft.md"}, false)
-	if err == nil || !strings.Contains(err.Error(), "mutually exclusive") {
+func TestValidateArticleInputRequiresContentFile(t *testing.T) {
+	err := validateArticleInput(articleWriteInput{Locale: "zh-CN", Title: "Draft", Slug: "draft"}, false)
+	if err == nil || !strings.Contains(err.Error(), "content_file is required") {
 		t.Fatalf("validateArticleInput() error = %v", err)
+	}
+}
+
+func TestArticleCreateDraftRejectsInlineContent(t *testing.T) {
+	ctx := context.Background()
+	articles := &articleWriteFake{}
+	server := New(Dependencies{Articles: articles, ContentRoot: t.TempDir()}, nil)
+	client := mcp.NewClient(&mcp.Implementation{Name: "test-client", Version: "1.0.0"}, nil)
+	serverTransport, clientTransport := mcp.NewInMemoryTransports()
+	serverSession, err := server.Connect(ctx, serverTransport, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer serverSession.Close()
+	clientSession, err := client.Connect(ctx, clientTransport, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer clientSession.Close()
+
+	result, err := clientSession.CallTool(ctx, &mcp.CallToolParams{Name: "cms.article.create_draft", Arguments: map[string]any{
+		"locale": "zh-CN", "title": "Inline", "slug": "inline", "content": "must be rejected",
+	}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !result.IsError || articles.input.Content != "" {
+		t.Fatalf("result = %#v, CMS input = %#v", result, articles.input)
 	}
 }
 
