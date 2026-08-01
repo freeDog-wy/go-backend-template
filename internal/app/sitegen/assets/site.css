@@ -115,7 +115,7 @@ h4 { font-size: 18px; }
 .category-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--space-3); }
 .category-link { display: block; padding: var(--space-4); border-bottom: 1px solid var(--color-line); color: var(--color-ink); text-decoration: none; }
 .category-link:hover { border-color: var(--color-brand); color: var(--color-brand); }
-.category-directory { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-4); margin-top: var(--space-5); }
+.category-directory { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-4); margin-top: var(--space-6); }
 .category-directory-group { min-width: 0; padding: 20px; border: 1px solid var(--color-line); border-radius: var(--radius-card); background: var(--color-surface); }
 .category-directory-group:hover { border-color: var(--color-brand); }
 .category-directory-group h3 { font-size: 20px; }
