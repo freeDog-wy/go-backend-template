@@ -109,6 +109,11 @@ type ArticleInput struct {
 	CanonicalURL   string `json:"canonical_url,omitempty"`
 }
 
+type ArticleListOptions struct {
+	IncludeDeleted bool
+	DeletedOnly    bool
+}
+
 type CategoryInput struct {
 	ParentID       *uint  `json:"parent_id,omitempty"`
 	SortOrder      int    `json:"sort_order"`
@@ -138,6 +143,10 @@ type CategoryTranslationInput struct {
 	SEODescription string `json:"seo_description,omitempty"`
 }
 
+type RenameInput struct {
+	Name string `json:"name"`
+}
+
 type TagInput struct {
 	Locale string `json:"locale"`
 	Name   string `json:"name"`
@@ -147,6 +156,21 @@ type TagInput struct {
 type TagTranslationInput struct {
 	Name string `json:"name"`
 	Slug string `json:"slug"`
+}
+
+type TagStateInput struct {
+	IsEnabled bool `json:"is_enabled"`
+}
+
+type MediaUploadRequestInput struct {
+	Filename    string `json:"filename"`
+	ContentType string `json:"content_type"`
+	SizeBytes   int64  `json:"size_bytes"`
+}
+
+type MediaTranslationInput struct {
+	AltText string `json:"alt_text,omitempty"`
+	Title   string `json:"title,omitempty"`
 }
 
 type LocaleCreateInput struct {

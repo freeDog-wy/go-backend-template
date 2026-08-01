@@ -16,6 +16,7 @@ type Dependencies struct {
 	Articles      contract.ArticleService
 	Categories    contract.CategoryService
 	Tags          contract.TagService
+	Media         contract.MediaService
 	SearchConsole contract.SearchConsoleService
 	// ContentRoot bounds article body files required by article write tools.
 	ContentRoot string
@@ -38,6 +39,7 @@ func New(deps Dependencies, logger *slog.Logger) *mcp.Server {
 	registerArticleTools(server, deps.Articles, newContentLoader(deps.ContentRoot), annotations)
 	registerCategoryTools(server, deps.Categories, annotations)
 	registerTagTools(server, deps.Tags, annotations)
+	registerMediaTools(server, deps.Media, annotations)
 	registerLocaleTools(server, deps.Locales, annotations)
 	if deps.SearchConsole != nil {
 		registerSearchConsoleTools(server, deps.SearchConsole, annotations)

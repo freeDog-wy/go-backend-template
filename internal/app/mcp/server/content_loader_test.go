@@ -170,7 +170,7 @@ func (f *articleWriteFake) CreateArticleDraft(ctx context.Context, input contrac
 	return json.RawMessage(`{"id":7}`), nil
 }
 
-func (*articleWriteFake) Articles(context.Context, string, string, int, int) (json.RawMessage, error) {
+func (*articleWriteFake) Articles(context.Context, string, string, int, int, contract.ArticleListOptions) (json.RawMessage, error) {
 	return nil, nil
 }
 
@@ -206,11 +206,19 @@ func (*articleWriteFake) ArchiveArticleTranslation(context.Context, uint, string
 	return nil, nil
 }
 
+func (*articleWriteFake) DeleteArticle(context.Context, uint) (json.RawMessage, error) {
+	return nil, nil
+}
+
 func (*articleWriteFake) RestoreArticle(context.Context, uint) (json.RawMessage, error) {
 	return nil, nil
 }
 
 func (*articleWriteFake) SetArticleCover(context.Context, uint, *uint) (json.RawMessage, error) {
+	return nil, nil
+}
+
+func (*articleWriteFake) PreviewMarkdown(context.Context, string) (json.RawMessage, error) {
 	return nil, nil
 }
 

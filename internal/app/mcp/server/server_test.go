@@ -86,6 +86,14 @@ func (*categoryResourceFake) MoveCategory(context.Context, uint, contract.Catego
 	return nil, nil
 }
 
+func (*categoryResourceFake) RenameCategory(context.Context, uint, string, contract.RenameInput) (json.RawMessage, error) {
+	return nil, nil
+}
+
+func (*categoryResourceFake) DeleteCategory(context.Context, uint) (json.RawMessage, error) {
+	return nil, nil
+}
+
 func (*categoryResourceFake) UpsertCategoryTranslation(context.Context, uint, string, contract.CategoryTranslationInput) (json.RawMessage, error) {
 	return nil, nil
 }
@@ -130,7 +138,7 @@ func TestOperationIDForUsesHostValueOrSessionFingerprint(t *testing.T) {
 
 func TestServerRegistersOperationalToolsAndPrompts(t *testing.T) {
 	ctx := context.Background()
-	server := New(Dependencies{SearchConsole: &searchConsoleFake{}}, nil)
+	server := New(Dependencies{SearchConsole: &searchConsoleFake{}, Media: &mediaServiceFake{}}, nil)
 	client := mcp.NewClient(&mcp.Implementation{Name: "test-client", Version: "1.0.0"}, nil)
 	serverTransport, clientTransport := mcp.NewInMemoryTransports()
 	serverSession, err := server.Connect(ctx, serverTransport, nil)
@@ -150,16 +158,26 @@ func TestServerRegistersOperationalToolsAndPrompts(t *testing.T) {
 		"gsc.url.inspect":                 false,
 		"cms.article.create_translation":  false,
 		"cms.article.archive":             false,
+		"cms.article.delete":              false,
 		"cms.article.restore":             false,
 		"cms.article.set_cover":           false,
+		"cms.article.preview_markdown":    false,
 		"cms.category.create":             false,
 		"cms.category.update":             false,
 		"cms.category.move":               false,
+		"cms.category.rename":             false,
+		"cms.category.delete":             false,
 		"cms.category.upsert_translation": false,
 		"cms.tag.create":                  false,
+		"cms.tag.update":                  false,
+		"cms.tag.rename":                  false,
 		"cms.tag.upsert_translation":      false,
 		"cms.locale.create":               false,
 		"cms.locale.update":               false,
+		"cms.media.list":                  false,
+		"cms.media.request_upload":        false,
+		"cms.media.complete_upload":       false,
+		"cms.media.upsert_translation":    false,
 	}
 	removedReadTools := map[string]bool{
 		"cms.article.get_translation": false,
@@ -264,3 +282,23 @@ func (*searchConsoleFake) InspectURL(context.Context, string, string) (*contract
 }
 
 var _ contract.SearchConsoleService = (*searchConsoleFake)(nil)
+
+type mediaServiceFake struct{}
+
+func (*mediaServiceFake) Media(context.Context, int, int) (json.RawMessage, error) {
+	return json.RawMessage(`{"items":[]}`), nil
+}
+
+func (*mediaServiceFake) RequestMediaUpload(context.Context, contract.MediaUploadRequestInput) (json.RawMessage, error) {
+	return json.RawMessage(`{"id":1}`), nil
+}
+
+func (*mediaServiceFake) CompleteMediaUpload(context.Context, uint) (json.RawMessage, error) {
+	return json.RawMessage(`{"id":1}`), nil
+}
+
+func (*mediaServiceFake) UpsertMediaTranslation(context.Context, uint, string, contract.MediaTranslationInput) (json.RawMessage, error) {
+	return json.RawMessage(`{"id":1}`), nil
+}
+
+var _ contract.MediaService = (*mediaServiceFake)(nil)

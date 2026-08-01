@@ -57,6 +57,7 @@ func main() {
 		Articles:      client,
 		Categories:    client,
 		Tags:          client,
+		Media:         client,
 		SearchConsole: searchConsole,
 		ContentRoot:   cfg.ContentRoot,
 	}

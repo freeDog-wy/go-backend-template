@@ -22,7 +22,7 @@ func TestClientReturnsCMSBusinessError(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	_, err = client.Articles(context.Background(), "zh-CN", "", 1, 20)
+	_, err = client.Articles(context.Background(), "zh-CN", "", 1, 20, ArticleListOptions{})
 	apiErr, ok := err.(*APIError)
 	if !ok || apiErr.Code != "LOCALE_NOT_FOUND" {
 		t.Fatalf("Articles() error = %#v, want LOCALE_NOT_FOUND API error", err)
@@ -42,7 +42,7 @@ func TestArticlesPassesStatusFilterToCMS(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := client.Articles(context.Background(), "zh-CN", "draft", 1, 20); err != nil {
+	if _, err := client.Articles(context.Background(), "zh-CN", "draft", 1, 20, ArticleListOptions{}); err != nil {
 		t.Fatal(err)
 	}
 }

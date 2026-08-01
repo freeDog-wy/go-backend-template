@@ -11,6 +11,7 @@ import (
 )
 
 type ArticleInput = cmsclient.ArticleInput
+type ArticleListOptions = cmsclient.ArticleListOptions
 type CategoryInput = cmsclient.CategoryInput
 type CategoryStateInput = cmsclient.CategoryStateInput
 type CategoryMoveInput = cmsclient.CategoryMoveInput

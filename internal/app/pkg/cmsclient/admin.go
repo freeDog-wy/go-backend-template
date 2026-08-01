@@ -72,10 +72,16 @@ func (c *AdminClient) UpdateLocale(ctx context.Context, code string, input Local
 	return c.write(ctx, http.MethodPatch, "/api/v1/admin/cms/locales/"+url.PathEscape(code), input)
 }
 
-func (c *AdminClient) Articles(ctx context.Context, locale, status string, page, perPage int) (json.RawMessage, error) {
+func (c *AdminClient) Articles(ctx context.Context, locale, status string, page, perPage int, options ArticleListOptions) (json.RawMessage, error) {
 	query := pageQuery(locale, page, perPage)
 	if status = strings.TrimSpace(status); status != "" {
 		query.Set("status", status)
+	}
+	if options.IncludeDeleted {
+		query.Set("include_deleted", "true")
+	}
+	if options.DeletedOnly {
+		query.Set("deleted_only", "true")
 	}
 	return c.getAdmin(ctx, "/api/v1/admin/cms/articles", query)
 }
@@ -119,12 +125,20 @@ func (c *AdminClient) ArchiveArticleTranslation(ctx context.Context, articleID u
 	return c.write(ctx, http.MethodPost, "/api/v1/admin/cms/articles/"+uintPath(articleID)+"/translations/"+url.PathEscape(locale)+"/archive", nil)
 }
 
+func (c *AdminClient) DeleteArticle(ctx context.Context, articleID uint) (json.RawMessage, error) {
+	return c.write(ctx, http.MethodDelete, "/api/v1/admin/cms/articles/"+uintPath(articleID), nil)
+}
+
 func (c *AdminClient) RestoreArticle(ctx context.Context, articleID uint) (json.RawMessage, error) {
 	return c.write(ctx, http.MethodPost, "/api/v1/admin/cms/articles/"+uintPath(articleID)+"/restore", nil)
 }
 
 func (c *AdminClient) SetArticleCover(ctx context.Context, articleID uint, mediaID *uint) (json.RawMessage, error) {
 	return c.write(ctx, http.MethodPut, "/api/v1/admin/cms/articles/"+uintPath(articleID)+"/cover", map[string]any{"media_id": mediaID})
+}
+
+func (c *AdminClient) PreviewMarkdown(ctx context.Context, content string) (json.RawMessage, error) {
+	return c.write(ctx, http.MethodPost, "/api/v1/admin/cms/markdown/preview", map[string]string{"content": content})
 }
 
 func (c *AdminClient) Categories(ctx context.Context, locale string) (json.RawMessage, error) {
@@ -147,6 +161,14 @@ func (c *AdminClient) MoveCategory(ctx context.Context, categoryID uint, input C
 	return c.write(ctx, http.MethodPatch, "/api/v1/admin/cms/categories/"+uintPath(categoryID)+"/move", input)
 }
 
+func (c *AdminClient) RenameCategory(ctx context.Context, categoryID uint, locale string, input RenameInput) (json.RawMessage, error) {
+	return c.write(ctx, http.MethodPatch, "/api/v1/admin/cms/categories/"+uintPath(categoryID)+"/translations/"+url.PathEscape(locale), input)
+}
+
+func (c *AdminClient) DeleteCategory(ctx context.Context, categoryID uint) (json.RawMessage, error) {
+	return c.write(ctx, http.MethodDelete, "/api/v1/admin/cms/categories/"+uintPath(categoryID), nil)
+}
+
 func (c *AdminClient) UpsertCategoryTranslation(ctx context.Context, categoryID uint, locale string, input CategoryTranslationInput) (json.RawMessage, error) {
 	return c.write(ctx, http.MethodPut, "/api/v1/admin/cms/categories/"+uintPath(categoryID)+"/translations/"+url.PathEscape(locale), input)
 }
@@ -159,8 +181,32 @@ func (c *AdminClient) CreateTag(ctx context.Context, input TagInput) (json.RawMe
 	return c.write(ctx, http.MethodPost, "/api/v1/admin/cms/tags", input)
 }
 
+func (c *AdminClient) UpdateTag(ctx context.Context, tagID uint, input TagStateInput) (json.RawMessage, error) {
+	return c.write(ctx, http.MethodPatch, "/api/v1/admin/cms/tags/"+uintPath(tagID), input)
+}
+
+func (c *AdminClient) RenameTag(ctx context.Context, tagID uint, locale string, input RenameInput) (json.RawMessage, error) {
+	return c.write(ctx, http.MethodPatch, "/api/v1/admin/cms/tags/"+uintPath(tagID)+"/translations/"+url.PathEscape(locale), input)
+}
+
 func (c *AdminClient) UpsertTagTranslation(ctx context.Context, tagID uint, locale string, input TagTranslationInput) (json.RawMessage, error) {
 	return c.write(ctx, http.MethodPut, "/api/v1/admin/cms/tags/"+uintPath(tagID)+"/translations/"+url.PathEscape(locale), input)
+}
+
+func (c *AdminClient) Media(ctx context.Context, page, perPage int) (json.RawMessage, error) {
+	return c.getAdmin(ctx, "/api/v1/admin/cms/media", pageQuery("", page, perPage))
+}
+
+func (c *AdminClient) RequestMediaUpload(ctx context.Context, input MediaUploadRequestInput) (json.RawMessage, error) {
+	return c.write(ctx, http.MethodPost, "/api/v1/admin/cms/media/upload-requests", input)
+}
+
+func (c *AdminClient) CompleteMediaUpload(ctx context.Context, mediaID uint) (json.RawMessage, error) {
+	return c.write(ctx, http.MethodPost, "/api/v1/admin/cms/media/"+uintPath(mediaID)+"/complete", nil)
+}
+
+func (c *AdminClient) UpsertMediaTranslation(ctx context.Context, mediaID uint, locale string, input MediaTranslationInput) (json.RawMessage, error) {
+	return c.write(ctx, http.MethodPut, "/api/v1/admin/cms/media/"+uintPath(mediaID)+"/translations/"+url.PathEscape(locale), input)
 }
 
 func (c *AdminClient) getPublic(ctx context.Context, path string) (json.RawMessage, error) {
@@ -206,7 +252,10 @@ func unwrapAdminEnvelope(body []byte) (json.RawMessage, error) {
 }
 
 func pageQuery(locale string, page, perPage int) url.Values {
-	values := url.Values{"locale": {locale}}
+	values := url.Values{}
+	if locale != "" {
+		values.Set("locale", locale)
+	}
 	if page > 0 {
 		values.Set("page", strconv.Itoa(page))
 	}
