@@ -332,7 +332,7 @@ func (a *App) renderLocale(writer *stagingWriter, snapshot *localeSnapshot, loca
 		view := articleView{
 			pageBaseView: base(a.articleHead(article, route, localeByCode, defaultLocale.Code)),
 			Article:      article, Body: rendered.HTML, TOC: rendered.TOC, ReadingMinutes: rendered.ReadingMinutes,
-			Languages: articleLanguages(article, localeByCode), ShowLanguageMenu: len(article.AvailableLocales) >= 2,
+			Languages: articleLanguages(article, localeByCode), ShowLanguageMenu: len(article.AvailableLocales) >= 2, Tags: a.tagNavs(snapshot.Locale.Code, article.Tags),
 		}
 		if err := a.writeTemplate(writer, "article.html", outputPath(route), view); err != nil {
 			return 0, 0, err
@@ -451,9 +451,17 @@ func (a *App) cards(locale string, items []ArticleListItem) []articleCardView {
 		if item.PrimaryCategory != nil {
 			category = &categoryNavView{Name: item.PrimaryCategory.Name, URL: categoryRoute(locale, item.PrimaryCategory.Slug, 1)}
 		}
-		cards = append(cards, articleCardView{Title: item.Title, Summary: item.Summary, URL: articleRoute(locale, item.Slug), PublishedAt: item.PublishedAt, Category: category, Cover: item.Cover})
+		cards = append(cards, articleCardView{Title: item.Title, Summary: item.Summary, URL: articleRoute(locale, item.Slug), PublishedAt: item.PublishedAt, Category: category, Tags: a.tagNavs(locale, item.Tags), TagsLabel: a.label(locale, "tags"), Cover: item.Cover})
 	}
 	return cards
+}
+
+func (a *App) tagNavs(locale string, tags []TagRef) []tagNavView {
+	result := make([]tagNavView, 0, len(tags))
+	for _, tag := range tags {
+		result = append(result, tagNavView{Name: tag.Name, URL: tagRoute(locale, tag.Slug, 1)})
+	}
+	return result
 }
 
 func (a *App) categoryNavs(locale string, categories []Category) []categoryNavView {

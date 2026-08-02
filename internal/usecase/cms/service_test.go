@@ -53,6 +53,7 @@ type testRepo struct {
 	article                *domainCMS.Article
 	locales                []*domainCMS.Locale
 	publicTags             []*domainCMS.TagListItem
+	publicArticleTags      map[uint][]*domainCMS.TagListItem
 	redirects              []domainCMS.URLRedirect
 	articleListStatus      domainCMS.TranslationStatus
 	articleListDeletedOnly bool
@@ -231,6 +232,9 @@ func (*testRepo) ListPublishedArticleLocales(context.Context, uint) ([]domainCMS
 }
 func (*testRepo) ListPublicArticleBreadcrumbs(context.Context, uint, string) ([]domainCMS.CategoryTreeItem, error) {
 	return nil, nil
+}
+func (r *testRepo) ListPublicArticleTags(_ context.Context, _ []uint, _ string) (map[uint][]*domainCMS.TagListItem, error) {
+	return r.publicArticleTags, nil
 }
 func (*testRepo) ListPublicSitemapEntries(context.Context, string, shared.PageQuery) ([]domainCMS.SitemapEntry, int64, error) {
 	return nil, 0, nil
@@ -450,14 +454,14 @@ func TestListPublishedArticlesReturnsOnlySummaryFields(t *testing.T) {
 		Article:            domainCMS.Article{ID: 9, CoverMediaID: &coverID},
 		ArticleTranslation: domainCMS.ArticleTranslation{Locale: "zh-CN", Title: "Published", Slug: "published", Summary: "Summary", Content: "must not be returned", ContentFormat: "markdown", PublishedAt: &now, UpdatedAt: now},
 		PrimaryCategoryID:  &categoryID, PrimaryCategoryName: "News", PrimaryCategorySlug: "news",
-	}}}
+	}}, publicArticleTags: map[uint][]*domainCMS.TagListItem{9: {{Tag: domainCMS.Tag{ID: 6, Enabled: true}, TagTranslation: domainCMS.TagTranslation{TagID: 6, Locale: "zh-CN", Name: "Go", Slug: "go"}}}}}
 	svc := New(testTx{}, repo)
 	svc.SetPublicMediaFinder(&testPublicMediaFinder{})
 	results, page, err := svc.ListPublishedArticles(context.Background(), ListPublicArticlesCmd{Locale: "zh-CN", Page: shared.NewPageQuery(1, 20)})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(results) != 1 || results[0].Cover != nil || results[0].PrimaryCategory == nil || results[0].PrimaryCategory.Slug != "news" || page.Total != 1 {
+	if len(results) != 1 || results[0].Cover != nil || results[0].PrimaryCategory == nil || results[0].PrimaryCategory.Slug != "news" || len(results[0].Tags) != 1 || results[0].Tags[0].Slug != "go" || page.Total != 1 {
 		t.Fatalf("result = %#v, page = %#v", results, page)
 	}
 }

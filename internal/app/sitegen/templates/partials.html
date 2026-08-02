@@ -39,6 +39,7 @@
       <h3><a href="{{.URL}}">{{.Title}}</a></h3>
       {{if .Summary}}<p>{{.Summary}}</p>{{end}}
       {{if .PublishedAt}}<time datetime="{{.PublishedAt.Format "2006-01-02"}}">{{formatDate .PublishedAt}}</time>{{end}}
+      {{if .Tags}}<nav class="article-tags" aria-label="{{.TagsLabel}}">{{range .Tags}}<a href="{{.URL}}">{{.Name}}</a>{{end}}</nav>{{end}}
     </div>
   </article>{{end}}
 </div>

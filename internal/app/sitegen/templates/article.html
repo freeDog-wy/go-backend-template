@@ -9,6 +9,7 @@
       <time datetime="{{.Article.UpdatedAt.Format "2006-01-02"}}">{{.Labels.Updated}} {{formatUpdated .Article.UpdatedAt}}</time>
       <span>{{.Labels.ReadingTime}} {{.ReadingMinutes}} {{.Labels.Minutes}}</span>
     </div>
+    {{if .Tags}}<nav class="article-tags" aria-label="{{.Labels.Tags}}">{{range .Tags}}<a href="{{.URL}}">{{.Name}}</a>{{end}}</nav>{{end}}
     {{if .ShowLanguageMenu}}<nav class="article-language-switcher" aria-label="{{.Labels.SelectLanguage}}"><details><summary>{{.CurrentLocale.Name}}</summary><ul>{{range .Languages}}<li>{{if .Current}}<span aria-current="page" lang="{{.Code}}">{{.Name}}</span>{{else}}<a href="{{.URL}}" hreflang="{{.Code}}" lang="{{.Code}}">{{.Name}}</a>{{end}}</li>{{end}}</ul></details></nav>{{end}}
   </header>
   {{if hasCover .Article.Cover}}<img class="article-cover" src="{{.Article.Cover.URL}}" alt="{{.Article.Cover.AltText}}">{{end}}

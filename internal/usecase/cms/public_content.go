@@ -5,7 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
-	
+
 	domainCMS "github.com/freeDog-wy/go-backend-template/internal/domain/cms"
 	"github.com/freeDog-wy/go-backend-template/internal/domain/shared"
 )
@@ -33,7 +33,11 @@ func (s *Service) GetPublishedArticle(ctx context.Context, locale, slug string) 
 	if err != nil {
 		return nil, err
 	}
-	result := &PublicArticleResult{ID: a.Article.ID, Locale: a.Locale, Title: a.Title, Slug: a.Slug, Summary: a.Summary, Content: a.Content, ContentFormat: a.ContentFormat, PublishedAt: a.PublishedAt, SEOTitle: a.SEOTitle, SEODescription: a.SEODescription, CanonicalURL: a.CanonicalURL, Cover: coverFor(a.Article.CoverMediaID, covers), UpdatedAt: a.ArticleTranslation.UpdatedAt, AvailableLocales: make([]PublicLocaleRef, 0, len(locales)), Breadcrumbs: make([]PublicCategoryRef, 0, len(breadcrumbs))}
+	tagsByArticle, err := s.publicArticleTags(ctx, []uint{a.Article.ID}, locale)
+	if err != nil {
+		return nil, err
+	}
+	result := &PublicArticleResult{ID: a.Article.ID, Locale: a.Locale, Title: a.Title, Slug: a.Slug, Summary: a.Summary, Content: a.Content, ContentFormat: a.ContentFormat, PublishedAt: a.PublishedAt, SEOTitle: a.SEOTitle, SEODescription: a.SEODescription, CanonicalURL: a.CanonicalURL, Cover: coverFor(a.Article.CoverMediaID, covers), UpdatedAt: a.ArticleTranslation.UpdatedAt, AvailableLocales: make([]PublicLocaleRef, 0, len(locales)), Breadcrumbs: make([]PublicCategoryRef, 0, len(breadcrumbs)), Tags: tagsByArticle[a.Article.ID]}
 	for _, translation := range locales {
 		result.AvailableLocales = append(result.AvailableLocales, PublicLocaleRef{Locale: translation.Locale, Slug: translation.Slug})
 	}
@@ -112,9 +116,13 @@ func (s *Service) ListPublishedTagArticles(ctx context.Context, cmd ListPublicTa
 	if err != nil {
 		return nil, shared.PageResult{}, err
 	}
+	tagsByArticle, err := s.publicArticleTags(ctx, publicArticleIDs(items), cmd.Locale)
+	if err != nil {
+		return nil, shared.PageResult{}, err
+	}
 	results := make([]*PublicArticleListResult, 0, len(items))
 	for _, item := range items {
-		results = append(results, &PublicArticleListResult{ID: item.Article.ID, Locale: item.Locale, Title: item.Title, Slug: item.Slug, Summary: item.Summary, ContentFormat: item.ContentFormat, PublishedAt: item.PublishedAt, Cover: coverFor(item.Article.CoverMediaID, covers), UpdatedAt: item.ArticleTranslation.UpdatedAt})
+		results = append(results, &PublicArticleListResult{ID: item.Article.ID, Locale: item.Locale, Title: item.Title, Slug: item.Slug, Summary: item.Summary, ContentFormat: item.ContentFormat, PublishedAt: item.PublishedAt, Cover: coverFor(item.Article.CoverMediaID, covers), UpdatedAt: item.ArticleTranslation.UpdatedAt, Tags: tagsByArticle[item.Article.ID]})
 	}
 	return results, shared.PageResult{Page: page.Page, PerPage: page.PerPage, Total: total}, nil
 }
@@ -131,9 +139,13 @@ func (s *Service) listPublishedArticles(ctx context.Context, locale string, cate
 	if err != nil {
 		return nil, shared.PageResult{}, err
 	}
+	tagsByArticle, err := s.publicArticleTags(ctx, publicArticleIDs(items), locale)
+	if err != nil {
+		return nil, shared.PageResult{}, err
+	}
 	results := make([]*PublicArticleListResult, 0, len(items))
 	for _, item := range items {
-		result := &PublicArticleListResult{ID: item.Article.ID, Locale: item.Locale, Title: item.Title, Slug: item.Slug, Summary: item.Summary, ContentFormat: item.ContentFormat, PublishedAt: item.PublishedAt, Cover: coverFor(item.Article.CoverMediaID, covers), UpdatedAt: item.ArticleTranslation.UpdatedAt}
+		result := &PublicArticleListResult{ID: item.Article.ID, Locale: item.Locale, Title: item.Title, Slug: item.Slug, Summary: item.Summary, ContentFormat: item.ContentFormat, PublishedAt: item.PublishedAt, Cover: coverFor(item.Article.CoverMediaID, covers), UpdatedAt: item.ArticleTranslation.UpdatedAt, Tags: tagsByArticle[item.Article.ID]}
 		if item.PrimaryCategoryID != nil {
 			result.PrimaryCategory = &PublicCategoryRef{ID: *item.PrimaryCategoryID, Name: item.PrimaryCategoryName, Slug: item.PrimaryCategorySlug}
 		}
@@ -149,6 +161,33 @@ func articleCoverIDs(items []*domainCMS.PublicArticleListItem) []uint {
 		}
 	}
 	return ids
+}
+
+func publicArticleIDs(items []*domainCMS.PublicArticleListItem) []uint {
+	ids := make([]uint, 0, len(items))
+	for _, item := range items {
+		ids = append(ids, item.Article.ID)
+	}
+	return ids
+}
+
+func (s *Service) publicArticleTags(ctx context.Context, articleIDs []uint, locale string) (map[uint][]PublicTagRef, error) {
+	tagsByArticle, err := s.repo.ListPublicArticleTags(ctx, articleIDs, locale)
+	if err != nil {
+		return nil, err
+	}
+	result := make(map[uint][]PublicTagRef, len(articleIDs))
+	for _, articleID := range articleIDs {
+		result[articleID] = make([]PublicTagRef, 0)
+	}
+	for articleID, tags := range tagsByArticle {
+		refs := make([]PublicTagRef, 0, len(tags))
+		for _, tag := range tags {
+			refs = append(refs, PublicTagRef{ID: tag.Tag.ID, Name: tag.Name, Slug: tag.Slug})
+		}
+		result[articleID] = refs
+	}
+	return result, nil
 }
 
 func (s *Service) publicCovers(ctx context.Context, locale string, ids []uint) (map[uint]*CoverMediaResult, error) {
@@ -172,4 +211,3 @@ func coverFor(id *uint, covers map[uint]*CoverMediaResult) *CoverMediaResult {
 	}
 	return covers[*id]
 }
-

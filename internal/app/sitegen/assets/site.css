@@ -139,6 +139,9 @@ h4 { font-size: 18px; }
 .article-card h3 a:hover { color: var(--color-brand); }
 .article-card p, .article-card time { margin: 0; color: var(--color-muted); }
 .article-card time, .article-category { font-size: 0.86rem; }
+.article-tags { display: flex; flex-wrap: wrap; gap: var(--space-2); }
+.article-tags a { color: var(--color-link); font-size: 0.86rem; text-decoration: none; }
+.article-tags a:hover { text-decoration: underline; }
 .article-category { color: var(--color-brand); text-decoration: none; }
 .pagination { display: flex; align-items: center; justify-content: space-between; gap: var(--space-4); margin-top: var(--space-6); color: var(--color-muted); }
 

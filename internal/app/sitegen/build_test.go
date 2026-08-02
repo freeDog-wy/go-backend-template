@@ -54,6 +54,12 @@ func TestBuildGeneratesMultilingualStaticSite(t *testing.T) {
 	if !strings.Contains(zhArticle, `href="/en-US/articles/go-static-site/"`) {
 		t.Fatalf("Chinese article is missing its translated article route:\n%s", zhArticle)
 	}
+	if !strings.Contains(zhArticle, `class="article-tags"`) || !strings.Contains(zhArticle, `href="/zh-CN/tags/go/"`) {
+		t.Fatalf("Chinese article is missing its tag link:\n%s", zhArticle)
+	}
+	if !strings.Contains(enHome, `class="article-tags"`) || !strings.Contains(enHome, `href="/en-US/tags/go/"`) {
+		t.Fatalf("English home page is missing its article-card tag link:\n%s", enHome)
+	}
 	if strings.Contains(zhArticle, "<script>alert") {
 		t.Fatalf("raw HTML from Markdown reached article output")
 	}
@@ -126,13 +132,13 @@ func fixtureCMSHandler(t *testing.T) http.Handler {
 			{Code: "zh-CN", Name: "简体中文", IsEnabled: true, IsDefault: true, SortOrder: 1},
 			{Code: "en-US", Name: "English", IsEnabled: true, SortOrder: 2},
 		}
-		zhList := []ArticleListItem{{ID: 1, Locale: "zh-CN", Title: "Go 静态站", Slug: "go-jing-tai-zhan", Summary: "使用 Go 构建静态站。", ContentFormat: "markdown", PublishedAt: &now, UpdatedAt: now, PrimaryCategory: &CategoryRef{ID: 10, Name: "后端", Slug: "backend"}}}
-		enList := []ArticleListItem{{ID: 1, Locale: "en-US", Title: "Go Static Sites", Slug: "go-static-site", Summary: "Build static sites with Go.", ContentFormat: "markdown", PublishedAt: &now, UpdatedAt: now, PrimaryCategory: &CategoryRef{ID: 10, Name: "Backend", Slug: "backend"}}}
+		zhList := []ArticleListItem{{ID: 1, Locale: "zh-CN", Title: "Go 静态站", Slug: "go-jing-tai-zhan", Summary: "使用 Go 构建静态站。", ContentFormat: "markdown", PublishedAt: &now, UpdatedAt: now, PrimaryCategory: &CategoryRef{ID: 10, Name: "后端", Slug: "backend"}, Tags: []TagRef{{ID: 20, Name: "Go", Slug: "go"}}}}
+		enList := []ArticleListItem{{ID: 1, Locale: "en-US", Title: "Go Static Sites", Slug: "go-static-site", Summary: "Build static sites with Go.", ContentFormat: "markdown", PublishedAt: &now, UpdatedAt: now, PrimaryCategory: &CategoryRef{ID: 10, Name: "Backend", Slug: "backend"}, Tags: []TagRef{{ID: 20, Name: "Go", Slug: "go"}}}}
 		article := func(locale string) Article {
 			if locale == "zh-CN" {
-				return Article{ID: 1, Locale: locale, Title: "Go 静态站", Slug: "go-jing-tai-zhan", Summary: "使用 Go 构建静态站。", Content: "## Section\n\n安全的正文。\n\n<script>alert(1)</script>", ContentFormat: "markdown", PublishedAt: &now, UpdatedAt: now, AvailableLocales: []ArticleLocale{{Locale: "zh-CN", Slug: "go-jing-tai-zhan"}, {Locale: "en-US", Slug: "go-static-site"}}, Breadcrumbs: []CategoryRef{{ID: 10, Name: "后端", Slug: "backend"}}}
+				return Article{ID: 1, Locale: locale, Title: "Go 静态站", Slug: "go-jing-tai-zhan", Summary: "使用 Go 构建静态站。", Content: "## Section\n\n安全的正文。\n\n<script>alert(1)</script>", ContentFormat: "markdown", PublishedAt: &now, UpdatedAt: now, AvailableLocales: []ArticleLocale{{Locale: "zh-CN", Slug: "go-jing-tai-zhan"}, {Locale: "en-US", Slug: "go-static-site"}}, Breadcrumbs: []CategoryRef{{ID: 10, Name: "后端", Slug: "backend"}}, Tags: []TagRef{{ID: 20, Name: "Go", Slug: "go"}}}
 			}
-			return Article{ID: 1, Locale: locale, Title: "Go Static Sites", Slug: "go-static-site", Summary: "Build static sites with Go.", Content: "## Section\n\nSafe body.", ContentFormat: "markdown", PublishedAt: &now, UpdatedAt: now, AvailableLocales: []ArticleLocale{{Locale: "zh-CN", Slug: "go-jing-tai-zhan"}, {Locale: "en-US", Slug: "go-static-site"}}, Breadcrumbs: []CategoryRef{{ID: 10, Name: "Backend", Slug: "backend"}}}
+			return Article{ID: 1, Locale: locale, Title: "Go Static Sites", Slug: "go-static-site", Summary: "Build static sites with Go.", Content: "## Section\n\nSafe body.", ContentFormat: "markdown", PublishedAt: &now, UpdatedAt: now, AvailableLocales: []ArticleLocale{{Locale: "zh-CN", Slug: "go-jing-tai-zhan"}, {Locale: "en-US", Slug: "go-static-site"}}, Breadcrumbs: []CategoryRef{{ID: 10, Name: "Backend", Slug: "backend"}}, Tags: []TagRef{{ID: 20, Name: "Go", Slug: "go"}}}
 		}
 
 		switch r.URL.Path {

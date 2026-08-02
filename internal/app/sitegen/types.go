@@ -9,6 +9,7 @@ type Category = cmsclient.Category
 type Tag = cmsclient.Tag
 type Cover = cmsclient.Cover
 type CategoryRef = cmsclient.CategoryRef
+type TagRef = cmsclient.TagRef
 type ArticleListItem = cmsclient.ArticleListItem
 type ArticleLocale = cmsclient.ArticleLocale
 type Article = cmsclient.Article

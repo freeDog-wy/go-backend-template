@@ -62,6 +62,20 @@ func TestGetArticleReturnsBusinessNotFoundWithHTTP200(t *testing.T) {
 	}
 }
 
+func TestGetArticleIncludesLocalizedTags(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	r := gin.New()
+	New(contentStub{result: &svcCMS.PublicArticleResult{
+		ID: 1, Locale: "en-US", Title: "Hello", Slug: "hello",
+		Tags: []svcCMS.PublicTagRef{{ID: 3, Name: "Go", Slug: "go"}},
+	}}).RegisterRoutes(r)
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/api/v1/public/en-US/articles/hello", nil))
+	if w.Code != http.StatusOK || !strings.Contains(w.Body.String(), `"tags":[{"id":3,"name":"Go","slug":"go"}]`) {
+		t.Fatalf("response = %d %s", w.Code, w.Body.String())
+	}
+}
+
 func TestStaticBuildDiscoveryRoutes(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	r := gin.New()

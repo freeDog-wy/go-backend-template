@@ -41,6 +41,12 @@ type CategoryRef struct {
 	Slug string `json:"slug"`
 }
 
+type TagRef struct {
+	ID   uint   `json:"id"`
+	Name string `json:"name"`
+	Slug string `json:"slug"`
+}
+
 type ArticleListItem struct {
 	ID              uint         `json:"id"`
 	Locale          string       `json:"locale"`
@@ -52,6 +58,7 @@ type ArticleListItem struct {
 	UpdatedAt       time.Time    `json:"updated_at"`
 	Cover           *Cover       `json:"cover,omitempty"`
 	PrimaryCategory *CategoryRef `json:"primary_category,omitempty"`
+	Tags            []TagRef     `json:"tags"`
 }
 
 type ArticleLocale struct {
@@ -76,6 +83,7 @@ type Article struct {
 	AvailableLocales []ArticleLocale `json:"available_locales"`
 	PrimaryCategory  *CategoryRef    `json:"primary_category,omitempty"`
 	Breadcrumbs      []CategoryRef   `json:"breadcrumbs"`
+	Tags             []TagRef        `json:"tags"`
 }
 
 type SitemapEntry struct {

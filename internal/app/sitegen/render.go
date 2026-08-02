@@ -91,7 +91,14 @@ type articleCardView struct {
 	URL         string
 	PublishedAt *time.Time
 	Category    *categoryNavView
+	Tags        []tagNavView
+	TagsLabel   string
 	Cover       *Cover
+}
+
+type tagNavView struct {
+	Name string
+	URL  string
 }
 
 type paginationView struct {
@@ -138,6 +145,7 @@ type articleView struct {
 	ReadingMinutes   int
 	Languages        []articleLanguageView
 	ShowLanguageMenu bool
+	Tags             []tagNavView
 }
 
 type notFoundView struct {

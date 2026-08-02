@@ -96,6 +96,7 @@ type PublicArticleResult struct {
 	AvailableLocales []PublicLocaleRef   `json:"available_locales"`
 	PrimaryCategory  *PublicCategoryRef  `json:"primary_category,omitempty"`
 	Breadcrumbs      []PublicCategoryRef `json:"breadcrumbs"`
+	Tags             []PublicTagRef      `json:"tags"`
 }
 type PublicLocaleRef struct {
 	Locale string `json:"locale"`
@@ -112,6 +113,7 @@ type PublicArticleListResult struct {
 	UpdatedAt       time.Time          `json:"updated_at"`
 	Cover           *CoverMediaResult  `json:"cover,omitempty"`
 	PrimaryCategory *PublicCategoryRef `json:"primary_category,omitempty"`
+	Tags            []PublicTagRef     `json:"tags"`
 }
 type CoverMediaResult struct {
 	ID      uint   `json:"id"`
@@ -120,6 +122,11 @@ type CoverMediaResult struct {
 	Title   string `json:"title"`
 }
 type PublicCategoryRef struct {
+	ID   uint   `json:"id"`
+	Name string `json:"name"`
+	Slug string `json:"slug"`
+}
+type PublicTagRef struct {
 	ID   uint   `json:"id"`
 	Name string `json:"name"`
 	Slug string `json:"slug"`

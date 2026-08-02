@@ -15,7 +15,7 @@ func TestPublicClientUsesPublicContentRoutes(t *testing.T) {
 		case "/api/v1/public/locales":
 			_, _ = w.Write([]byte(`{"success":true,"data":[{"code":"en-US","name":"English","is_enabled":true}]}`))
 		case "/api/v1/public/en-US/articles/hello":
-			_, _ = w.Write([]byte(`{"success":true,"data":{"locale":"en-US","slug":"hello","content_format":"markdown"}}`))
+			_, _ = w.Write([]byte(`{"success":true,"data":{"locale":"en-US","slug":"hello","content_format":"markdown","tags":[{"id":3,"name":"Go","slug":"go"}]}}`))
 		default:
 			t.Fatalf("unexpected public route %s", r.URL.Path)
 		}
@@ -31,7 +31,7 @@ func TestPublicClientUsesPublicContentRoutes(t *testing.T) {
 		t.Fatalf("ListLocales() = %#v, %v", locales, err)
 	}
 	article, err := client.GetArticle(context.Background(), "en-US", "hello")
-	if err != nil || article.Slug != "hello" {
+	if err != nil || article.Slug != "hello" || len(article.Tags) != 1 || article.Tags[0].Slug != "go" {
 		t.Fatalf("GetArticle() = %#v, %v", article, err)
 	}
 }

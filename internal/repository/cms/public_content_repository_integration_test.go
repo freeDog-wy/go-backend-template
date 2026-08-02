@@ -36,6 +36,9 @@ func TestPublicContentRepositoryIntegrationVisibilityAndTaxonomy(t *testing.T) {
 	if err := fixture.repo.ReplaceArticleTags(fixture.ctx, article.ID, []uint{tag.ID}); err != nil {
 		t.Fatalf("attach tag: %v", err)
 	}
+	if tagsByArticle, err := fixture.repo.ListPublicArticleTags(fixture.ctx, []uint{article.ID}, "zh-CN"); err != nil || len(tagsByArticle[article.ID]) != 1 || tagsByArticle[article.ID][0].Slug != "go" {
+		t.Fatalf("public article tags=%#v err=%v", tagsByArticle, err)
+	}
 	if tagged, total, err := fixture.repo.ListPublicTagArticles(fixture.ctx, "zh-CN", "go", shared.NewPageQuery(1, 20)); err != nil || total != 1 || len(tagged) != 1 || tagged[0].Article.ID != article.ID {
 		t.Fatalf("tag articles=%#v total=%d err=%v", tagged, total, err)
 	}
@@ -44,6 +47,9 @@ func TestPublicContentRepositoryIntegrationVisibilityAndTaxonomy(t *testing.T) {
 	}
 	if err := fixture.repo.UpdateTag(fixture.ctx, tag.ID, false); err != nil {
 		t.Fatalf("disable tag: %v", err)
+	}
+	if tagsByArticle, err := fixture.repo.ListPublicArticleTags(fixture.ctx, []uint{article.ID}, "zh-CN"); err != nil || len(tagsByArticle[article.ID]) != 0 {
+		t.Fatalf("disabled public article tags=%#v err=%v", tagsByArticle, err)
 	}
 	if exists, err := fixture.repo.PublicTagExists(fixture.ctx, "zh-CN", "go"); err != nil || exists {
 		t.Fatalf("disabled tag exists=%t err=%v", exists, err)
